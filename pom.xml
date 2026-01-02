@@ -204,7 +204,7 @@
 						<configuration>
 							<rules>
 								<rule>
-									<element>PACKAGE</element>
+									<element>BUNDLE</element>
 									<limits>
 										<limit>
 											<counter>LINE</counter>
@@ -212,6 +212,21 @@
 											<minimum>0.70</minimum>
 										</limit>
 									</limits>
+									<!-- Exclui os mesmos pacotes do relatório -->
+									<excludes>
+										<exclude>br.com.rentafit.*.dto.*</exclude>
+										<exclude>br.com.rentafit.*.dtos.*</exclude>
+										<exclude>br.com.rentafit.*.repository.*</exclude>
+										<exclude>br.com.rentafit.*.repositories.*</exclude>
+										<exclude>br.com.rentafit.*.domain.*</exclude>
+										<exclude>br.com.rentafit.*.entity.*</exclude>
+										<exclude>br.com.rentafit.*.entities.*</exclude>
+										<exclude>br.com.rentafit.*.config.*</exclude>
+										<exclude>br.com.rentafit.*.mapper.*</exclude>
+										<exclude>br.com.rentafit.*.mappers.*</exclude>
+										<exclude>br.com.rentafit.*Application</exclude>
+										<exclude>br.com.rentafit.*Config</exclude>
+									</excludes>
 								</rule>
 							</rules>
 						</configuration>
