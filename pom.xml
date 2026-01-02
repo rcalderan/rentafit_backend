@@ -217,6 +217,31 @@
 						</configuration>
 					</execution>
 				</executions>
+				<configuration>
+					<!-- Inclui apenas services e controllers -->
+					<includes>
+						<include>**/service/**</include>
+						<include>**/services/**</include>
+						<include>**/web/**</include>
+						<include>**/controller/**</include>
+						<include>**/controllers/**</include>
+					</includes>
+					<!-- Exclui DTOs, repositories e outras classes auxiliares -->
+					<excludes>
+						<exclude>**/dto/**</exclude>
+						<exclude>**/dtos/**</exclude>
+						<exclude>**/repository/**</exclude>
+						<exclude>**/repositories/**</exclude>
+						<exclude>**/domain/**</exclude>
+						<exclude>**/entity/**</exclude>
+						<exclude>**/entities/**</exclude>
+						<exclude>**/config/**</exclude>
+						<exclude>**/mapper/**</exclude>
+						<exclude>**/mappers/**</exclude>
+						<exclude>**/*Application.*</exclude>
+						<exclude>**/*Config.*</exclude>
+					</excludes>
+				</configuration>
 			</plugin>
 
 			<!-- Maven Surefire - Test Runner -->
