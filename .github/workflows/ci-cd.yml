@@ -1,0 +1,195 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        java-version: ['25']
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Para SonarQube necessita do histórico completo
+
+    - name: Setup Java ${{ matrix.java-version }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ matrix.java-version }}
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Display Java version
+      run: java -version
+
+    - name: Build with Maven (compile only)
+      run: mvn clean compile -DskipTests
+
+    - name: Run Unit Tests
+      run: mvn test
+
+    - name: Generate Test Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-reports-${{ matrix.java-version }}
+        path: target/surefire-reports/
+        retention-days: 30
+
+    - name: Run Integration Tests
+      run: mvn verify -DskipUnitTests=false
+
+    - name: Code Quality Analysis (SonarQube)
+      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
+      run: |
+        mvn sonar:sonar \
+          -Dsonar.projectKey=rentafit \
+          -Dsonar.projectName=Rentafit \
+          -Dsonar.sources=src/main/java \
+          -Dsonar.tests=src/test/java
+      env:
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
+      continue-on-error: true  # Não interrompe se SonarQube falhar
+
+    - name: Check Code Coverage
+      run: mvn jacoco:report
+      continue-on-error: true
+
+  security-check:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '25'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Run Dependency Check (OWASP)
+      run: mvn org.owasp:dependency-check-maven:check -DskipProvidedScope=true
+      continue-on-error: true
+
+    - name: Upload Dependency Check Report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: dependency-check-report
+        path: target/dependency-check-report.*
+        retention-days: 30
+
+  deploy-dev:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '25'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build JAR
+      run: mvn clean package -DskipTests
+
+    - name: Upload JAR Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rentafit-dev-jar
+        path: target/Rentafit-*.jar
+        retention-days: 30
+
+    - name: Deploy to Development
+      run: |
+        echo "🚀 Deploying to development environment..."
+        echo "JAR file: target/Rentafit-*.jar"
+        # Adicione seu comando de deployment aqui
+        # Exemplo: docker build, push, deploy em servidor staging
+      env:
+        DEPLOY_ENV: development
+        JAVA_VERSION: 25
+
+  deploy-prod:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '25'
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build JAR
+      run: mvn clean package -DskipTests
+
+    - name: Upload JAR Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: rentafit-prod-jar
+        path: target/Rentafit-*.jar
+        retention-days: 90
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        body: Production release
+        draft: false
+        prerelease: false
+
+    - name: Deploy to Production
+      run: |
+        echo "🚀 Deploying to production environment..."
+        echo "JAR file: target/Rentafit-*.jar"
+        # Adicione seu comando de deployment aqui
+        # Exemplo: docker build, push, deploy em servidor produção
+      env:
+        DEPLOY_ENV: production
+        JAVA_VERSION: 25
+
+  notify:
+    needs: [build, deploy-dev, deploy-prod]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+    - name: Notify on Success
+      if: success()
+      run: |
+        echo "✅ Pipeline completed successfully!"
+        echo "Build Status: PASSED"
+        echo "Branch: ${{ github.ref }}"
+        echo "Commit: ${{ github.sha }}"
+
+    - name: Notify on Failure
+      if: failure()
+      run: |
+        echo "❌ Pipeline failed!"
+        echo "Build Status: FAILED"
+        echo "Branch: ${{ github.ref }}"
+        echo "Commit: ${{ github.sha }}"
+
