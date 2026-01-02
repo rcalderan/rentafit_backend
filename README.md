@@ -411,6 +411,328 @@ java -Dspring.profiles.active=local -jar target/Rentafit-0.0.1-SNAPSHOT.jar
 
 ---
 
+## 🔄 Git Flow & Branching Strategy
+
+Este projeto segue o padrão **Git Flow** para gerenciamento de versões e controle de código.
+
+### Estrutura de Branches
+
+```
+master (produção - releases estáveis)
+  ↑
+  └─ release/* (preparação de release v1.0, v1.1, etc.)
+       ↓
+develop (desenvolvimento - integração contínua)
+  ↑
+  ├─ feature/* (novas funcionalidades)
+  ├─ bugfix/* (correções em desenvolvimento)
+  └─ hotfix/* (correções críticas em produção)
+```
+
+### Tipos de Branches
+
+#### **master**
+- ✅ Apenas releases estáveis e testadas
+- ✅ Protegida: requer pull request e revisão
+- ✅ Requer verificações de CI/CD passando
+- ✅ Cada commit recebe tag de versão (v1.0.0, v1.0.1, etc.)
+
+#### **develop**
+- ✅ Branch principal de desenvolvimento
+- ✅ Protegida: requer pull request e aprovação
+- ✅ Requer testes passando
+- ✅ Recebe merges de feature/bugfix branches
+
+#### **feature/\***
+- 🔀 Criada a partir de: `develop`
+- 🔀 Merge de volta para: `develop`
+- 🔀 Convenção: `feature/nome-da-feature`
+- 🔀 Exemplos:
+  ```bash
+  feature/add-jwt-authentication
+  feature/refactor-mapper-layer
+  feature/add-customer-validation
+  ```
+
+#### **bugfix/\***
+- 🔀 Criada a partir de: `develop`
+- 🔀 Merge de volta para: `develop`
+- 🔀 Convenção: `bugfix/nome-do-bug`
+- 🔀 Exemplos:
+  ```bash
+  bugfix/fix-login-error
+  bugfix/fix-null-pointer-exception
+  bugfix/fix-database-connection
+  ```
+
+#### **hotfix/\***
+- 🚨 Criada a partir de: `master`
+- 🚨 Merge de volta para: `master` E `develop`
+- 🚨 Convenção: `hotfix/nome-critico`
+- 🚨 Exemplos:
+  ```bash
+  hotfix/security-patch
+  hotfix/fix-critical-bug
+  hotfix/fix-production-error
+  ```
+
+#### **release/\***
+- 📦 Criada a partir de: `develop`
+- 📦 Merge de volta para: `master` (com tag) E `develop`
+- 📦 Convenção: `release/x.y.z`
+- 📦 Exemplos:
+  ```bash
+  release/1.0.0
+  release/1.1.0
+  release/2.0.0
+  ```
+
+### Workflow Prático
+
+#### 1️⃣ **Criar uma nova feature**
+
+```bash
+# Atualizar develop
+git checkout develop
+git pull origin develop
+
+# Criar branch de feature
+git checkout -b feature/add-jwt-authentication
+
+# Fazer commits
+git add .
+git commit -m "feat: implement JWT authentication"
+
+# Push para remote
+git push -u origin feature/add-jwt-authentication
+```
+
+#### 2️⃣ **Enviar Pull Request**
+
+- Abra PR no GitHub/GitLab
+- Title: `feat: add JWT authentication`
+- Description: descreva a mudança
+- Aguarde aprovação e verificações de CI/CD
+
+#### 3️⃣ **Após aprovação: Merge para develop**
+
+```bash
+# No GitHub/GitLab, clique em "Merge pull request"
+# Ou via CLI:
+git checkout develop
+git pull origin develop
+git merge feature/add-jwt-authentication
+git push origin develop
+```
+
+#### 4️⃣ **Deletar branch de feature**
+
+```bash
+git branch -d feature/add-jwt-authentication
+git push origin --delete feature/add-jwt-authentication
+```
+
+#### 5️⃣ **Preparar release**
+
+```bash
+# Criar branch de release a partir de develop
+git checkout -b release/1.0.0 develop
+git push -u origin release/1.0.0
+
+# Fazer ajustes finais, testes, bumpar versão
+# Commit final:
+git commit -m "chore: bump version to 1.0.0"
+git push origin release/1.0.0
+
+# Enviar PR para master
+```
+
+#### 6️⃣ **Fazer merge em master e tagear**
+
+```bash
+# Via GitHub: merge release/1.0.0 para master
+# Depois, localmente:
+git checkout master
+git pull origin master
+
+# Criar tag de versão
+git tag -a v1.0.0 -m "Release version 1.0.0"
+git push origin v1.0.0
+
+# Fazer merge também em develop
+git checkout develop
+git merge master
+git push origin develop
+```
+
+#### 7️⃣ **Hotfix (correção crítica)**
+
+```bash
+# Criar hotfix a partir de master
+git checkout -b hotfix/security-patch master
+git push -u origin hotfix/security-patch
+
+# Fazer fix e commit
+git commit -m "fix: security vulnerability in auth"
+
+# Merge em master com tag
+git checkout master
+git merge hotfix/security-patch
+git tag -a v1.0.1 -m "Hotfix version 1.0.1"
+git push origin master v1.0.1
+
+# Merge também em develop
+git checkout develop
+git merge hotfix/security-patch
+git push origin develop
+
+# Deletar hotfix
+git branch -d hotfix/security-patch
+git push origin --delete hotfix/security-patch
+```
+
+### Convenção de Commits
+
+Seguimos **Conventional Commits**:
+
+```bash
+# Feature
+git commit -m "feat: add JWT authentication"
+
+# Bug fix
+git commit -m "fix: prevent null pointer exception"
+
+# Documentation
+git commit -m "docs: update README with git flow"
+
+# Refactor
+git commit -m "refactor: reorganize auth module"
+
+# Test
+git commit -m "test: add unit tests for mapper"
+
+# Chore
+git commit -m "chore: update dependencies"
+
+# Breaking change
+git commit -m "feat!: rename Customer API endpoints"
+```
+
+### Proteção de Branches
+
+Configure no GitHub: **Settings → Branches → Branch protection rules**
+
+#### Para `master`:
+- ✅ Exigir pull requests antes de merge
+- ✅ Exigir mínimo 2 aprovações
+- ✅ Descartar aprovações obsoletas
+- ✅ Exigir verificações de status (CI/CD)
+- ✅ Exigir branches atualizadas antes de merge
+- ✅ Restringir push direto (apenas admins)
+- ✅ Exigir commits assinados
+
+#### Para `develop`:
+- ✅ Exigir pull requests antes de merge
+- ✅ Exigir mínimo 1 aprovação
+- ✅ Exigir verificações de status (CI/CD)
+- ✅ Permitir push direto apenas para admins
+
+---
+
+## 🔄 CI/CD Pipeline
+
+### GitHub Actions
+
+O projeto utiliza **GitHub Actions** para automatizar testes e deployment.
+
+#### Arquivo: `.github/workflows/ci-cd.yml`
+
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ master, develop ]
+  pull_request:
+    branches: [ master, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        java-version: ['25']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Java ${{ matrix.java-version }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ matrix.java-version }}
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Build with Maven
+      run: mvn clean compile -DskipTests
+    
+    - name: Run Tests
+      run: mvn test
+    
+    - name: Generate Test Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-reports
+        path: target/surefire-reports/
+    
+    - name: SonarQube Analysis (optional)
+      if: github.ref == 'refs/heads/develop'
+      run: mvn sonar:sonar -Dsonar.projectKey=rentafit
+      env:
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        java-version: '25'
+        distribution: 'temurin'
+        cache: maven
+    
+    - name: Build JAR
+      run: mvn clean package -DskipTests
+    
+    - name: Deploy to Production
+      run: |
+        echo "Deploying to production..."
+        # Seu comando de deployment aqui
+```
+
+### Executar CI/CD Localmente
+
+```bash
+# Simular build local
+mvn clean package
+
+# Simular testes
+mvn test
+
+# Simular análise de código
+mvn sonar:sonar
+```
+
+---
+
 ## 📄 Licença
 
 Este projeto é privado e proprietário.
