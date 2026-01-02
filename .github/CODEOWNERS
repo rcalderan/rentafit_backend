@@ -1,0 +1,80 @@
+# CODEOWNERS - Define quem pode aprovar mudanças em arquivos críticos
+# Documentação: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# === CONFIGURAÇÕES CRÍTICAS ===
+
+# Workflows - CI/CD Pipeline (apenas administradores)
+.github/workflows/ @rcalderan
+
+# Configurações GitHub
+.github/CODEOWNERS @rcalderan
+
+# === CONFIGURAÇÕES DO PROJETO ===
+
+# Maven - Dependências e versão
+pom.xml @rcalderan
+
+# Configurações Spring Boot
+src/main/resources/application*.properties @rcalderan
+src/main/resources/application*.yml @rcalderan
+
+# Configurações de segurança
+src/main/java/br/com/rentafit/common/security/ @rcalderan
+src/main/java/br/com/rentafit/config/ @rcalderan
+
+# === BANCO DE DADOS ===
+
+# Migrations Flyway (mudanças no schema)
+src/main/resources/db/migration/ @rcalderan
+
+# === DOCKER ===
+
+# Docker Compose
+docker-compose.yaml @rcalderan
+docker-compose.yml @rcalderan
+Dockerfile @rcalderan
+
+# === CONTROLE DE VERSÃO ===
+
+# Git
+.gitignore @rcalderan
+.gitattributes @rcalderan
+
+# === DOCUMENTAÇÃO CRÍTICA ===
+
+# Documentação principal
+README.md @rcalderan
+CONTRIBUTING.md @rcalderan
+VERSIONING.md @rcalderan
+
+# === MÓDULOS POR ÁREA ===
+
+# Módulo de Autenticação (requer revisão de segurança)
+src/main/java/br/com/rentafit/auth/ @rcalderan
+
+# Módulo de Pessoas (opcional: adicionar outros revisores)
+# src/main/java/br/com/rentafit/people/ @rcalderan @outro-revisor
+
+# === TESTES CRÍTICOS ===
+
+# Testes de integração
+src/test/java/br/com/rentafit/**/*IntegrationTest.java @rcalderan
+
+# === OBSERVAÇÕES ===
+#
+# 1. Para adicionar mais proprietários, use espaço:
+#    arquivo.txt @user1 @user2
+#
+# 2. Para times, use formato:
+#    arquivo.txt @organization/team-name
+#
+# 3. Wildcards suportados:
+#    *.js     - todos arquivos .js
+#    **/*.js  - todos .js em qualquer pasta
+#    docs/    - todos arquivos na pasta docs
+#
+# 4. Última regra mais específica tem precedência
+#
+# 5. CODEOWNERS é ativado automaticamente em branches protegidos
+#    quando "Require review from Code Owners" está habilitado
+
