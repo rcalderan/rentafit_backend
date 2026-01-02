@@ -4,7 +4,7 @@ API RESTful para gerenciamento de clientes, funcionários e sistema de autentica
 
 ## 🚀 Tecnologias
 
-- **Java 25**
+- **Java 21 LTS**
 - **Spring Boot 3.4.1**
 - **Spring Security**
 - **Spring Data JPA**
@@ -18,7 +18,7 @@ API RESTful para gerenciamento de clientes, funcionários e sistema de autentica
 
 ## 📋 Pré-requisitos
 
-- Java 25 JDK
+- Java 21 LTS JDK
 - Docker e Docker Compose
 - Maven 3.8+
 - IntelliJ IDEA (recomendado) ou outra IDE Java
@@ -662,7 +662,7 @@ jobs:
     
     strategy:
       matrix:
-        java-version: ['25']
+        java-version: ['21']
     
     steps:
     - uses: actions/checkout@v4
@@ -705,7 +705,7 @@ jobs:
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        java-version: '25'
+        java-version: '21'
         distribution: 'temurin'
         cache: maven
     
