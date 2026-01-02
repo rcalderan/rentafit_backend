@@ -27,7 +27,7 @@
 		<url/>
 	</scm>
 	<properties>
-		<java.version>25</java.version>
+		<java.version>21</java.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -84,6 +84,33 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
+
+		<!-- ============================================ -->
+		<!-- TEST DEPENDENCIES                            -->
+		<!-- ============================================ -->
+
+		<!-- Spring Boot Test (inclui JUnit 5, Mockito, AssertJ) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Spring Security Test -->
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- H2 Database (banco em memória para testes) -->
+		<dependency>
+			<groupId>com.h2database</groupId>
+			<artifactId>h2</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-actuator-test</artifactId>
@@ -145,6 +172,102 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+				</configuration>
+			</plugin>
+
+			<!-- JaCoCo - Code Coverage -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.11</version>
+				<executions>
+					<!-- Prepara agente JaCoCo -->
+					<execution>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<!-- Gera relatório após testes -->
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+					<!-- Verifica cobertura mínima (70%) -->
+					<execution>
+						<id>check</id>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>0.70</minimum>
+										</limit>
+									</limits>
+									<!-- Exclui os mesmos pacotes do relatório -->
+									<excludes>
+										<exclude>br.com.rentafit.*.dto.*</exclude>
+										<exclude>br.com.rentafit.*.dtos.*</exclude>
+										<exclude>br.com.rentafit.*.repository.*</exclude>
+										<exclude>br.com.rentafit.*.repositories.*</exclude>
+										<exclude>br.com.rentafit.*.domain.*</exclude>
+										<exclude>br.com.rentafit.*.entity.*</exclude>
+										<exclude>br.com.rentafit.*.entities.*</exclude>
+										<exclude>br.com.rentafit.*.config.*</exclude>
+										<exclude>br.com.rentafit.*.mapper.*</exclude>
+										<exclude>br.com.rentafit.*.mappers.*</exclude>
+										<exclude>br.com.rentafit.*Application</exclude>
+										<exclude>br.com.rentafit.*Config</exclude>
+									</excludes>
+								</rule>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+				<configuration>
+					<!-- Inclui apenas services e controllers -->
+					<includes>
+						<include>**/service/**</include>
+						<include>**/services/**</include>
+						<include>**/web/**</include>
+						<include>**/controller/**</include>
+						<include>**/controllers/**</include>
+					</includes>
+					<!-- Exclui DTOs, repositories e outras classes auxiliares -->
+					<excludes>
+						<exclude>**/dto/**</exclude>
+						<exclude>**/dtos/**</exclude>
+						<exclude>**/repository/**</exclude>
+						<exclude>**/repositories/**</exclude>
+						<exclude>**/domain/**</exclude>
+						<exclude>**/entity/**</exclude>
+						<exclude>**/entities/**</exclude>
+						<exclude>**/config/**</exclude>
+						<exclude>**/mapper/**</exclude>
+						<exclude>**/mappers/**</exclude>
+						<exclude>**/*Application.*</exclude>
+						<exclude>**/*Config.*</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+
+			<!-- Maven Surefire - Test Runner -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<includes>
+						<include>**/*Test.java</include>
+						<include>**/*Tests.java</include>
+					</includes>
 				</configuration>
 			</plugin>
 		</plugins>
