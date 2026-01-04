@@ -1,5 +1,6 @@
 package br.com.rentafit.people.service;
 
+import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.domain.Employee;
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
@@ -28,7 +29,7 @@ public class EmployeeService {
     public EmployeeDTO findById(UUID id) {
         return employeeRepository.findById(id)
                 .map(peopleMapper::toDTO)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
+                .orElseThrow(() -> ResourceNotFoundException.forId("Employee", id));
     }
 
     @Transactional
@@ -41,7 +42,7 @@ public class EmployeeService {
     @Transactional
     public EmployeeDTO update(UUID id, EmployeeDTO dto) {
         Employee employee = employeeRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Employee not found with id: " + id));
+                .orElseThrow(() -> ResourceNotFoundException.forId("Employee", id));
         peopleMapper.updateFromDTO(employee, dto);
         return peopleMapper.toDTO(employeeRepository.save(employee));
     }
@@ -49,7 +50,7 @@ public class EmployeeService {
     @Transactional
     public void delete(UUID id) {
         if (!employeeRepository.existsById(id)) {
-            throw new RuntimeException("Employee not found with id: " + id);
+            throw ResourceNotFoundException.forId("Employee", id);
         }
         employeeRepository.deleteById(id);
     }

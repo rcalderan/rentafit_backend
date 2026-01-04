@@ -13,6 +13,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -62,14 +64,15 @@ class EmployeeControllerTest {
         when(employeeService.findAll(any(Pageable.class))).thenReturn(page);
 
         // Act
-        Page<EmployeeDTO> result = employeeController.findAll(pageable);
+        ResponseEntity<Page<EmployeeDTO>> response = employeeController.findAll(pageable);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).id()).isEqualTo(employeeId);
-        assertThat(result.getContent().get(0).name()).isEqualTo("Maria Santos");
-        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getContent()).hasSize(1);
+        assertThat(response.getBody().getContent().get(0).id()).isEqualTo(employeeId);
+        assertThat(response.getBody().getContent().get(0).name()).isEqualTo("Maria Santos");
+        assertThat(response.getBody().getTotalElements()).isEqualTo(1);
 
         verify(employeeService, times(1)).findAll(any(Pageable.class));
     }
@@ -81,16 +84,17 @@ class EmployeeControllerTest {
         when(employeeService.findById(employeeId)).thenReturn(employeeDTO);
 
         // Act
-        EmployeeDTO result = employeeController.findById(employeeId);
+        ResponseEntity<EmployeeDTO> response = employeeController.findById(employeeId);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(employeeId);
-        assertThat(result.name()).isEqualTo("Maria Santos");
-        assertThat(result.email()).isEqualTo("maria@example.com");
-        assertThat(result.document()).isEqualTo("98765432100");
-        assertThat(result.initials()).isEqualTo("MS");
-        assertThat(result.roleLevel()).isEqualTo(2);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(employeeId);
+        assertThat(response.getBody().name()).isEqualTo("Maria Santos");
+        assertThat(response.getBody().email()).isEqualTo("maria@example.com");
+        assertThat(response.getBody().document()).isEqualTo("98765432100");
+        assertThat(response.getBody().initials()).isEqualTo("MS");
+        assertThat(response.getBody().roleLevel()).isEqualTo(2);
 
         verify(employeeService, times(1)).findById(employeeId);
     }
@@ -102,13 +106,14 @@ class EmployeeControllerTest {
         when(employeeService.create(any(EmployeeDTO.class))).thenReturn(employeeDTO);
 
         // Act
-        EmployeeDTO result = employeeController.create(employeeDTO);
+        ResponseEntity<EmployeeDTO> response = employeeController.create(employeeDTO);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(employeeId);
-        assertThat(result.name()).isEqualTo("Maria Santos");
-        assertThat(result.initials()).isEqualTo("MS");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(employeeId);
+        assertThat(response.getBody().name()).isEqualTo("Maria Santos");
+        assertThat(response.getBody().initials()).isEqualTo("MS");
 
         verify(employeeService, times(1)).create(any(EmployeeDTO.class));
     }
@@ -129,15 +134,16 @@ class EmployeeControllerTest {
         when(employeeService.update(eq(employeeId), any(EmployeeDTO.class))).thenReturn(updatedDTO);
 
         // Act
-        EmployeeDTO result = employeeController.update(employeeId, updatedDTO);
+        ResponseEntity<EmployeeDTO> response = employeeController.update(employeeId, updatedDTO);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(employeeId);
-        assertThat(result.name()).isEqualTo("Maria Santos Updated");
-        assertThat(result.email()).isEqualTo("maria.updated@example.com");
-        assertThat(result.initials()).isEqualTo("MSU");
-        assertThat(result.roleLevel()).isEqualTo(3);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(employeeId);
+        assertThat(response.getBody().name()).isEqualTo("Maria Santos Updated");
+        assertThat(response.getBody().email()).isEqualTo("maria.updated@example.com");
+        assertThat(response.getBody().initials()).isEqualTo("MSU");
+        assertThat(response.getBody().roleLevel()).isEqualTo(3);
 
         verify(employeeService, times(1)).update(eq(employeeId), any(EmployeeDTO.class));
     }
@@ -149,9 +155,12 @@ class EmployeeControllerTest {
         doNothing().when(employeeService).delete(employeeId);
 
         // Act
-        employeeController.delete(employeeId);
+        ResponseEntity<Void> response = employeeController.delete(employeeId);
 
         // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNull();
+
         verify(employeeService, times(1)).delete(employeeId);
     }
 }
