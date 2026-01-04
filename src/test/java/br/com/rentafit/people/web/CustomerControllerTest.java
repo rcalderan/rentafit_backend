@@ -14,10 +14,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -77,14 +77,15 @@ class CustomerControllerTest {
         when(customerService.findAll(any(Pageable.class))).thenReturn(page);
 
         // Act
-        Page<CustomerDTO> result = customerController.findAll(pageable);
+        ResponseEntity<Page<CustomerDTO>> response = customerController.findAll(pageable);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).id()).isEqualTo(customerId);
-        assertThat(result.getContent().get(0).name()).isEqualTo("João Silva");
-        assertThat(result.getTotalElements()).isEqualTo(1);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getContent()).hasSize(1);
+        assertThat(response.getBody().getContent().get(0).id()).isEqualTo(customerId);
+        assertThat(response.getBody().getContent().get(0).name()).isEqualTo("João Silva");
+        assertThat(response.getBody().getTotalElements()).isEqualTo(1);
 
         verify(customerService, times(1)).findAll(any(Pageable.class));
     }
@@ -96,14 +97,15 @@ class CustomerControllerTest {
         when(customerService.findById(customerId)).thenReturn(customerDTO);
 
         // Act
-        CustomerDTO result = customerController.findById(customerId);
+        ResponseEntity<CustomerDTO> response = customerController.findById(customerId);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(customerId);
-        assertThat(result.name()).isEqualTo("João Silva");
-        assertThat(result.email()).isEqualTo("joao@example.com");
-        assertThat(result.document()).isEqualTo("12345678900");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(customerId);
+        assertThat(response.getBody().name()).isEqualTo("João Silva");
+        assertThat(response.getBody().email()).isEqualTo("joao@example.com");
+        assertThat(response.getBody().document()).isEqualTo("12345678900");
 
         verify(customerService, times(1)).findById(customerId);
     }
@@ -115,12 +117,13 @@ class CustomerControllerTest {
         when(customerService.create(any(CustomerDTO.class))).thenReturn(customerDTO);
 
         // Act
-        CustomerDTO result = customerController.create(customerDTO);
+        ResponseEntity<CustomerDTO> response = customerController.create(customerDTO);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(customerId);
-        assertThat(result.name()).isEqualTo("João Silva");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(customerId);
+        assertThat(response.getBody().name()).isEqualTo("João Silva");
 
         verify(customerService, times(1)).create(any(CustomerDTO.class));
     }
@@ -144,13 +147,14 @@ class CustomerControllerTest {
         when(customerService.update(eq(customerId), any(CustomerDTO.class))).thenReturn(updatedDTO);
 
         // Act
-        CustomerDTO result = customerController.update(customerId, updatedDTO);
+        ResponseEntity<CustomerDTO> response = customerController.update(customerId, updatedDTO);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.id()).isEqualTo(customerId);
-        assertThat(result.name()).isEqualTo("João Silva Updated");
-        assertThat(result.email()).isEqualTo("joao.updated@example.com");
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(customerId);
+        assertThat(response.getBody().name()).isEqualTo("João Silva Updated");
+        assertThat(response.getBody().email()).isEqualTo("joao.updated@example.com");
 
         verify(customerService, times(1)).update(eq(customerId), any(CustomerDTO.class));
     }
@@ -162,9 +166,12 @@ class CustomerControllerTest {
         doNothing().when(customerService).delete(customerId);
 
         // Act
-        customerController.delete(customerId);
+        ResponseEntity<Void> response = customerController.delete(customerId);
 
         // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(response.getBody()).isNull();
+
         verify(customerService, times(1)).delete(customerId);
     }
 }
