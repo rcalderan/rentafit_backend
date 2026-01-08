@@ -59,6 +59,10 @@
 			<artifactId>spring-boot-starter-webmvc</artifactId>
 		</dependency>
 		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
+		</dependency>
+		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-database-postgresql</artifactId>
 		</dependency>
@@ -110,6 +114,11 @@
 			<scope>test</scope>
 		</dependency>
 
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-test</artifactId>
+			<scope>test</scope>
+		</dependency>
 
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -233,13 +242,14 @@
 					</execution>
 				</executions>
 				<configuration>
-					<!-- Inclui apenas services e controllers -->
+					<!-- Inclui apenas services, controllers e clients -->
 					<includes>
 						<include>**/service/**</include>
 						<include>**/services/**</include>
 						<include>**/web/**</include>
 						<include>**/controller/**</include>
 						<include>**/controllers/**</include>
+						<include>**/client/**</include>
 					</includes>
 					<!-- Exclui DTOs, repositories e outras classes auxiliares -->
 					<excludes>

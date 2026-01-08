@@ -1,8 +1,11 @@
 HELP.md
 target/
+receita/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+.cert
+.env
 
 ### STS ###
 .apt_generated
@@ -31,3 +34,4 @@ build/
 
 ### VS Code ###
 .vscode/
+/DOC_HOMOLOGACAO_NFSE.md
