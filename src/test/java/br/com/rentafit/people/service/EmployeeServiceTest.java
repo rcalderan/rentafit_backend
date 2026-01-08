@@ -1,5 +1,6 @@
 package br.com.rentafit.people.service;
 
+import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.domain.Employee;
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
@@ -115,7 +116,7 @@ class EmployeeServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> employeeService.findById(employeeId))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Employee not found with id");
 
         verify(employeeRepository, times(1)).findById(employeeId);
@@ -195,7 +196,7 @@ class EmployeeServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> employeeService.delete(employeeId))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("Employee not found with id");
 
         verify(employeeRepository, times(1)).existsById(employeeId);

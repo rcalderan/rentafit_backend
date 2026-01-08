@@ -36,7 +36,7 @@ public class Customer extends Person {
     @Schema(description = "Employee who created this customer record")
     private Employee createdBy;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinColumn(name = "address_id")
     @Schema(description = "Reference to the base address")
     private Address address;

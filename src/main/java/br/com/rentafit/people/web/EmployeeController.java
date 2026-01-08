@@ -3,11 +3,15 @@ package br.com.rentafit.people.web;
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.service.EmployeeService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -22,33 +26,53 @@ public class EmployeeController {
 
     @GetMapping
     @Operation(summary = "List all employees with pagination")
-    public Page<EmployeeDTO> findAll(Pageable pageable) {
-        return employeeService.findAll(pageable);
+    @ApiResponse(responseCode = "200", description = "Employees retrieved successfully")
+    public ResponseEntity<Page<EmployeeDTO>> findAll(Pageable pageable) {
+        return ResponseEntity.ok(employeeService.findAll(pageable));
     }
 
     @GetMapping("/{id}")
     @Operation(summary = "Get employee by ID")
-    public EmployeeDTO findById(@PathVariable UUID id) {
-        return employeeService.findById(id);
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Employee found"),
+        @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public ResponseEntity<EmployeeDTO> findById(@PathVariable UUID id) {
+        return ResponseEntity.ok(employeeService.findById(id));
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Create a new employee")
-    public EmployeeDTO create(@RequestBody EmployeeDTO dto) {
-        return employeeService.create(dto);
+    @ApiResponses({
+        @ApiResponse(responseCode = "201", description = "Employee created successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid input data")
+    })
+    public ResponseEntity<EmployeeDTO> create(@Valid @RequestBody EmployeeDTO dto) {
+        EmployeeDTO created = employeeService.create(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
     @Operation(summary = "Update an existing employee")
-    public EmployeeDTO update(@PathVariable UUID id, @RequestBody EmployeeDTO dto) {
-        return employeeService.update(id, dto);
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Employee updated successfully"),
+        @ApiResponse(responseCode = "400", description = "Invalid input data"),
+        @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public ResponseEntity<EmployeeDTO> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody EmployeeDTO dto) {
+        return ResponseEntity.ok(employeeService.update(id, dto));
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(summary = "Delete an employee")
-    public void delete(@PathVariable UUID id) {
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Employee deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public ResponseEntity<Void> delete(@PathVariable UUID id) {
         employeeService.delete(id);
+        return ResponseEntity.noContent().build();
     }
 }
