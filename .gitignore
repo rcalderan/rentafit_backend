@@ -4,6 +4,8 @@ receita/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+.cert
+.env
 
 ### STS ###
 .apt_generated
