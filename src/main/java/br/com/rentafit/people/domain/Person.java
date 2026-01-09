@@ -1,5 +1,6 @@
 package br.com.rentafit.people.domain;
 
+import br.com.rentafit.common.security.DatabaseEncryptionConverter;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
@@ -37,6 +38,7 @@ public abstract class Person {
     private String name;
 
     @Column(unique = true)
+    @Convert(converter = DatabaseEncryptionConverter.class)
     @Schema(description = "Document (CPF/RG/CNPJ)", example = "123.456.789-00")
     private String document;
 
