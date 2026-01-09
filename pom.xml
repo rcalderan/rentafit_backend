@@ -246,7 +246,6 @@
 					<includes>
 						<include>**/service/**</include>
 						<include>**/services/**</include>
-						<include>**/web/**</include>
 						<include>**/controller/**</include>
 						<include>**/controllers/**</include>
 						<include>**/client/**</include>
