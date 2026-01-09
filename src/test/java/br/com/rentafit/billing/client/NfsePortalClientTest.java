@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -36,11 +35,14 @@ class NfsePortalClientTest {
     @Mock
     private WebClient.ResponseSpec responseSpec;
 
+    @Mock
+    private StsTokenService stsTokenService;
+
     private NfsePortalClient nfsePortalClient;
 
     @BeforeEach
     void setUp() {
-        nfsePortalClient = new NfsePortalClient(webClient);
+        nfsePortalClient = new NfsePortalClient(webClient, stsTokenService);
     }
 
     @Test
@@ -51,6 +53,7 @@ class NfsePortalClientTest {
         DpsResponse response = DpsResponse.builder().protocol("123").build();
         String token = "mock-token";
 
+        when(stsTokenService.obterToken()).thenReturn(Mono.just(token));
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/dps")).thenReturn(requestBodySpec);
         when(requestBodySpec.headers(any(Consumer.class))).thenReturn(requestBodySpec);
@@ -58,7 +61,7 @@ class NfsePortalClientTest {
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(DpsResponse.class)).thenReturn(Mono.just(response));
 
-        Mono<DpsResponse> result = nfsePortalClient.sendDps(request, token);
+        Mono<DpsResponse> result = nfsePortalClient.sendDps(request);
 
         StepVerifier.create(result)
                 .expectNextMatches(res -> res.getProtocol().equals("123"))
@@ -72,6 +75,7 @@ class NfsePortalClientTest {
         DpsRequest request = DpsRequest.builder().build();
         String token = "mock-token";
 
+        when(stsTokenService.obterToken()).thenReturn(Mono.just(token));
         when(webClient.post()).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.uri("/dps")).thenReturn(requestBodySpec);
         when(requestBodySpec.headers(any(Consumer.class))).thenReturn(requestBodySpec);
@@ -79,7 +83,7 @@ class NfsePortalClientTest {
         when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.bodyToMono(DpsResponse.class)).thenReturn(Mono.error(new RuntimeException("API Error")));
 
-        Mono<DpsResponse> result = nfsePortalClient.sendDps(request, token);
+        Mono<DpsResponse> result = nfsePortalClient.sendDps(request);
 
         StepVerifier.create(result)
                 .expectError(RuntimeException.class)

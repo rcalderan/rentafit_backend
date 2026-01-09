@@ -176,7 +176,7 @@ br.com.rentafit/
 │   ├── service/                 → UserAccountService (UserDetailsService)
 │   ├── dto/                     → (preparado para LoginDTO, etc.)
 │   ├── mapper/                  → (preparado para conversões)
-│   └── web/                     → (preparado para AuthController)
+│   └── controller/              → (preparado para AuthController)
 │
 ├── people/                      ← Gestão de Pessoas
 │   ├── domain/                  → Person, Customer, Employee, Address
@@ -184,7 +184,7 @@ br.com.rentafit/
 │   ├── service/                 → CustomerService, EmployeeService
 │   ├── dto/                     → CustomerDTO, EmployeeDTO, AddressDTO
 │   ├── mapper/                  → PeopleMapper (toDTO, updateFromDTO)
-│   └── web/                     → CustomerController, EmployeeController
+│   └── controller/              → CustomerController, EmployeeController
 │
 ├── common/                      ← Componentes Compartilhados
 │   └── security/                → SecurityConfig
@@ -397,7 +397,7 @@ java -Dspring.profiles.active=local -jar target/Rentafit-0.0.1-SNAPSHOT.jar
 - `service/` - Lógica de negócio
 - `dto/` - Data Transfer Objects
 - `mapper/` - Conversões Entity↔DTO
-- `web/` - REST Controllers
+- `controller/` - REST Controllers
 
 ---
 

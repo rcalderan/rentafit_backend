@@ -72,7 +72,7 @@ module/
 ├── service/        → Lógica de negócio
 ├── dto/            → Data Transfer Objects
 ├── mapper/         → Conversões Entity↔DTO
-└── web/            → REST Controllers
+└── controller/     → REST Controllers
 ```
 
 #### Testes
@@ -231,7 +231,7 @@ src/main/java/br/com/rentafit/payment/
 │   └── PaymentResponseDTO.java
 ├── mapper/
 │   └── PaymentMapper.java
-└── web/
+└── controller/
     └── PaymentController.java
 
 # 3. Adicionar migration
@@ -242,7 +242,7 @@ src/main/resources/db/migration/
 src/test/java/br/com/rentafit/payment/
 ├── service/
 │   └── PaymentServiceTest.java
-└── web/
+└── controller/
     └── PaymentControllerTest.java
 
 # 5. Fazer commits incrementais
