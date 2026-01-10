@@ -1,5 +1,6 @@
 package br.com.rentafit.people.controller;
 
+import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.service.CustomerService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -14,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -39,6 +41,19 @@ public class CustomerController {
     })
     public ResponseEntity<CustomerDTO> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(customerService.findById(id));
+    }
+
+    @GetMapping("/{id}/address-history")
+    @Operation(
+        summary = "Get customer address history",
+        description = "Retrieves all historical addresses for a customer ordered by date"
+    )
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Address history retrieved successfully"),
+        @ApiResponse(responseCode = "404", description = "Customer not found")
+    })
+    public ResponseEntity<List<AddressHistoryDTO>> getAddressHistory(@PathVariable UUID id) {
+        return ResponseEntity.ok(customerService.getAddressHistory(id));
     }
 
     @PostMapping
@@ -67,10 +82,10 @@ public class CustomerController {
 
     @DeleteMapping("/{id}")
     @Operation(summary = "Delete a customer")
-//    @ApiResponses({
-//        @ApiResponse(responseCode = "204", description = "Customer deleted successfully"),
-//        @ApiResponse(responseCode = "404", description = "Customer not found")
-//    })
+    @ApiResponses({
+        @ApiResponse(responseCode = "204", description = "Customer deleted successfully"),
+        @ApiResponse(responseCode = "404", description = "Customer not found")
+    })
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         customerService.delete(id);
         return ResponseEntity.noContent().build();

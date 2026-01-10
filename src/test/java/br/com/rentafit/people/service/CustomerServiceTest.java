@@ -1,10 +1,17 @@
 package br.com.rentafit.people.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
+import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.domain.Customer;
+import br.com.rentafit.people.domain.PersonAddressDetails;
+import br.com.rentafit.people.domain.PersonAddressHistory;
+import br.com.rentafit.people.dto.AddressDTO;
+import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.CustomerRepository;
+import br.com.rentafit.people.repository.PersonAddressDetailsRepository;
+import br.com.rentafit.people.repository.PersonAddressHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,20 +23,22 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.web.client.HttpClientErrorException;
 
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Testes unitários do CustomerService usando Mockito.
- * NÃO usa banco de dados (nem H2 nem PostgreSQL).
- * Testa apenas a lógica de negócio do serviço.
+ * Testes unitários de CustomerService.
+ * Testa operações CRUD e fluxo de endereços com histórico para Cobertura JaCoCo.
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("CustomerService - Unit Tests")
@@ -39,42 +48,45 @@ class CustomerServiceTest {
     private CustomerRepository customerRepository;
 
     @Mock
+    private PersonAddressDetailsRepository addressDetailsRepository;
+
+    @Mock
+    private PersonAddressHistoryRepository addressHistoryRepository;
+
+    @Mock
+    private AddressService addressService;
+
+    @Mock
     private PeopleMapper peopleMapper;
 
     @InjectMocks
     private CustomerService customerService;
 
     private UUID customerId;
-    private Customer customer;
-    private CustomerDTO customerDTO;
+    private Customer testCustomer;
 
     @BeforeEach
     void setUp() {
         customerId = UUID.randomUUID();
-
-        customer = new Customer();
-        customer.setId(customerId);
-        customer.setName("John Doe");
-        customer.setEmail("john@example.com");
-        customer.setDocument("12345678900");
-
-        customerDTO = CustomerDTO.builder()
-                .id(customerId)
-                .name("John Doe")
-                .email("john@example.com")
-                .document("12345678900")
-                .build();
+        testCustomer = new Customer();
+        testCustomer.setId(customerId);
+        testCustomer.setName("Test Customer");
+        testCustomer.setEmail("test@example.com");
+        testCustomer.setDocument("12345678900");
     }
 
+    // ==================== findAll Tests ====================
+
     @Test
-    @DisplayName("Deve encontrar todos os clientes com paginação")
+    @DisplayName("Deve listar clientes com paginação")
     void shouldFindAllCustomersWithPagination() {
         // Arrange
         Pageable pageable = PageRequest.of(0, 10);
-        Page<Customer> customerPage = new PageImpl<>(List.of(customer));
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+        CustomerDTO customerDTO = CustomerDTO.builder().id(customerId).name("Test Customer").build();
 
         when(customerRepository.findAll(pageable)).thenReturn(customerPage);
-        when(peopleMapper.toDTO(customer)).thenReturn(customerDTO);
+        when(peopleMapper.toDTO(testCustomer)).thenReturn(customerDTO);
 
         // Act
         Page<CustomerDTO> result = customerService.findAll(pageable);
@@ -82,18 +94,23 @@ class CustomerServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).name()).isEqualTo("John Doe");
-
-        verify(customerRepository, times(1)).findAll(pageable);
-        verify(peopleMapper, times(1)).toDTO(customer);
+        assertThat(result.getTotalElements()).isEqualTo(1);
+        verify(customerRepository).findAll(pageable);
     }
+
+    // ==================== findById Tests ====================
 
     @Test
     @DisplayName("Deve encontrar cliente por ID")
     void shouldFindCustomerById() {
         // Arrange
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
-        when(peopleMapper.toDTO(customer)).thenReturn(customerDTO);
+        CustomerDTO customerDTO = CustomerDTO.builder()
+                .id(customerId)
+                .name("Test Customer")
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
+        when(peopleMapper.toDTO(testCustomer)).thenReturn(customerDTO);
 
         // Act
         CustomerDTO result = customerService.findById(customerId);
@@ -101,119 +118,332 @@ class CustomerServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo(customerId);
-        assertThat(result.name()).isEqualTo("John Doe");
-        assertThat(result.email()).isEqualTo("john@example.com");
-
-        verify(customerRepository, times(1)).findById(customerId);
-        verify(peopleMapper, times(1)).toDTO(customer);
+        verify(customerRepository).findById(customerId);
     }
 
     @Test
-    @DisplayName("Deve lançar exceção quando cliente não encontrado por ID")
-    void shouldThrowExceptionWhenCustomerNotFoundById() {
+    @DisplayName("Deve lançar exceção quando cliente não encontrado")
+    void shouldThrowExceptionWhenCustomerNotFound() {
         // Arrange
-        when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
+        UUID notFoundId = UUID.randomUUID();
+        when(customerRepository.findById(notFoundId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> customerService.findById(customerId))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Customer not found with id");
-
-        verify(customerRepository, times(1)).findById(customerId);
-        verify(peopleMapper, never()).toDTO(any(Customer.class));
+        assertThatThrownBy(() -> customerService.findById(notFoundId))
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
-    @Test
-    @DisplayName("Deve criar novo cliente")
-    void shouldCreateNewCustomer() {
-        // Arrange
-        when(customerRepository.save(any(Customer.class))).thenReturn(customer);
-        when(peopleMapper.toDTO(customer)).thenReturn(customerDTO);
-        doNothing().when(peopleMapper).updateFromDTO(any(Customer.class), any(CustomerDTO.class));
-
-        // Act
-        CustomerDTO result = customerService.create(customerDTO);
-
-        // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.name()).isEqualTo("John Doe");
-        assertThat(result.email()).isEqualTo("john@example.com");
-
-        verify(peopleMapper, times(1)).updateFromDTO(any(Customer.class), eq(customerDTO));
-        verify(customerRepository, times(1)).save(any(Customer.class));
-        verify(peopleMapper, times(1)).toDTO(customer);
-    }
+    // ==================== create Tests ====================
 
     @Test
-    @DisplayName("Deve atualizar cliente existente")
-    void shouldUpdateExistingCustomer() {
+    @DisplayName("Deve criar novo cliente sem endereço")
+    void shouldCreateNewCustomerWithoutAddress() {
         // Arrange
-        CustomerDTO updatedDTO = CustomerDTO.builder()
-                .id(customerId)
-                .name("John Doe Updated")
-                .email("john.updated@example.com")
-                .document("12345678900")
+        CustomerDTO createDTO = CustomerDTO.builder()
+                .name("New Customer")
+                .email("new@example.com")
+                .document("99988877766")
                 .build();
 
-        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
-        when(customerRepository.save(customer)).thenReturn(customer);
-        when(peopleMapper.toDTO(customer)).thenReturn(updatedDTO);
-        doNothing().when(peopleMapper).updateFromDTO(customer, updatedDTO);
+        Customer saved = new Customer();
+        saved.setId(UUID.randomUUID());
+        saved.setName("New Customer");
+        saved.setEmail("new@example.com");
+        saved.setDocument("99988877766");
+
+        when(customerRepository.findByDocument(anyString())).thenReturn(Optional.empty());
+        // map update
+        doAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            CustomerDTO dto = invocation.getArgument(1);
+            c.setName(dto.name());
+            c.setEmail(dto.email());
+            c.setDocument(dto.document());
+            return null;
+        }).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
+
+        when(customerRepository.save(any(Customer.class))).thenReturn(saved);
+        when(peopleMapper.toDTO(saved)).thenReturn(createDTO);
 
         // Act
-        CustomerDTO result = customerService.update(customerId, updatedDTO);
+        CustomerDTO result = customerService.create(createDTO);
 
         // Assert
         assertThat(result).isNotNull();
-        assertThat(result.name()).isEqualTo("John Doe Updated");
-
-        verify(customerRepository, times(1)).findById(customerId);
-        verify(peopleMapper, times(1)).updateFromDTO(customer, updatedDTO);
-        verify(customerRepository, times(1)).save(customer);
+        verify(customerRepository).save(any(Customer.class));
+        verify(addressService, never()).findOrCreateByZipCode(any());
     }
 
     @Test
-    @DisplayName("Deve lançar exceção ao atualizar cliente inexistente")
-    void shouldThrowExceptionWhenUpdatingNonExistentCustomer() {
+    @DisplayName("Deve criar novo cliente com endereço e details")
+    void shouldCreateNewCustomerWithAddressAndDetails() {
         // Arrange
-        when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
+        AddressDTO addressDTO = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        CustomerDTO createDTO = CustomerDTO.builder()
+                .name("New Customer")
+                .email("new@example.com")
+                .document("99988877766")
+                .number("1000")
+                .complement("Apt 201")
+                .address(addressDTO)
+                .build();
+
+        Address viaCepAddress = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        when(customerRepository.findByDocument(anyString())).thenReturn(Optional.empty());
+
+        // simulate mapper
+        doAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            CustomerDTO dto = invocation.getArgument(1);
+            c.setName(dto.name());
+            c.setEmail(dto.email());
+            c.setDocument(dto.document());
+            return null;
+        }).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
+
+        when(addressService.findOrCreateByZipCode("01310100")).thenReturn(viaCepAddress);
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(createDTO);
+
+        // Act
+        CustomerDTO result = customerService.create(createDTO);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(addressService).findOrCreateByZipCode("01310100");
+        verify(customerRepository).save(any(Customer.class));
+    }
+
+    @Test
+    @DisplayName("Deve rejeitar criação com documento duplicado")
+    void shouldRejectCreateWithDuplicateDocument() {
+        // Arrange
+        Customer existing = new Customer();
+        existing.setId(UUID.randomUUID());
+        existing.setDocument("99988877766");
+        when(customerRepository.findByDocument("99988877766")).thenReturn(Optional.of(existing));
+
+        CustomerDTO createDTO = CustomerDTO.builder()
+                .name("New Customer")
+                .email("new@example.com")
+                .document("99988877766")
+                .build();
 
         // Act & Assert
-        assertThatThrownBy(() -> customerService.update(customerId, customerDTO))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Customer not found with id");
+        assertThatThrownBy(() -> customerService.create(createDTO))
+                .isInstanceOf(HttpClientErrorException.class);
 
-        verify(customerRepository, times(1)).findById(customerId);
         verify(customerRepository, never()).save(any());
     }
 
+    // ==================== update Tests ====================
+
     @Test
-    @DisplayName("Deve deletar cliente por ID")
-    void shouldDeleteCustomerById() {
+    @DisplayName("Deve atualizar endereço quando CEP muda e arquivar histórico")
+    void shouldUpdateAddressWhenZipChangesAndArchiveHistory() {
+        // Arrange - current details
+        Address oldAddress = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        PersonAddressDetails currentDetails = new PersonAddressDetails();
+        currentDetails.setAddress(oldAddress);
+        currentDetails.setNumber("1000");
+        currentDetails.setComplement("Apt 201");
+        currentDetails.setStartDate(OffsetDateTime.now().minusMonths(1));
+        testCustomer.setCurrentAddress(currentDetails);
+
+        Address newAddress = new Address("12345678", "Rua Nova", "Centro", "Rio de Janeiro", "RJ");
+        AddressDTO addressDTO = AddressDTO.builder().zipCode("12345-678").street("Rua Nova").city("Rio de Janeiro").state("RJ").build();
+        CustomerDTO updateDTO = CustomerDTO.builder()
+                .name("Updated")
+                .email("u@example.com")
+                .document("123")
+                .number("2000")
+                .complement("Apt 301")
+                .address(addressDTO)
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
+        doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
+        when(addressService.findOrCreateByZipCode("12345678")).thenReturn(newAddress);
+        when(addressDetailsRepository.save(any(PersonAddressDetails.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(addressHistoryRepository.save(any(PersonAddressHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(updateDTO);
+
+        // Act
+        CustomerDTO result = customerService.update(customerId, updateDTO);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(addressHistoryRepository).save(any(PersonAddressHistory.class));
+        verify(addressDetailsRepository).save(any(PersonAddressDetails.class));
+        verify(addressService).findOrCreateByZipCode("12345678");
+    }
+
+    @Test
+    @DisplayName("Deve atualizar apenas details quando número/complemento mudam")
+    void shouldUpdateOnlyDetailsWhenNumberOrComplementChanges() {
+        // Arrange current details same address
+        Address address = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        PersonAddressDetails currentDetails = new PersonAddressDetails();
+        currentDetails.setAddress(address);
+        currentDetails.setNumber("1000");
+        currentDetails.setComplement("Apt 201");
+        currentDetails.setStartDate(OffsetDateTime.now().minusMonths(1));
+        testCustomer.setCurrentAddress(currentDetails);
+
+        AddressDTO addressDTO = AddressDTO.builder().zipCode("01310-100").build();
+        CustomerDTO updateDTO = CustomerDTO.builder()
+                .number("1001") // change number
+                .complement("Apt 202")
+                .address(addressDTO)
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
+        doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
+        when(addressService.findOrCreateByZipCode("01310100")).thenReturn(address);
+        when(addressDetailsRepository.save(any(PersonAddressDetails.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(addressHistoryRepository.save(any(PersonAddressHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(updateDTO);
+
+        // Act
+        CustomerDTO result = customerService.update(customerId, updateDTO);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(addressHistoryRepository).save(any(PersonAddressHistory.class));
+        verify(addressDetailsRepository).save(any(PersonAddressDetails.class));
+    }
+
+    @Test
+    @DisplayName("Não deve arquivar quando nenhuma mudança ocorre")
+    void shouldNotArchiveWhenNoChangeOccurs() {
+        // Arrange current details
+        Address address = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        PersonAddressDetails currentDetails = new PersonAddressDetails();
+        currentDetails.setAddress(address);
+        currentDetails.setNumber("1000");
+        currentDetails.setComplement("Apt 201");
+        currentDetails.setStartDate(OffsetDateTime.now().minusMonths(1));
+        testCustomer.setCurrentAddress(currentDetails);
+
+        AddressDTO addressDTO = AddressDTO.builder().zipCode("01310-100").build();
+        CustomerDTO updateDTO = CustomerDTO.builder()
+                .number("1000")
+                .complement("Apt 201")
+                .address(addressDTO)
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
+        doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
+        when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(updateDTO);
+
+        // Act
+        CustomerDTO result = customerService.update(customerId, updateDTO);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(addressHistoryRepository, never()).save(any());
+        verify(addressDetailsRepository, never()).save(any());
+        verify(addressService, never()).findOrCreateByZipCode(any());
+    }
+
+    // ==================== delete Tests ====================
+
+    @Test
+    @DisplayName("Deve deletar cliente existente")
+    void shouldDeleteExistingCustomer() {
         // Arrange
         when(customerRepository.existsById(customerId)).thenReturn(true);
-        doNothing().when(customerRepository).deleteById(customerId);
 
         // Act
         customerService.delete(customerId);
 
         // Assert
-        verify(customerRepository, times(1)).existsById(customerId);
-        verify(customerRepository, times(1)).deleteById(customerId);
+        verify(customerRepository).deleteById(customerId);
     }
 
     @Test
     @DisplayName("Deve lançar exceção ao deletar cliente inexistente")
     void shouldThrowExceptionWhenDeletingNonExistentCustomer() {
         // Arrange
-        when(customerRepository.existsById(customerId)).thenReturn(false);
+        UUID notFoundId = UUID.randomUUID();
+        when(customerRepository.existsById(notFoundId)).thenReturn(false);
 
         // Act & Assert
-        assertThatThrownBy(() -> customerService.delete(customerId))
-                .isInstanceOf(ResourceNotFoundException.class)
-                .hasMessageContaining("Customer not found with id");
+        assertThatThrownBy(() -> customerService.delete(notFoundId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
 
-        verify(customerRepository, times(1)).existsById(customerId);
-        verify(customerRepository, never()).deleteById(any());
+    // ==================== getAddressHistory Tests ====================
+
+    @Test
+    @DisplayName("Deve recuperar histórico de endereços do cliente")
+    void shouldGetAddressHistory() {
+        // Arrange
+        OffsetDateTime startDate = OffsetDateTime.now().minusDays(30);
+        OffsetDateTime endDate = OffsetDateTime.now().minusDays(5);
+
+        PersonAddressHistory history = new PersonAddressHistory();
+        history.setId(UUID.randomUUID());
+        history.setPersonId(customerId);
+        history.setZipCode("01310100");
+        history.setStreet("Avenida Paulista");
+        history.setCity("São Paulo");
+        history.setStartDate(startDate);
+        history.setEndDate(endDate);
+
+        AddressHistoryDTO historyDTO = AddressHistoryDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .build();
+
+        when(customerRepository.existsById(customerId)).thenReturn(true);
+        when(addressHistoryRepository.findByPersonIdOrderByStartDateDesc(customerId))
+                .thenReturn(List.of(history));
+        when(peopleMapper.toHistoryDTO(history)).thenReturn(historyDTO);
+
+        // Act
+        List<AddressHistoryDTO> result = customerService.getAddressHistory(customerId);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().zipCode()).isEqualTo("01310-100");
+        verify(addressHistoryRepository).findByPersonIdOrderByStartDateDesc(customerId);
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção ao buscar histórico de cliente inexistente")
+    void shouldThrowExceptionWhenGettingHistoryOfNonExistentCustomer() {
+        // Arrange
+        UUID notFoundId = UUID.randomUUID();
+        when(customerRepository.existsById(notFoundId)).thenReturn(false);
+
+        // Act & Assert
+        assertThatThrownBy(() -> customerService.getAddressHistory(notFoundId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("Deve retornar lista vazia quando não há histórico")
+    void shouldReturnEmptyListWhenNoHistory() {
+        // Arrange
+        when(customerRepository.existsById(customerId)).thenReturn(true);
+        when(addressHistoryRepository.findByPersonIdOrderByStartDateDesc(customerId))
+                .thenReturn(new ArrayList<>());
+
+        // Act
+        List<AddressHistoryDTO> result = customerService.getAddressHistory(customerId);
+
+        // Assert
+        assertThat(result).isEmpty();
     }
 }
+

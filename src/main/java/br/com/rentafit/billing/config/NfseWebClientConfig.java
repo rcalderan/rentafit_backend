@@ -1,4 +1,4 @@
-package br.com.rentafit.billing.client;
+package br.com.rentafit.billing.config;
 
 import br.com.rentafit.config.CertificateConfig;
 import io.netty.handler.ssl.SslContext;
@@ -18,7 +18,7 @@ import java.security.KeyStore;
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
-public class WebClientConfig {
+public class NfseWebClientConfig {
 
     private final CertificateConfig certificateConfig;
 
@@ -84,3 +84,4 @@ public class WebClientConfig {
         }
     }
 }
+

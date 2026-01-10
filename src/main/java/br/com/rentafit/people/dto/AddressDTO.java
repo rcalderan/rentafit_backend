@@ -2,13 +2,11 @@ package br.com.rentafit.people.dto;
 
 import jakarta.validation.constraints.*;
 import lombok.Builder;
-import java.util.UUID;
 
 @Builder
 public record AddressDTO(
-    UUID id,
-
-    @Size(max = 20, message = "ZIP code must not exceed 20 characters")
+    @NotBlank(message = "ZIP code is required")
+    @Size(min = 8, max = 10, message = "ZIP code must be 8 or 9 characters (with optional hyphen)")
     @Pattern(regexp = "^[0-9]{5}-?[0-9]{3}$", message = "ZIP code must be in format 12345-678 or 12345678")
     String zipCode,
 
