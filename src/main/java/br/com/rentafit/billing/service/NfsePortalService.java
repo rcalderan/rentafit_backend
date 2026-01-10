@@ -1,20 +1,25 @@
-package br.com.rentafit.billing.client;
+package br.com.rentafit.billing.service;
 
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.billing.dto.DpsResponse;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-@Component
-@RequiredArgsConstructor
+@Service
 @Slf4j
-public class NfsePortalClient {
+public class NfsePortalService {
 
     private final WebClient nfseWebClient;
     private final StsTokenService stsTokenService;
+
+    public NfsePortalService(@Qualifier("nfseWebClient") WebClient nfseWebClient,
+                             StsTokenService stsTokenService) {
+        this.nfseWebClient = nfseWebClient;
+        this.stsTokenService = stsTokenService;
+    }
 
     /**
      * Envia um DPS para o Portal Nacional.
@@ -39,3 +44,4 @@ public class NfsePortalClient {
                 .doOnError(err -> log.error("Erro ao enviar DPS: {}", err.getMessage()));
     }
 }
+

@@ -1,8 +1,8 @@
 package br.com.rentafit.billing.service;
 
-import br.com.rentafit.billing.client.NfsePortalClient;
-import br.com.rentafit.billing.domain.Invoice;
 import br.com.rentafit.billing.domain.TaxInfo;
+import br.com.rentafit.billing.service.NfsePortalService;
+import br.com.rentafit.billing.domain.Invoice;
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.repository.CustomerRepository;
@@ -20,7 +20,7 @@ import java.util.UUID;
 @Slf4j
 public class BillingService {
 
-    private final NfsePortalClient nfsePortalClient;
+    private final NfsePortalService nfsePortalService;
     private final InvoiceService invoiceService;
     private final CustomerRepository customerRepository;
 
@@ -30,7 +30,7 @@ public class BillingService {
 
         DpsRequest dpsRequest = buildDpsRequest(customer, serviceValue);
 
-        return nfsePortalClient.sendDps(dpsRequest)
+        return nfsePortalService.sendDps(dpsRequest)
                 .map(response -> {
                     Invoice invoice = Invoice.builder()
                             .accessKey(response.getAccessKey())
