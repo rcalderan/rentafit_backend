@@ -3,8 +3,10 @@ package br.com.rentafit.common.security;
 import br.com.rentafit.common.util.BeanUtil;
 import jakarta.persistence.AttributeConverter;
 import jakarta.persistence.Converter;
+import org.springframework.stereotype.Component;
 
 @Converter
+@Component
 public class DatabaseEncryptionConverter implements AttributeConverter<String, String> {
 
     @Override
