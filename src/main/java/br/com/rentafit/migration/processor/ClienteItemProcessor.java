@@ -5,9 +5,11 @@ import br.com.rentafit.migration.util.LegacyIdMapper;
 import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.domain.Employee;
+import br.com.rentafit.people.domain.PersonAddressDetails;
 import br.com.rentafit.people.repository.AddressRepository;
 import br.com.rentafit.people.repository.EmployeeRepository;
 import br.com.rentafit.common.security.DatabaseEncryptionConverter;
+import br.com.rentafit.people.util.ZipCodeUtils;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -31,6 +33,7 @@ import java.util.UUID;
 public class ClienteItemProcessor implements ItemProcessor<ClienteDocument, Customer> {
 
     private static final Logger log = LoggerFactory.getLogger(ClienteItemProcessor.class);
+    private static final String UNKNOWN_ZIP_CODE = "00000000";
 
     private final LegacyIdMapper legacyIdMapper;
     private final DatabaseEncryptionConverter encryptionConverter;
@@ -73,12 +76,19 @@ public class ClienteItemProcessor implements ItemProcessor<ClienteDocument, Cust
                 item.getAutenticado() : false);
             customer.setNotes(item.getNotas());
 
-            // Processar endereço
+            // Processar endereço com nova estrutura
             if (item.getEndereco() != null) {
                 Address address = resolveOrCreateAddress(item.getEndereco());
-                customer.setAddress(address);
-                customer.setNumber(item.getEndereco().getNumero());
-                customer.setComplement(item.getEndereco().getComplemento());
+
+                PersonAddressDetails addressDetails = new PersonAddressDetails();
+                addressDetails.setPerson(customer);
+                addressDetails.setAddress(address);
+                addressDetails.setNumber(item.getEndereco().getNumero());
+                addressDetails.setComplement(item.getEndereco().getComplemento());
+                addressDetails.setStartDate(OffsetDateTime.now());
+                addressDetails.setEndDate(null); // Current address
+
+                customer.setCurrentAddress(addressDetails);
             }
 
             // Resolver funcionário criador
@@ -111,18 +121,32 @@ public class ClienteItemProcessor implements ItemProcessor<ClienteDocument, Cust
      * Resolve ou cria um Address baseado nos dados do endereço
      */
     private Address resolveOrCreateAddress(ClienteDocument.EnderecoData enderecoData) {
-        // Procurar por endereço existente com mesmos dados
-        // Se não encontrar, criar novo
+        if (enderecoData.getCep() == null || enderecoData.getCep().isBlank()) {
+            // Create minimal address if no CEP
+            return addressRepository.findById(UNKNOWN_ZIP_CODE)
+                    .orElseGet(() -> addressRepository.save(new Address(
+                            UNKNOWN_ZIP_CODE,
+                            enderecoData.getRua() != null ? enderecoData.getRua() : "Não informado",
+                            enderecoData.getBairro(),
+                            enderecoData.getCidade() != null ? enderecoData.getCidade() : "Não informado",
+                            enderecoData.getEstado() != null ? enderecoData.getEstado() : "SP"
+                    )));
+        }
 
-        Address address = new Address();
-        address.setId(UUID.randomUUID());
-        address.setStreet(enderecoData.getRua());
-        address.setNeighborhood(enderecoData.getBairro());
-        address.setCity(enderecoData.getCidade());
-        address.setState(enderecoData.getEstado());
-        address.setZipCode(enderecoData.getCep());
+        String normalizedZipCode = ZipCodeUtils.normalize(enderecoData.getCep());
 
-        return addressRepository.save(address);
+        // Check if address already exists
+        return addressRepository.findById(normalizedZipCode)
+                .orElseGet(() -> {
+                    // Create new immutable address
+                    Address address = new Address(
+                            normalizedZipCode,
+                            enderecoData.getRua() != null ? enderecoData.getRua() : "",
+                            enderecoData.getBairro(),
+                            enderecoData.getCidade() != null ? enderecoData.getCidade() : "",
+                            enderecoData.getEstado() != null ? enderecoData.getEstado() : ""
+                    );
+                    return addressRepository.save(address);
+                });
     }
 }
-

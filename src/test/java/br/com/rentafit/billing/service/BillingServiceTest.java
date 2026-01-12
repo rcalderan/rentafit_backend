@@ -1,6 +1,6 @@
 package br.com.rentafit.billing.service;
 
-import br.com.rentafit.billing.client.NfsePortalClient;
+import br.com.rentafit.billing.service.NfsePortalService;
 import br.com.rentafit.billing.domain.Invoice;
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.billing.dto.DpsResponse;
@@ -27,7 +27,7 @@ import static org.mockito.Mockito.when;
 class BillingServiceTest {
 
     @Mock
-    private NfsePortalClient nfsePortalClient;
+    private NfsePortalService nfsePortalService;
 
     @Mock
     private InvoiceService invoiceService;
@@ -54,7 +54,7 @@ class BillingServiceTest {
                 .build();
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
-        when(nfsePortalClient.sendDps(any(DpsRequest.class)))
+        when(nfsePortalService.sendDps(any(DpsRequest.class)))
                 .thenReturn(Mono.just(dpsResponse));
         when(invoiceService.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

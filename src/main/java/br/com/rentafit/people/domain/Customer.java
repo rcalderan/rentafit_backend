@@ -11,10 +11,21 @@ import lombok.Setter;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 @Entity
 @Table(name = "customers")
+@NamedEntityGraph(
+    name = "Customer.withAddress",
+    attributeNodes = {
+        @NamedAttributeNode(value = "addressDetails", subgraph = "address-subgraph")
+    },
+    subgraphs = {
+        @NamedSubgraph(
+            name = "address-subgraph",
+            attributeNodes = @NamedAttributeNode("address")
+        )
+    }
+)
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
@@ -35,17 +46,6 @@ public class Customer extends Person {
     @JoinColumn(name = "created_by_id")
     @Schema(description = "Employee who created this customer record")
     private Employee createdBy;
-
-    @ManyToOne(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
-    @JoinColumn(name = "address_id")
-    @Schema(description = "Reference to the base address")
-    private Address address;
-
-    @Schema(description = "Specific number for the address", example = "123")
-    private String number;
-
-    @Schema(description = "Address complement", example = "Apt 4B")
-    private String complement;
 
     @ElementCollection
     @CollectionTable(name = "customer_phones", joinColumns = @JoinColumn(name = "customer_id"))
