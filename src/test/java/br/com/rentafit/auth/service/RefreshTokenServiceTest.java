@@ -4,6 +4,7 @@ import br.com.rentafit.auth.domain.RefreshToken;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.repository.RefreshTokenRepository;
 import br.com.rentafit.auth.repository.UserAccountRepository;
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,9 @@ class RefreshTokenServiceTest {
 
     @Mock
     private UserAccountRepository userAccountRepository;
+
+    @Mock
+    private EntityManager entityManager;
 
     @InjectMocks
     private RefreshTokenService refreshTokenService;
