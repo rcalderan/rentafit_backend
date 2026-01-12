@@ -6,6 +6,7 @@ receita/
 !**/src/test/**/target/
 .cert
 .env
+.legado
 
 ### STS ###
 .apt_generated

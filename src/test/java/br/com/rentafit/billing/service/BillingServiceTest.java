@@ -21,7 +21,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -55,7 +54,7 @@ class BillingServiceTest {
                 .build();
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
-        when(nfsePortalClient.sendDps(any(DpsRequest.class), anyString()))
+        when(nfsePortalClient.sendDps(any(DpsRequest.class)))
                 .thenReturn(Mono.just(dpsResponse));
         when(invoiceService.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 

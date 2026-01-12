@@ -4,7 +4,6 @@ import br.com.rentafit.billing.client.NfsePortalClient;
 import br.com.rentafit.billing.domain.Invoice;
 import br.com.rentafit.billing.domain.TaxInfo;
 import br.com.rentafit.billing.dto.DpsRequest;
-import br.com.rentafit.billing.dto.DpsResponse;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.repository.CustomerRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,10 +30,7 @@ public class BillingService {
 
         DpsRequest dpsRequest = buildDpsRequest(customer, serviceValue);
 
-        // TODO: Obter token OAuth2 real do portal
-        String mockToken = "mock-token";
-
-        return nfsePortalClient.sendDps(dpsRequest, mockToken)
+        return nfsePortalClient.sendDps(dpsRequest)
                 .map(response -> {
                     Invoice invoice = Invoice.builder()
                             .accessKey(response.getAccessKey())

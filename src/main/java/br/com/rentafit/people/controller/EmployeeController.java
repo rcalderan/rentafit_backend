@@ -1,4 +1,4 @@
-package br.com.rentafit.people.web;
+package br.com.rentafit.people.controller;
 
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.service.EmployeeService;
