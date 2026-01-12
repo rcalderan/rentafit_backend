@@ -4,6 +4,7 @@ import br.com.rentafit.auth.domain.RefreshToken;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.repository.RefreshTokenRepository;
 import br.com.rentafit.auth.repository.UserAccountRepository;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -22,6 +23,7 @@ public class RefreshTokenService {
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserAccountRepository userAccountRepository;
+    private final EntityManager entityManager;
 
     public Optional<RefreshToken> findByToken(String token) {
         return refreshTokenRepository.findByToken(token);
@@ -29,19 +31,32 @@ public class RefreshTokenService {
 
     @Transactional
     public RefreshToken createRefreshToken(UUID userId) {
-        UserAccount userAccount = userAccountRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try{
+            // Fetch the UserAccount within this transaction
+            UserAccount userAccount = userAccountRepository.findById(userId)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Remove old tokens
-        refreshTokenRepository.deleteByUserAccount(userAccount);
+            // Remove old tokens for this user
+            refreshTokenRepository.deleteByUserAccount(userAccount);
 
-        RefreshToken refreshToken = RefreshToken.builder()
-                .userAccount(userAccount)
-                .expiryDate(Instant.now().plusSeconds(refreshExpirationDays * 24 * 60 * 60))
-                .token(UUID.randomUUID().toString())
-                .build();
+            // Build the refresh token - UserAccount is managed in this transaction
+            RefreshToken refreshToken = RefreshToken.builder()
+                    .userAccount(userAccount)
+                    .expiryDate(Instant.now().plusSeconds(refreshExpirationDays * 24 * 60 * 60))
+                    .token(UUID.randomUUID().toString())
+                    .build();
 
-        return refreshTokenRepository.save(refreshToken);
+            // Flush to ensure everything is persisted in the session before returning
+            RefreshToken saved = refreshTokenRepository.save(refreshToken);
+            entityManager.flush();
+
+            return saved;
+
+        } catch (Exception e) {
+            System.out.println("Error creating refresh token: " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Failed to create refresh token", e);
+        }
     }
 
     public RefreshToken verifyExpiration(RefreshToken token) {

@@ -48,8 +48,9 @@ class AuthControllerTest {
     private AuthController authController;
 
     @Test
-    @DisplayName("Should return public key")
-    void getPublicKey() {
+    @DisplayName("Should return public key when enabled")
+    void getPublicKeyEnabled() {
+        when(cryptoService.isRsaEnabled()).thenReturn(true);
         when(cryptoService.getPublicKeyBase64()).thenReturn("test-public-key");
 
         ResponseEntity<Map<String, String>> response = authController.getPublicKey();
@@ -60,9 +61,19 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Should login successfully")
+    @DisplayName("Should return 403 when public key is disabled")
+    void getPublicKeyDisabled() {
+        when(cryptoService.isRsaEnabled()).thenReturn(false);
+
+        ResponseEntity<Map<String, String>> response = authController.getPublicKey();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Should login successfully without RSA")
     void login() {
-        LoginRequestDTO request = new LoginRequestDTO("user", "encrypted-pass");
+        LoginRequestDTO request = new LoginRequestDTO("user", "plain-pass");
         UserAccount user = new UserAccount();
         user.setUsername("user");
         user.setId(UUID.randomUUID());
@@ -70,7 +81,6 @@ class AuthControllerTest {
 
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
 
-        when(cryptoService.decrypt("encrypted-pass")).thenReturn("plain-pass");
         when(authenticationManager.authenticate(any())).thenReturn(auth);
         when(tokenService.generateToken("user")).thenReturn("access-token");
 
