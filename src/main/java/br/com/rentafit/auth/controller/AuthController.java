@@ -6,7 +6,6 @@ import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
-import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.auth.service.RefreshTokenService;
 import br.com.rentafit.common.security.CryptoService;
 import br.com.rentafit.common.security.TokenService;
@@ -38,7 +37,6 @@ public class AuthController {
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokenService;
     private final CryptoService cryptoService;
-    private final UserAccountRepository userAccountRepository;
 
     private static final Pattern BCRYPT_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
@@ -59,25 +57,43 @@ public class AuthController {
     public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid LoginRequestDTO data) {
 
         try{
-            String incomingPassword = data.password();
-            String decryptedPassword = cryptoService.decrypt(data.password());
-            if (cryptoService.isRsaEnabled()) {
-                try {
-                    incomingPassword = cryptoService.decrypt(incomingPassword);
-                } catch (Exception ex) {
-                    // Falha ao descriptografar: mantém a senha original para compatibilidade
-                    System.out.println("Falha ao descriptografar senha RSA: " + ex.getMessage());
-                }
+            System.out.println("=== Tentativa de Login ===");
+            System.out.println("Username: " + data.username());
+            System.out.println("Password recebido: " + data.password().substring(0, Math.min(20, data.password().length())) + "...");
+            if (BCRYPT_PATTERN.matcher(data.password()).matches()) {
+                System.out.println("AVISO: Senha recebida já está em formato BCrypt hash. Login negado por segurança.");
+                return ResponseEntity.status(403).build();
             }
+            var autenticationToken = new UsernamePasswordAuthenticationToken(data.username(), data.password());
+            var authentication = authenticationManager.authenticate(autenticationToken);
 
-            var usernamePassword = new UsernamePasswordAuthenticationToken(data.username(), decryptedPassword);
-            var auth = this.authenticationManager.authenticate(usernamePassword);
+            var user = (UserAccount)authentication.getPrincipal();
+            System.out.println("Usuário autenticado: " + user.getUsername());
+            System.out.println("Roles do usuário: " + user.getAuthorities());
 
-            var user = (UserAccount) auth.getPrincipal();
             var accessToken = tokenService.generateToken(user.getUsername());
-            var refreshToken = refreshTokenService.createRefreshToken(user.getId());
+            var refreshToken = refreshTokenService.createRefreshToken(user);
 
             return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
+//            String incomingPassword = data.password();
+//            String decryptedPassword = cryptoService.decrypt(data.password());
+//            if (cryptoService.isRsaEnabled()) {
+//                try {
+//                    incomingPassword = cryptoService.decrypt(incomingPassword);
+//                } catch (Exception ex) {
+//                    // Falha ao descriptografar: mantém a senha original para compatibilidade
+//                    System.out.println("Falha ao descriptografar senha RSA: " + ex.getMessage());
+//                }
+//            }
+//
+//            var usernamePassword = new UsernamePasswordAuthenticationToken(data.username(), decryptedPassword);
+//            var auth = this.authenticationManager.authenticate(usernamePassword);
+//
+//            var user = (UserAccount) auth.getPrincipal();
+//            var accessToken = tokenService.generateToken(user.getUsername());
+//            var refreshToken = refreshTokenService.createRefreshToken(user.getId());
+//
+//            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
 //            String incomingPassword = data.password();
 //
 //            // Se o RSA estiver habilitado, tenta descriptografar a senha recebida do front-end
@@ -130,7 +146,7 @@ public class AuthController {
                 .map(userAccount -> {
                     String accessToken = tokenService.generateToken(userAccount.getUsername());
                     // Rotaciona o refresh token para maior segurança
-                    RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(userAccount.getId());
+                    RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(userAccount);
                     return ResponseEntity.ok(new LoginResponseDTO(accessToken, newRefreshToken.getToken(), "Bearer"));
                 })
                 .orElseThrow(() -> new RuntimeException("Refresh token is not in database!"));

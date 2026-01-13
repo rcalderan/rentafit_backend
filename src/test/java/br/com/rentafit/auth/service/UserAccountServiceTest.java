@@ -1,7 +1,7 @@
 package br.com.rentafit.auth.service;
 
 import br.com.rentafit.auth.domain.UserAccount;
-import br.com.rentafit.auth.domain.UserRole;
+import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.repository.UserAccountRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,7 +44,7 @@ class UserAccountServiceTest {
         userAccount.setId(UUID.randomUUID());
         userAccount.setUsername(username);
         userAccount.setPassword("$2a$10$hashedPassword");
-        userAccount.setRole(UserRole.ROLE_ADMIN);
+        userAccount.setRole(RoleName.ADMIN);
         userAccount.setIsActive(true);
     }
 
@@ -103,7 +103,7 @@ class UserAccountServiceTest {
     @DisplayName("Should handle employee role correctly")
     void testLoadUserByUsername_EmployeeRole() {
         // Arrange
-        userAccount.setRole(UserRole.ROLE_EMPLOYEE);
+        userAccount.setRole(RoleName.EMPLOYEE);
         when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
 
         // Act
@@ -122,7 +122,7 @@ class UserAccountServiceTest {
     @DisplayName("Should handle customer role correctly")
     void testLoadUserByUsername_CustomerRole() {
         // Arrange
-        userAccount.setRole(UserRole.ROLE_CUSTOMER);
+        userAccount.setRole(RoleName.CUSTOMER);
         when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
 
         // Act

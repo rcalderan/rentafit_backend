@@ -7,9 +7,9 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -17,8 +17,6 @@ import java.util.UUID;
 @Entity
 @Table(name = "user_accounts")
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 @Schema(description = "Security credentials and access control")
 public class UserAccount implements UserDetails {
 
@@ -38,10 +36,6 @@ public class UserAccount implements UserDetails {
     @Schema(description = "4-digit security PIN", example = "1234")
     private String pin;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    @Schema(description = "User access role")
-    private UserRole role;
 
     @Column(name = "is_active")
     @Schema(description = "Whether the account is active")
@@ -53,9 +47,32 @@ public class UserAccount implements UserDetails {
     @Schema(description = "Associated person profile")
     private Person person;
 
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "user_roles",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "role_id"))
+    private List<Role> roles = new ArrayList<>();
+
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(role.name()));
+        return new ArrayList<>(this.roles);
+    }
+
+    public RoleName getRole() {
+        if (roles == null || roles.isEmpty()) {
+            return null;
+        }
+        return roles.get(0).getRole();
+    }
+
+    public UserAccount() { }
+
+    public UserAccount(Person person, String password) {
+        this.username = person.getEmail();
+        this.password = password;
+        this.person = person;
+        this.id = person.getId();
     }
 
     @Override

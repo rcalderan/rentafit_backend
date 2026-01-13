@@ -56,9 +56,32 @@ CREATE TABLE IF NOT EXISTS user_accounts (
     username VARCHAR(50) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     pin VARCHAR(4),
-    role VARCHAR(50) NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
     CONSTRAINT fk_user_accounts_people FOREIGN KEY (id) REFERENCES people(id) ON DELETE CASCADE
+);
+
+-- 5a. Table: roles (user roles lookup)
+CREATE TABLE IF NOT EXISTS roles (
+    id BIGSERIAL PRIMARY KEY,
+    role VARCHAR(15) NOT NULL UNIQUE
+);
+
+-- 5b. Table: user_roles (many-to-many relationship)
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id UUID NOT NULL,
+    role_id BIGINT NOT NULL,
+    PRIMARY KEY (user_id, role_id),
+    CONSTRAINT user_roles_fk_user FOREIGN KEY (user_id) REFERENCES user_accounts(id) ON DELETE CASCADE,
+    CONSTRAINT user_roles_fk_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE
+);
+
+-- 5c. Table: refresh_tokens
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id UUID PRIMARY KEY,
+    token VARCHAR(255) NOT NULL UNIQUE,
+    expiry_date TIMESTAMPTZ NOT NULL,
+    user_account_id UUID NOT NULL,
+    CONSTRAINT fk_refresh_tokens_user FOREIGN KEY (user_account_id) REFERENCES user_accounts(id) ON DELETE CASCADE
 );
 
 -- 6. Table: employees
@@ -87,14 +110,36 @@ CREATE TABLE IF NOT EXISTS customer_phones (
     CONSTRAINT fk_customer_phones_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
 );
 
+-- 9. Table: invoices
+CREATE TABLE IF NOT EXISTS invoices (
+    id UUID PRIMARY KEY,
+    access_key VARCHAR(50) UNIQUE NOT NULL,
+    invoice_number BIGINT NOT NULL,
+    customer_id UUID NOT NULL,
+    issue_date TIMESTAMPTZ NOT NULL,
+    service_value DECIMAL(19, 4) NOT NULL,
+    ibs_rate DECIMAL(19, 4),
+    ibs_value DECIMAL(19, 4),
+    cbs_rate DECIMAL(19, 4),
+    cbs_value DECIMAL(19, 4),
+    isqn_rate DECIMAL(19, 4),
+    isqn_value DECIMAL(19, 4),
+    total_tax_value DECIMAL(19, 4),
+    status VARCHAR(20) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_invoices_customer FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+);
+
 -- Indexes for performance
-CREATE INDEX idx_people_email ON people(email);
-CREATE INDEX idx_people_document ON people(document);
-CREATE INDEX idx_people_legacy_id ON people(legacy_id);
-CREATE INDEX idx_user_accounts_username ON user_accounts(username);
-CREATE INDEX idx_person_address_details_person_id ON person_address_details(person_id);
-CREATE INDEX idx_person_address_details_end_date ON person_address_details(end_date);
-CREATE INDEX idx_person_address_history_person_id ON person_address_history(person_id);
-CREATE INDEX idx_person_address_history_start_date ON person_address_history(start_date DESC);
-CREATE INDEX idx_customer_phones_customer_id ON customer_phones(customer_id);
-CREATE INDEX idx_customers_created_by ON customers(created_by_id);
+CREATE INDEX IF NOT EXISTS idx_people_email ON people(email);
+CREATE INDEX IF NOT EXISTS idx_people_document ON people(document);
+CREATE INDEX IF NOT EXISTS idx_people_legacy_id ON people(legacy_id);
+CREATE INDEX IF NOT EXISTS idx_user_accounts_username ON user_accounts(username);
+CREATE INDEX IF NOT EXISTS idx_person_address_details_person_id ON person_address_details(person_id);
+CREATE INDEX IF NOT EXISTS idx_person_address_details_end_date ON person_address_details(end_date);
+CREATE INDEX IF NOT EXISTS idx_person_address_history_person_id ON person_address_history(person_id);
+CREATE INDEX IF NOT EXISTS idx_person_address_history_start_date ON person_address_history(start_date DESC);
+CREATE INDEX IF NOT EXISTS idx_customer_phones_customer_id ON customer_phones(customer_id);
+CREATE INDEX IF NOT EXISTS idx_customers_created_by ON customers(created_by_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_access_key ON invoices(access_key);
+CREATE INDEX IF NOT EXISTS idx_invoices_customer_id ON invoices(customer_id);

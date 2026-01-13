@@ -1,7 +1,7 @@
 package br.com.rentafit.migration.processor;
 
 import br.com.rentafit.auth.domain.UserAccount;
-import br.com.rentafit.auth.domain.UserRole;
+import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.migration.dto.FuncionarioDocument;
 import br.com.rentafit.migration.util.LegacyIdMapper;
 import br.com.rentafit.people.domain.Employee;
@@ -106,15 +106,15 @@ public class FuncionarioItemProcessor implements ItemProcessor<FuncionarioDocume
             }
 
             // Mapear nivel_acesso → UserRole
-            UserRole role = mapRoleFromLevel(item.getNivelAcesso());
-            account.setRole(role);
+//            RoleName role = mapRoleFromLevel(item.getNivelAcesso());
+//            account.setRole(role);
 
             // Status do usuário
             account.setIsActive(item.getAtivo() != null ?
                 item.getAtivo() : true);
 
-            log.debug("Successfully processed funcionario to UserAccount: {} (role: {})",
-                item.getUsuario(), role);
+//            log.debug("Successfully processed funcionario to UserAccount: {} (role: {})",
+//                item.getUsuario(), role);
 
             return account;
 
@@ -132,15 +132,15 @@ public class FuncionarioItemProcessor implements ItemProcessor<FuncionarioDocume
      * 2 → ROLE_MANAGER (gerente)
      * 3+ → ROLE_EMPLOYEE (funcionário)
      */
-    private UserRole mapRoleFromLevel(Integer nivelAcesso) {
+    private RoleName mapRoleFromLevel(Integer nivelAcesso) {
         if (nivelAcesso == null) {
-            return UserRole.ROLE_EMPLOYEE;
+            return RoleName.EMPLOYEE;
         }
 
         return switch (nivelAcesso) {
-            case 1 -> UserRole.ROLE_ADMIN;
-            case 2 -> UserRole.ROLE_MANAGER;
-            default -> UserRole.ROLE_EMPLOYEE;
+            case 1 -> RoleName.ADMIN;
+            case 2 -> RoleName.MANAGER;
+            default -> RoleName.EMPLOYEE;
         };
     }
 }

@@ -1,5 +1,6 @@
 package br.com.rentafit.common.security;
 
+import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.repository.UserAccountRepository;
 import jakarta.servlet.FilterChain;
@@ -54,7 +55,7 @@ class SecurityFilterTest {
         String username = "user";
         UserAccount user = new UserAccount();
         user.setUsername(username);
-        user.setRole(br.com.rentafit.auth.domain.UserRole.ROLE_ADMIN);
+        user.setRole(RoleName.ADMIN);
 
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         when(tokenService.validateToken(token)).thenReturn(username);

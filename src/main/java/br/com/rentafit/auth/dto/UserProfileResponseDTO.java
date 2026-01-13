@@ -1,6 +1,6 @@
 package br.com.rentafit.auth.dto;
 
-import br.com.rentafit.auth.domain.UserRole;
+import br.com.rentafit.auth.domain.RoleName;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -28,7 +28,7 @@ public class UserProfileResponseDTO {
     private String fullName;
     
     @Schema(description = "User access role", example = "ROLE_ADMIN")
-    private UserRole role;
+    private RoleName role;
     
     @Schema(description = "Account active status", example = "true")
     private boolean active;

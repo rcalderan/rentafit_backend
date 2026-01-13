@@ -30,10 +30,10 @@ public class RefreshTokenService {
     }
 
     @Transactional
-    public RefreshToken createRefreshToken(UUID userId) {
+    public RefreshToken createRefreshToken(UserAccount user) {
         try{
             // Fetch the UserAccount within this transaction
-            UserAccount userAccount = userAccountRepository.findById(userId)
+            UserAccount userAccount = userAccountRepository.findById(user.getId())
                     .orElseThrow(() -> new RuntimeException("User not found"));
 
             // Remove old tokens for this user

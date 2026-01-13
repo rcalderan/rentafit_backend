@@ -53,7 +53,7 @@ class RefreshTokenServiceTest {
         when(userAccountRepository.findById(userId)).thenReturn(Optional.of(user));
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        RefreshToken token = refreshTokenService.createRefreshToken(userId);
+        RefreshToken token = refreshTokenService.createRefreshToken(user);
 
         assertThat(token).isNotNull();
         assertThat(token.getUserAccount()).isEqualTo(user);

@@ -2,7 +2,7 @@ package br.com.rentafit.auth.controller;
 
 import br.com.rentafit.auth.domain.RefreshToken;
 import br.com.rentafit.auth.domain.UserAccount;
-import br.com.rentafit.auth.domain.UserRole;
+import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
@@ -77,7 +77,6 @@ class AuthControllerTest {
         UserAccount user = new UserAccount();
         user.setUsername("user");
         user.setId(UUID.randomUUID());
-        user.setRole(UserRole.ROLE_ADMIN);
 
         Authentication auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
 
@@ -86,7 +85,7 @@ class AuthControllerTest {
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setToken("refresh-token");
-        when(refreshTokenService.createRefreshToken(user.getId())).thenReturn(refreshToken);
+        when(refreshTokenService.createRefreshToken(user)).thenReturn(refreshToken);
 
         ResponseEntity<LoginResponseDTO> response = authController.login(request);
 
@@ -113,7 +112,7 @@ class AuthControllerTest {
         when(refreshTokenService.findByToken("old-refresh-token")).thenReturn(Optional.of(oldToken));
         when(refreshTokenService.verifyExpiration(oldToken)).thenReturn(oldToken);
         when(tokenService.generateToken("user")).thenReturn("new-access-token");
-        when(refreshTokenService.createRefreshToken(user.getId())).thenReturn(newToken);
+        when(refreshTokenService.createRefreshToken(user)).thenReturn(newToken);
 
         ResponseEntity<LoginResponseDTO> response = authController.refreshToken(request);
 
