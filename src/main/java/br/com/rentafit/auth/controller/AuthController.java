@@ -7,6 +7,7 @@ import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import br.com.rentafit.auth.service.RefreshTokenService;
+import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
 import br.com.rentafit.common.security.TokenService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @RestController
@@ -37,6 +39,8 @@ public class AuthController {
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokenService;
     private final CryptoService cryptoService;
+    private final UserAccountService userAccountService;
+
 
     private static final Pattern BCRYPT_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
@@ -156,20 +160,18 @@ public class AuthController {
     @Operation(summary = "Obtém o perfil do usuário autenticado", 
               description = "Retorna os dados completos do usuário logado baseado no token JWT")
     public ResponseEntity<UserProfileResponseDTO> getCurrentUser() {
-        UserAccount user = (UserAccount) SecurityContextHolder.getContext()
-                .getAuthentication()
-                .getPrincipal();
-        
-        UserProfileResponseDTO response = new UserProfileResponseDTO(
-                user.getId(),
-                user.getUsername(),
-                user.getPerson() != null ? user.getPerson().getEmail() : null,
-                user.getPerson() != null ? user.getPerson().getName() : null,
-                user.getRole(),
-                user.getIsActive(),
-                user.getPerson() != null ? user.getPerson().getCreatedAt() : null
-        );
-        
-        return ResponseEntity.ok(response);
+        try{
+            String username = SecurityContextHolder.getContext()
+                    .getAuthentication().getName();
+
+            return userAccountService.getUserWithDetails(username)
+                    .map(UserProfileResponseDTO::new)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (Exception e) {
+            System.out.println("Erro ao buscar perfil do usuário: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
+        }
     }
 }

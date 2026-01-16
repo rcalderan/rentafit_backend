@@ -1,5 +1,6 @@
 package br.com.rentafit.common.security;
 
+import br.com.rentafit.auth.domain.Role;
 import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.repository.UserAccountRepository;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,9 +55,14 @@ class SecurityFilterTest {
     void doFilterInternal_validToken() throws ServletException, IOException {
         String token = "valid-token";
         String username = "user";
+
+        Role adminRole = new Role();
+        adminRole.setId(1L);
+        adminRole.setRole(RoleName.MANAGER);
+
         UserAccount user = new UserAccount();
         user.setUsername(username);
-        user.setRole(RoleName.ADMIN);
+        user.setRoles(List.of(adminRole));
 
         when(request.getHeader("Authorization")).thenReturn("Bearer " + token);
         when(tokenService.validateToken(token)).thenReturn(username);

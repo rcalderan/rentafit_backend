@@ -1,5 +1,6 @@
 package br.com.rentafit.auth.service;
 
+import br.com.rentafit.auth.domain.Role;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.repository.UserAccountRepository;
@@ -13,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -40,11 +42,15 @@ class UserAccountServiceTest {
     void setUp() {
         username = "john.doe";
 
+        Role adminRole = new Role();
+        adminRole.setId(1L);
+        adminRole.setRole(RoleName.ADMIN);
+
         userAccount = new UserAccount();
         userAccount.setId(UUID.randomUUID());
         userAccount.setUsername(username);
         userAccount.setPassword("$2a$10$hashedPassword");
-        userAccount.setRole(RoleName.ADMIN);
+        userAccount.setRoles(List.of(adminRole));
         userAccount.setIsActive(true);
     }
 
@@ -103,7 +109,11 @@ class UserAccountServiceTest {
     @DisplayName("Should handle employee role correctly")
     void testLoadUserByUsername_EmployeeRole() {
         // Arrange
-        userAccount.setRole(RoleName.EMPLOYEE);
+        Role employeeRole = new Role();
+        employeeRole.setId(2L);
+        employeeRole.setRole(RoleName.EMPLOYEE);
+        userAccount.setRoles(List.of(employeeRole));
+
         when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
 
         // Act
@@ -122,7 +132,11 @@ class UserAccountServiceTest {
     @DisplayName("Should handle customer role correctly")
     void testLoadUserByUsername_CustomerRole() {
         // Arrange
-        userAccount.setRole(RoleName.CUSTOMER);
+        Role customerRole = new Role();
+        customerRole.setId(3L);
+        customerRole.setRole(RoleName.CUSTOMER);
+        userAccount.setRoles(List.of(customerRole));
+
         when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
 
         // Act
