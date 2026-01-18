@@ -1,5 +1,8 @@
 package br.com.rentafit.people.domain;
 
+import br.com.rentafit.people.dto.AddressDTO;
+import br.com.rentafit.people.dto.ViaCepResponseDTO;
+import br.com.rentafit.people.util.ZipCodeUtils;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -40,4 +43,30 @@ public class Address {
     @Column(nullable = false, length = 2)
     @Schema(description = "State/Province code", example = "SP")
     private final String state;
+
+    public Address(AddressDTO dto){
+        this.zipCode = ZipCodeUtils.normalize(dto.zipCode());
+        this.street = dto.street();
+        this.neighborhood = dto.neighborhood();
+        this.city = dto.city();
+        this.state = dto.state();
+    }
+
+    public Address(ViaCepResponseDTO viaCepDTO){
+        this.zipCode =  ZipCodeUtils.normalize(viaCepDTO.cep());
+        this.street = viaCepDTO.logradouro();
+        this.neighborhood = viaCepDTO.bairro();
+        this.city = viaCepDTO.localidade();
+        this.state = viaCepDTO.uf();
+    }
+
+    public AddressDTO toDTO() {
+        return AddressDTO.builder()
+                .zipCode(ZipCodeUtils.format(this.zipCode))
+                .street(this.street)
+                .neighborhood(this.neighborhood)
+                .city(this.city)
+                .state(this.state)
+                .build();
+    }
 }

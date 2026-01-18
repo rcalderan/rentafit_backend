@@ -2,14 +2,23 @@ package br.com.rentafit.people.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.domain.Address;
+import br.com.rentafit.people.domain.Customer;
+import br.com.rentafit.people.domain.PersonAddressDetails;
+import br.com.rentafit.people.domain.PersonAddressHistory;
 import br.com.rentafit.people.dto.AddressDTO;
+import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.dto.ViaCepResponseDTO;
 import br.com.rentafit.people.repository.AddressRepository;
+import br.com.rentafit.people.repository.PersonAddressDetailsRepository;
+import br.com.rentafit.people.repository.PersonAddressHistoryRepository;
 import br.com.rentafit.people.util.ZipCodeUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.OffsetDateTime;
+import java.util.Objects;
 
 /**
  * Service for managing addresses with ViaCEP integration
@@ -21,6 +30,8 @@ public class AddressService {
 
     private final AddressRepository addressRepository;
     private final ViaCepIntegrationService viaCepIntegrationService;
+    private final PersonAddressDetailsRepository addressDetailsRepository;
+    private final PersonAddressHistoryRepository addressHistoryRepository;
 
     /**
      * Find address by ZIP code
@@ -40,51 +51,49 @@ public class AddressService {
 
     /**
      * Find address by ZIP code or create from ViaCEP if not exists
-     * @param zipCode ZIP code (can be formatted or normalized)
+     * @param addressDTO address
      * @return Address entity (saved if created)
      */
     @Transactional
-    public Address findOrCreateByZipCode(String zipCode) {
-        String normalizedZipCode = ZipCodeUtils.normalize(zipCode);
+    public Address findOrCreateByAddress(AddressDTO addressDTO) {
+        Address address = new Address(addressDTO);
+        // Try to find existing address
+        return addressRepository.findByZipCode(address.getZipCode())
+                .orElseGet(() -> createFromViaCep(address));
+    }
 
+    public Address findOrCreateByZipcode(String zipcode) {
+        String normalizedZipCode = ZipCodeUtils.normalize(zipcode);
         // Try to find existing address
         return addressRepository.findByZipCode(normalizedZipCode)
-                .orElseGet(() -> createFromViaCep(normalizedZipCode));
+                .orElseGet(() -> {
+                    Address rawAddress = new Address(normalizedZipCode, "", "", "", "");
+                    return createFromViaCep(rawAddress);
+                });
     }
+
 
     /**
      * Create address from ViaCEP API data
-     * @param normalizedZipCode normalized ZIP code (8 digits)
+     * @param address with normalizedZipCode (8 digits)
      * @return newly created Address entity
      */
-    private Address createFromViaCep(String normalizedZipCode) {
+    private Address createFromViaCep(Address address) {
+        String normalizedZipCode = address.getZipCode();
         log.info("Address not found locally, fetching from ViaCEP: {}", normalizedZipCode);
 
         ViaCepResponseDTO viaCepData = viaCepIntegrationService.fetchAddressByZipCode(normalizedZipCode);
 
         if (viaCepData == null || viaCepData.hasError()) {
             log.warn("Could not fetch address from ViaCEP for ZIP code: {}", normalizedZipCode);
-            // Create minimal address with just ZIP code
-            return addressRepository.save(new Address(
-                normalizedZipCode,
-                "Address not found",
-                "",
-                "City not provided",
-                "SP"
-            ));
+            return addressRepository.save(address);
         }
 
         // Create address from ViaCEP data
-        Address address = new Address(
-            normalizedZipCode,
-            viaCepData.logradouro() != null ? viaCepData.logradouro() : "",
-            viaCepData.bairro() != null ? viaCepData.bairro() : "",
-            viaCepData.localidade() != null ? viaCepData.localidade() : "",
-            viaCepData.uf() != null ? viaCepData.uf() : ""
-        );
+        Address viaCepAddress = new Address(viaCepData);
 
-        Address savedAddress = addressRepository.save(address);
-        log.info("Created new address from ViaCEP: {}", normalizedZipCode);
+        Address savedAddress = addressRepository.save(viaCepAddress);
+        log.info("Created new address from ViaCEP: {}", savedAddress.getZipCode());
 
         return savedAddress;
     }
@@ -102,6 +111,77 @@ public class AddressService {
                 .city(address.getCity())
                 .state(address.getState())
                 .build();
+    }
+
+    /**
+     * Handle address update - archives old address if changed
+     */
+    public void handleAddressUpdate(Customer customer, CustomerDTO dto) {
+        String newZipCode = ZipCodeUtils.normalize(dto.address().zipCode());
+        PersonAddressDetails currentDetails = customer.getCurrentAddress();
+
+        // Check if address actually changed
+        boolean addressChanged = currentDetails == null ||
+                !currentDetails.getAddress().getZipCode().equals(newZipCode);
+
+        boolean detailsChanged = currentDetails != null && (
+                !Objects.equals(currentDetails.getNumber(), dto.number()) ||
+                        !Objects.equals(currentDetails.getComplement(), dto.complement())
+        );
+
+        if (addressChanged || detailsChanged) {
+            // Archive old address if exists
+            if (currentDetails != null) {
+                archiveCurrentAddress(customer, currentDetails);
+            }
+
+            // Create new address details
+            Address newAddress = findOrCreateByAddress(dto.address());
+
+            PersonAddressDetails newDetails = new PersonAddressDetails();
+            newDetails.setPerson(customer);
+            newDetails.setAddress(newAddress);
+            newDetails.setNumber(dto.number());
+            newDetails.setComplement(dto.complement());
+            newDetails.setStartDate(OffsetDateTime.now());
+            newDetails.setEndDate(null);
+
+            customer.setCurrentAddress(newDetails);
+
+            log.info("Updated address for customer {}: {} -> {}",
+                    customer.getId(),
+                    currentDetails != null ? currentDetails.getAddress().getZipCode() : "none",
+                    newZipCode);
+        }
+    }
+
+    /**
+     * Archive current address to history
+     */
+    private void archiveCurrentAddress(Customer customer, PersonAddressDetails currentDetails) {
+        OffsetDateTime now = OffsetDateTime.now();
+
+        // Set end date on current details
+        currentDetails.setEndDate(now);
+        addressDetailsRepository.save(currentDetails);
+
+        // Create history record
+        PersonAddressHistory history = new PersonAddressHistory();
+        history.setPersonId(customer.getId());
+        history.setZipCode(currentDetails.getAddress().getZipCode());
+        history.setStreet(currentDetails.getAddress().getStreet());
+        history.setNeighborhood(currentDetails.getAddress().getNeighborhood());
+        history.setCity(currentDetails.getAddress().getCity());
+        history.setState(currentDetails.getAddress().getState());
+        history.setNumber(currentDetails.getNumber());
+        history.setComplement(currentDetails.getComplement());
+        history.setStartDate(currentDetails.getStartDate());
+        history.setEndDate(now);
+
+        addressHistoryRepository.save(history);
+
+        log.debug("Archived address for customer {}: {}", customer.getId(),
+                currentDetails.getAddress().getZipCode());
     }
 }
 

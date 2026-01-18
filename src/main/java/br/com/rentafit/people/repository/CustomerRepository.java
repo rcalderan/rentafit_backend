@@ -3,6 +3,8 @@ package br.com.rentafit.people.repository;
 import br.com.rentafit.people.domain.Customer;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -16,4 +18,11 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     Optional<Customer> findById(UUID id);
 
     Optional<Customer> findByDocument(String document);
+
+    // Query by inherited Person.legacyId field
+    @Query("SELECT c FROM Customer c WHERE c.legacyId = :legacyId")
+    Optional<Customer> findByLegacyId(@Param("legacyId") Integer legacyId);
+
+    @Query("SELECT MAX(c.legacyId) FROM Customer c")
+    Integer findMaxLegacyId();
 }

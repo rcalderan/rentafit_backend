@@ -109,7 +109,7 @@ class AddressServiceTest {
         when(addressRepository.findByZipCode("01310100")).thenReturn(Optional.of(existingAddress));
 
         // Act
-        Address result = addressService.findOrCreateByZipCode(zipCode);
+        Address result = addressService.findOrCreateByAddress(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
@@ -148,7 +148,7 @@ class AddressServiceTest {
         when(addressRepository.save(any(Address.class))).thenReturn(newAddress);
 
         // Act
-        Address result = addressService.findOrCreateByZipCode(zipCode);
+        Address result = addressService.findOrCreateByAddress(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
@@ -180,7 +180,7 @@ class AddressServiceTest {
         when(addressRepository.save(any(Address.class))).thenReturn(fallbackAddress);
 
         // Act
-        Address result = addressService.findOrCreateByZipCode(zipCode);
+        Address result = addressService.findOrCreateByAddress(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
@@ -215,7 +215,7 @@ class AddressServiceTest {
         when(addressRepository.save(any(Address.class))).thenReturn(fallbackAddress);
 
         // Act
-        Address result = addressService.findOrCreateByZipCode(zipCode);
+        Address result = addressService.findOrCreateByAddress(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
@@ -266,7 +266,7 @@ class AddressServiceTest {
         when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        Address result = addressService.findOrCreateByZipCode(zipCode);
+        Address result = addressService.findOrCreateByAddress(zipCode);
 
         // Assert
         assertThat(result).isNotNull();

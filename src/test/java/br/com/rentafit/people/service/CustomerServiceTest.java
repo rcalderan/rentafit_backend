@@ -171,7 +171,7 @@ class CustomerServiceTest {
         // Assert
         assertThat(result).isNotNull();
         verify(customerRepository).save(any(Customer.class));
-        verify(addressService, never()).findOrCreateByZipCode(any());
+        verify(addressService, never()).findOrCreateByAddress(any());
     }
 
     @Test
@@ -207,7 +207,7 @@ class CustomerServiceTest {
             return null;
         }).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
 
-        when(addressService.findOrCreateByZipCode("01310100")).thenReturn(viaCepAddress);
+        when(addressService.findOrCreateByAddress("01310100")).thenReturn(viaCepAddress);
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(peopleMapper.toDTO(any(Customer.class))).thenReturn(createDTO);
 
@@ -216,7 +216,7 @@ class CustomerServiceTest {
 
         // Assert
         assertThat(result).isNotNull();
-        verify(addressService).findOrCreateByZipCode("01310100");
+        verify(addressService).findOrCreateByAddress("01310100");
         verify(customerRepository).save(any(Customer.class));
     }
 
@@ -269,7 +269,7 @@ class CustomerServiceTest {
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
         doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
-        when(addressService.findOrCreateByZipCode("12345678")).thenReturn(newAddress);
+        when(addressService.findOrCreateByAddress("12345678")).thenReturn(newAddress);
         when(addressDetailsRepository.save(any(PersonAddressDetails.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(addressHistoryRepository.save(any(PersonAddressHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -282,7 +282,7 @@ class CustomerServiceTest {
         assertThat(result).isNotNull();
         verify(addressHistoryRepository).save(any(PersonAddressHistory.class));
         verify(addressDetailsRepository).save(any(PersonAddressDetails.class));
-        verify(addressService).findOrCreateByZipCode("12345678");
+        verify(addressService).findOrCreateByAddress("12345678");
     }
 
     @Test
@@ -306,7 +306,7 @@ class CustomerServiceTest {
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
         doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
-        when(addressService.findOrCreateByZipCode("01310100")).thenReturn(address);
+        when(addressService.findOrCreateByAddress("01310100")).thenReturn(address);
         when(addressDetailsRepository.save(any(PersonAddressDetails.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(addressHistoryRepository.save(any(PersonAddressHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
@@ -352,7 +352,7 @@ class CustomerServiceTest {
         assertThat(result).isNotNull();
         verify(addressHistoryRepository, never()).save(any());
         verify(addressDetailsRepository, never()).save(any());
-        verify(addressService, never()).findOrCreateByZipCode(any());
+        verify(addressService, never()).findOrCreateByAddress(any());
     }
 
     // ==================== delete Tests ====================

@@ -11,43 +11,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class PeopleMapper {
 
-    public CustomerDTO toDTO(Customer customer) {
-        if (customer == null) return null;
-
-        AddressDTO addressDTO = null;
-        String number = null;
-        String complement = null;
-
-        if (customer.getCurrentAddress() != null) {
-            PersonAddressDetails details = customer.getCurrentAddress();
-            if (details.getAddress() != null) {
-                Address addr = details.getAddress();
-                addressDTO = AddressDTO.builder()
-                        .zipCode(ZipCodeUtils.format(addr.getZipCode()))
-                        .street(addr.getStreet())
-                        .neighborhood(addr.getNeighborhood())
-                        .city(addr.getCity())
-                        .state(addr.getState())
-                        .build();
-            }
-            number = details.getNumber();
-            complement = details.getComplement();
-        }
-
-        return CustomerDTO.builder()
-                .id(customer.getId())
-                .name(customer.getName())
-                .document(customer.getDocument())
-                .email(customer.getEmail())
-                .isAuthenticated(customer.getIsAuthenticated() != null && customer.getIsAuthenticated())
-                .notes(customer.getNotes())
-                .number(number)
-                .complement(complement)
-                .address(addressDTO)
-                .phones(customer.getPhones())
-                .build();
-    }
-
     public AddressDTO toDTO(Address address) {
         if (address == null) return null;
 
@@ -101,18 +64,4 @@ public class PeopleMapper {
         employee.setRoleLevel(dto.roleLevel());
     }
 
-    /**
-     * Update customer basic fields from DTO
-     * Note: Address update is handled separately in CustomerService
-     */
-    public void updateBasicFields(Customer customer, CustomerDTO dto) {
-        if (customer == null || dto == null) return;
-
-        customer.setName(dto.name());
-        customer.setDocument(dto.document());
-        customer.setEmail(dto.email());
-        customer.setIsAuthenticated(dto.isAuthenticated());
-        customer.setNotes(dto.notes());
-        customer.setPhones(dto.phones() != null ? new java.util.ArrayList<>(dto.phones()) : new java.util.ArrayList<>());
-    }
 }

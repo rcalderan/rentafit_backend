@@ -2,6 +2,7 @@ package br.com.rentafit.people.controller;
 
 import br.com.rentafit.people.dto.AddressDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
+import br.com.rentafit.people.dto.CustomerDetailsDTO;
 import br.com.rentafit.people.service.CustomerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -77,7 +78,7 @@ class CustomerControllerTest {
         when(customerService.findAll(any(Pageable.class))).thenReturn(page);
 
         // Act
-        ResponseEntity<Page<CustomerDTO>> response = customerController.findAll(pageable);
+        ResponseEntity<Page<CustomerDetailsDTO>> response = customerController.findAll(pageable);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

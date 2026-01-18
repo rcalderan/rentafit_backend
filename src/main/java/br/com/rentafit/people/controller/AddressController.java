@@ -32,8 +32,9 @@ public class AddressController {
         @ApiResponse(responseCode = "400", description = "Invalid ZIP code format")
     })
     public ResponseEntity<AddressDTO> findByZipCode(@PathVariable String zipCode) {
-        AddressDTO address = addressService.findByZipCode(zipCode);
-        return ResponseEntity.ok(address);
+
+        var address = addressService.findOrCreateByZipcode(zipCode);
+        return ResponseEntity.ok(address.toDTO());
     }
 }
 
