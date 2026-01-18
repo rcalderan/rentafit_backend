@@ -74,7 +74,9 @@ class CustomerControllerTest {
     void testFindAll() {
         // Arrange
         Pageable pageable = PageRequest.of(0, 10);
-        Page<CustomerDTO> page = new PageImpl<>(List.of(customerDTO), pageable, 1);
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", "12345678900",
+                "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
+        Page<CustomerDetailsDTO> page = new PageImpl<>(List.of(detailsDTO), pageable, 1);
         when(customerService.findAll(any(Pageable.class))).thenReturn(page);
 
         // Act
@@ -95,10 +97,12 @@ class CustomerControllerTest {
     @DisplayName("Should return customer when findById is called with valid ID")
     void testFindById() {
         // Arrange
-        when(customerService.findById(customerId)).thenReturn(customerDTO);
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", "12345678900",
+                "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
+        when(customerService.findById(customerId)).thenReturn(detailsDTO);
 
         // Act
-        ResponseEntity<CustomerDTO> response = customerController.findById(customerId);
+        ResponseEntity<CustomerDetailsDTO> response = customerController.findById(customerId);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -115,10 +119,12 @@ class CustomerControllerTest {
     @DisplayName("Should create customer when valid data is provided")
     void testCreate() {
         // Arrange
-        when(customerService.create(any(CustomerDTO.class))).thenReturn(customerDTO);
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", "12345678900",
+                "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of("11987654321"));
+        when(customerService.create(any(CustomerDTO.class))).thenReturn(detailsDTO);
 
         // Act
-        ResponseEntity<CustomerDTO> response = customerController.create(customerDTO);
+        ResponseEntity<CustomerDetailsDTO> response = customerController.create(customerDTO);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
@@ -145,10 +151,12 @@ class CustomerControllerTest {
                 .isAuthenticated(true)
                 .build();
 
-        when(customerService.update(eq(customerId), any(CustomerDTO.class))).thenReturn(updatedDTO);
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva Updated", "12345678900",
+                "joao.updated@example.com", true, null, addressDTO, "123", "Apto 10", List.of("11987654321"));
+        when(customerService.update(eq(customerId), any(CustomerDTO.class))).thenReturn(detailsDTO);
 
         // Act
-        ResponseEntity<CustomerDTO> response = customerController.update(customerId, updatedDTO);
+        ResponseEntity<CustomerDetailsDTO> response = customerController.update(customerId, updatedDTO);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);

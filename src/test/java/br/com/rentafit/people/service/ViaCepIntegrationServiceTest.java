@@ -1,8 +1,10 @@
 package br.com.rentafit.people.service;
 
+import br.com.rentafit.people.dto.ViaCepResponseDTO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
@@ -24,20 +26,23 @@ class ViaCepIntegrationServiceTest {
     }
 
     @Test
-    @DisplayName("Deve lançar exceção para CEP null")
-    void shouldThrowExceptionForNullZipCode() {
-        // Act & Assert
-        assertThatThrownBy(() -> viaCepIntegrationService.fetchAddressByZipCode(null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("cannot be null");
+    @DisplayName("Deve retornar null para CEP null")
+    void shouldReturnNullForNullZipCode() {
+        // Act
+        ViaCepResponseDTO result = viaCepIntegrationService.fetchAddressByZipCode(null);
+
+        // Assert
+        assertThat(result).isNull();
     }
 
     @Test
-    @DisplayName("Deve lançar exceção para CEP vazio")
-    void shouldThrowExceptionForEmptyZipCode() {
-        // Act & Assert
-        assertThatThrownBy(() -> viaCepIntegrationService.fetchAddressByZipCode(""))
-                .isInstanceOf(IllegalArgumentException.class);
+    @DisplayName("Deve retornar null para CEP vazio")
+    void shouldReturnNullForEmptyZipCode() {
+        // Act
+        ViaCepResponseDTO result = viaCepIntegrationService.fetchAddressByZipCode("");
+
+        // Assert
+        assertThat(result).isNull();
     }
 }
 

@@ -44,4 +44,14 @@ public record ViaCepResponseDTO(
     public boolean hasError() {
         return erro != null && erro;
     }
+
+    public AddressDTO toAddressDTO() {
+        return AddressDTO.builder()
+                .zipCode(cep)
+                .street(logradouro)
+                .neighborhood(bairro)
+                .city(localidade)
+                .state(uf)
+                .build();
+    }
 }

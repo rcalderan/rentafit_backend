@@ -22,10 +22,14 @@ public final class ZipCodeUtils {
      */
     public static String normalize(String zipCode) {
         if (zipCode == null || zipCode.isBlank()) {
-            throw new IllegalArgumentException("ZIP code cannot be null or blank");
+            return null;
         }
 
         String cleaned = zipCode.trim();
+
+        if (cleaned.length() == 8 && cleaned.chars().allMatch(Character::isDigit)) {
+            return cleaned;
+        }
 
         if (!CEP_PATTERN.matcher(cleaned).matches()) {
             throw new IllegalArgumentException("Invalid ZIP code format: " + zipCode);

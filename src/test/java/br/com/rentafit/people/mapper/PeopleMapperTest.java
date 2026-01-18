@@ -5,10 +5,7 @@ import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.domain.Employee;
 import br.com.rentafit.people.domain.PersonAddressDetails;
 import br.com.rentafit.people.domain.PersonAddressHistory;
-import br.com.rentafit.people.dto.AddressDTO;
-import br.com.rentafit.people.dto.AddressHistoryDTO;
-import br.com.rentafit.people.dto.CustomerDTO;
-import br.com.rentafit.people.dto.EmployeeDTO;
+import br.com.rentafit.people.dto.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,7 +67,7 @@ class PeopleMapperTest {
         customer.setNotes("VIP Customer");
 
         // Act
-        CustomerDTO dto = mapper.toDTO(customer);
+        CustomerDetailsDTO dto = customer.toDTO();
 
         // Assert
         assertThat(dto).isNotNull();
@@ -102,7 +99,7 @@ class PeopleMapperTest {
         customer.setCurrentAddress(null);
 
         // Act
-        CustomerDTO dto = mapper.toDTO(customer);
+        CustomerDetailsDTO dto = customer.toDTO();
 
         // Assert
         assertThat(dto).isNotNull();
@@ -129,7 +126,7 @@ class PeopleMapperTest {
                 .build();
 
         // Act
-        mapper.updateBasicFields(customer, dto);
+        customer.updateBasicFieldsFromDTO(dto);
 
         // Assert
         assertThat(customer.getName()).isEqualTo("Updated Name");
@@ -155,7 +152,7 @@ class PeopleMapperTest {
                 .build();
 
         // Act
-        mapper.updateBasicFields(customer, dto);
+        customer.updateBasicFieldsFromDTO(dto);
 
         // Assert
         assertThat(customer.getPhones()).isEmpty();
@@ -300,39 +297,16 @@ class PeopleMapperTest {
     @DisplayName("Deve lidar com valores null graciosamente")
     void shouldHandleNullValuesGracefully() {
         // Act
-        CustomerDTO customerDTO = mapper.toDTO((Customer) null);
         EmployeeDTO employeeDTO = mapper.toDTO((Employee) null);
         AddressDTO addressDTO = mapper.toDTO((Address) null);
 
         // Assert
-        assertThat(customerDTO).isNull();
         assertThat(employeeDTO).isNull();
         assertThat(addressDTO).isNull();
     }
 
     // ==================== Helper Methods Tests ====================
 
-    @Test
-    @DisplayName("Deve retornar null ao chamar updateFromDTO com null customer")
-    void shouldHandleNullCustomerInUpdate() {
-        // Arrange
-        CustomerDTO dto = CustomerDTO.builder()
-                .name("Test")
-                .build();
-
-        // Act & Assert
-        mapper.updateBasicFields(null, dto); // Should not throw
-    }
-
-    @Test
-    @DisplayName("Deve retornar null ao chamar updateFromDTO com null dto")
-    void shouldHandleNullDTOInUpdate() {
-        // Arrange
-        Customer customer = new Customer();
-
-        // Act & Assert
-        mapper.updateBasicFields(customer, null); // Should not throw
-    }
 
     @Test
     @DisplayName("Deve retornar null ao chamar updateFromDTO employee com null employee")
@@ -391,7 +365,7 @@ class PeopleMapperTest {
         customer.setNotes("Full details");
 
         // Act
-        CustomerDTO dto = mapper.toDTO(customer);
+        CustomerDetailsDTO dto = customer.toDTO();
 
         // Assert
         assertThat(dto).isNotNull();
@@ -427,7 +401,7 @@ class PeopleMapperTest {
         customer.setCurrentAddress(details);
 
         // Act
-        CustomerDTO dto = mapper.toDTO(customer);
+        CustomerDetailsDTO dto = customer.toDTO();
 
         // Assert
         assertThat(dto.number()).isEqualTo("456");
@@ -464,7 +438,7 @@ class PeopleMapperTest {
         customer.setPhones(new ArrayList<>());
 
         // Act
-        CustomerDTO dto = mapper.toDTO(customer);
+        CustomerDetailsDTO dto = customer.toDTO();
 
         // Assert
         assertThat(dto.phones()).isEmpty();
@@ -484,7 +458,7 @@ class PeopleMapperTest {
         customer.setCurrentAddress(details);
 
         // Act
-        CustomerDTO dto = mapper.toDTO(customer);
+        CustomerDetailsDTO dto = customer.toDTO();
 
         // Assert
         assertThat(dto.address()).isNull();

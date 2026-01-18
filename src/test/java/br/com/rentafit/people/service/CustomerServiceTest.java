@@ -8,6 +8,7 @@ import br.com.rentafit.people.domain.PersonAddressHistory;
 import br.com.rentafit.people.dto.AddressDTO;
 import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
+import br.com.rentafit.people.dto.CustomerDetailsDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.CustomerRepository;
 import br.com.rentafit.people.repository.PersonAddressDetailsRepository;
@@ -83,13 +84,11 @@ class CustomerServiceTest {
         // Arrange
         Pageable pageable = PageRequest.of(0, 10);
         Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
-        CustomerDTO customerDTO = CustomerDTO.builder().id(customerId).name("Test Customer").build();
 
         when(customerRepository.findAll(pageable)).thenReturn(customerPage);
-        when(peopleMapper.toDTO(testCustomer)).thenReturn(customerDTO);
 
         // Act
-        Page<CustomerDTO> result = customerService.findAll(pageable);
+        Page<CustomerDetailsDTO> result = customerService.findAll(pageable);
 
         // Assert
         assertThat(result).isNotNull();
@@ -104,16 +103,10 @@ class CustomerServiceTest {
     @DisplayName("Deve encontrar cliente por ID")
     void shouldFindCustomerById() {
         // Arrange
-        CustomerDTO customerDTO = CustomerDTO.builder()
-                .id(customerId)
-                .name("Test Customer")
-                .build();
-
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
-        when(peopleMapper.toDTO(testCustomer)).thenReturn(customerDTO);
 
         // Act
-        CustomerDTO result = customerService.findById(customerId);
+        CustomerDetailsDTO result = customerService.findById(customerId);
 
         // Assert
         assertThat(result).isNotNull();
@@ -152,21 +145,10 @@ class CustomerServiceTest {
         saved.setDocument("99988877766");
 
         when(customerRepository.findByDocument(anyString())).thenReturn(Optional.empty());
-        // map update
-        doAnswer(invocation -> {
-            Customer c = invocation.getArgument(0);
-            CustomerDTO dto = invocation.getArgument(1);
-            c.setName(dto.name());
-            c.setEmail(dto.email());
-            c.setDocument(dto.document());
-            return null;
-        }).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
-
         when(customerRepository.save(any(Customer.class))).thenReturn(saved);
-        when(peopleMapper.toDTO(saved)).thenReturn(createDTO);
 
         // Act
-        CustomerDTO result = customerService.create(createDTO);
+        CustomerDetailsDTO result = customerService.create(createDTO);
 
         // Assert
         assertThat(result).isNotNull();
@@ -196,27 +178,15 @@ class CustomerServiceTest {
 
         Address viaCepAddress = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
         when(customerRepository.findByDocument(anyString())).thenReturn(Optional.empty());
-
-        // simulate mapper
-        doAnswer(invocation -> {
-            Customer c = invocation.getArgument(0);
-            CustomerDTO dto = invocation.getArgument(1);
-            c.setName(dto.name());
-            c.setEmail(dto.email());
-            c.setDocument(dto.document());
-            return null;
-        }).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
-
-        when(addressService.findOrCreateByAddress("01310100")).thenReturn(viaCepAddress);
+        when(addressService.findOrCreateByAddress(any(AddressDTO.class))).thenReturn(viaCepAddress);
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(createDTO);
 
         // Act
-        CustomerDTO result = customerService.create(createDTO);
+        CustomerDetailsDTO result = customerService.create(createDTO);
 
         // Assert
         assertThat(result).isNotNull();
-        verify(addressService).findOrCreateByAddress("01310100");
+        verify(addressService).findOrCreateByAddress(any(AddressDTO.class));
         verify(customerRepository).save(any(Customer.class));
     }
 
@@ -268,21 +238,25 @@ class CustomerServiceTest {
                 .build();
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
-        doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
-        when(addressService.findOrCreateByAddress("12345678")).thenReturn(newAddress);
-        when(addressDetailsRepository.save(any(PersonAddressDetails.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(addressHistoryRepository.save(any(PersonAddressHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            PersonAddressDetails newDetails = new PersonAddressDetails();
+            newDetails.setAddress(newAddress);
+            newDetails.setNumber("2000");
+            newDetails.setComplement("Apt 301");
+            c.setCurrentAddress(newDetails);
+            return null;
+        }).when(addressService).handleAddressUpdate(any(Customer.class), any(CustomerDTO.class));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(updateDTO);
 
         // Act
-        CustomerDTO result = customerService.update(customerId, updateDTO);
+        CustomerDetailsDTO result = customerService.update(customerId, updateDTO);
 
         // Assert
         assertThat(result).isNotNull();
-        verify(addressHistoryRepository).save(any(PersonAddressHistory.class));
-        verify(addressDetailsRepository).save(any(PersonAddressDetails.class));
-        verify(addressService).findOrCreateByAddress("12345678");
+        // Verify the service called the necessary methods to update address
+        verify(addressService).handleAddressUpdate(any(Customer.class), any(CustomerDTO.class));
+        verify(customerRepository).save(any(Customer.class));
     }
 
     @Test
@@ -305,20 +279,23 @@ class CustomerServiceTest {
                 .build();
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
-        doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
-        when(addressService.findOrCreateByAddress("01310100")).thenReturn(address);
-        when(addressDetailsRepository.save(any(PersonAddressDetails.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(addressHistoryRepository.save(any(PersonAddressHistory.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        doAnswer(invocation -> {
+            Customer c = invocation.getArgument(0);
+            PersonAddressDetails updated = c.getCurrentAddress();
+            updated.setNumber("1001");
+            updated.setComplement("Apt 202");
+            return null;
+        }).when(addressService).handleAddressUpdate(any(Customer.class), any(CustomerDTO.class));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(updateDTO);
 
         // Act
-        CustomerDTO result = customerService.update(customerId, updateDTO);
+        CustomerDetailsDTO result = customerService.update(customerId, updateDTO);
 
         // Assert
         assertThat(result).isNotNull();
-        verify(addressHistoryRepository).save(any(PersonAddressHistory.class));
-        verify(addressDetailsRepository).save(any(PersonAddressDetails.class));
+        // Verify update was processed (details changed even though address stayed same)
+        verify(addressService).handleAddressUpdate(any(Customer.class), any(CustomerDTO.class));
+        verify(customerRepository).save(any(Customer.class));
     }
 
     @Test
@@ -341,12 +318,10 @@ class CustomerServiceTest {
                 .build();
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(testCustomer));
-        doAnswer(invocation -> null).when(peopleMapper).updateBasicFields(any(Customer.class), any(CustomerDTO.class));
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(peopleMapper.toDTO(any(Customer.class))).thenReturn(updateDTO);
 
         // Act
-        CustomerDTO result = customerService.update(customerId, updateDTO);
+        CustomerDetailsDTO result = customerService.update(customerId, updateDTO);
 
         // Assert
         assertThat(result).isNotNull();

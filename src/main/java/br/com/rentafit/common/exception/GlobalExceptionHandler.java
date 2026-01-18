@@ -69,6 +69,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
     }
 
+    @ExceptionHandler(ExternalServiceTimeoutException.class)
+    public ResponseEntity<ErrorResponse> handleExternalServiceTimeout(ExternalServiceTimeoutException ex,
+                                                                      HttpServletRequest request) {
+        ErrorResponse body = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.GATEWAY_TIMEOUT.value())
+                .error(isProd ? null : HttpStatus.GATEWAY_TIMEOUT.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build();
+        return ResponseEntity.status(HttpStatus.GATEWAY_TIMEOUT).body(body);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleInternal(Exception ex,
                                                         HttpServletRequest request) {
@@ -82,4 +95,3 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 }
-

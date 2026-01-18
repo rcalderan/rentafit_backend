@@ -66,30 +66,24 @@ class ZipCodeUtilsTest {
     }
 
     @Test
-    @DisplayName("Deve lançar exceção para CEP null")
-    void shouldThrowExceptionForNullZipCode() {
+    @DisplayName("Deve retornar null para CEP null")
+    void shouldReturnNullForNullZipCode() {
         // Act & Assert
-        assertThatThrownBy(() -> ZipCodeUtils.normalize(null))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("ZIP code cannot be null or blank");
+        assertThat(ZipCodeUtils.normalize(null)).isNull();
     }
 
     @Test
-    @DisplayName("Deve lançar exceção para CEP vazio")
-    void shouldThrowExceptionForEmptyZipCode() {
+    @DisplayName("Deve retornar null para CEP vazio")
+    void shouldReturnNullForEmptyZipCode() {
         // Act & Assert
-        assertThatThrownBy(() -> ZipCodeUtils.normalize(""))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("ZIP code cannot be null or blank");
+        assertThat(ZipCodeUtils.normalize("")).isNull();
     }
 
     @Test
-    @DisplayName("Deve lançar exceção para CEP em branco")
-    void shouldThrowExceptionForBlankZipCode() {
+    @DisplayName("Deve retornar null para CEP em branco")
+    void shouldReturnNullForBlankZipCode() {
         // Act & Assert
-        assertThatThrownBy(() -> ZipCodeUtils.normalize("   "))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessage("ZIP code cannot be null or blank");
+        assertThat(ZipCodeUtils.normalize("   ")).isNull();
     }
 
     @Test

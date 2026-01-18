@@ -4,15 +4,22 @@ import br.com.rentafit.people.domain.Address;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Repository
-public interface AddressRepository extends JpaRepository<Address, String> {
+public interface AddressRepository extends JpaRepository<Address, UUID> {
 
     /**
-     * Find address by ZIP code (primary key)
+     * Find addresses by ZIP code
      * @param zipCode normalized ZIP code (8 digits)
-     * @return Optional containing the address if found
+     * @return List of addresses found
      */
-    Optional<Address> findByZipCode(String zipCode);
+    List<Address> findByZipCode(String zipCode);
+
+    /**
+     * Find address by composite key to avoid duplicates
+     */
+    Optional<Address> findByZipCodeAndStreetAndCityAndState(String zipCode, String street, String city, String state);
 }

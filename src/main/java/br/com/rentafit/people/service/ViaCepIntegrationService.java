@@ -1,5 +1,7 @@
 package br.com.rentafit.people.service;
 
+import br.com.rentafit.common.exception.ExternalServiceTimeoutException;
+import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.dto.ViaCepResponseDTO;
 import br.com.rentafit.people.util.ZipCodeUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -8,10 +10,12 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.Exceptions;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Service for integrating with ViaCEP external API to fetch address information by ZIP code.
@@ -55,6 +59,12 @@ public class ViaCepIntegrationService {
     @Cacheable(value = "viaCepCache", key = "#zipCode", unless = "#result == null || #result.hasError()")
     public ViaCepResponseDTO fetchAddressByZipCode(String zipCode) {
         String normalizedZipCode = ZipCodeUtils.normalize(zipCode);
+
+        // Return null if ZIP code is invalid or null
+        if (normalizedZipCode == null) {
+            return null;
+        }
+
         String url = String.format("%s/%s/json/", VIA_CEP_BASE_URL, normalizedZipCode);
 
         log.debug("Fetching address from ViaCEP for ZIP code: {}", normalizedZipCode);
@@ -71,29 +81,32 @@ public class ViaCepIntegrationService {
                             .filter(throwable -> !(throwable instanceof WebClientResponseException.NotFound)))
                     .onErrorResume(WebClientResponseException.NotFound.class, e -> {
                         log.warn("ZIP code not found in ViaCEP: {}", normalizedZipCode);
-                        return Mono.empty();
+                        throw new ResourceNotFoundException("ViaCep","ZipCode", normalizedZipCode);
                     })
-                    .onErrorResume(Exception.class, e -> {
+                    .onErrorResume(e -> {
+                        Throwable actualError = Exceptions.isRetryExhausted(e) ? e.getCause() : e;
+
                         log.error("Error fetching address from ViaCEP for ZIP code {}: {}",
-                                normalizedZipCode, e.getMessage());
-                        return Mono.empty();
+                                normalizedZipCode, actualError.getMessage());
+
+                        throw new ExternalServiceTimeoutException(actualError.getMessage(), 5000);
                     })
                     .block();
 
-            if (response != null && response.hasError()) {
-                log.warn("ViaCEP returned error for ZIP code: {}", normalizedZipCode);
-                return null;
+            if (response == null || response.hasError()) {
+                log.warn("ViaCEP returned error or null for ZIP code: {}", normalizedZipCode);
+                throw new ResourceNotFoundException("ViaCep","ZipCode", normalizedZipCode);
             }
 
-            if (response != null) {
-                log.info("Successfully fetched address from ViaCEP: {} - {}, {}",
-                        normalizedZipCode, response.logradouro(), response.localidade());
-            }
+            log.info("Successfully fetched address from ViaCEP: {} - {}, {}",
+                    normalizedZipCode, response.logradouro(), response.localidade());
 
             return response;
+        } catch (ExternalServiceTimeoutException | ResourceNotFoundException e) {
+            throw e;
         } catch (Exception e) {
             log.error("Unexpected error calling ViaCEP for ZIP code {}: {}", normalizedZipCode, e.getMessage());
-            return null;
+            throw e;
         }
     }
 }

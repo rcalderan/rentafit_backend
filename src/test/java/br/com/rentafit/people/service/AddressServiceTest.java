@@ -13,6 +13,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -46,7 +48,7 @@ class AddressServiceTest {
     // ==================== findByZipCode Tests ====================
 
     @Test
-    @DisplayName("Deve encontrar endereço por CEP normalizado")
+    @DisplayName("Deve encontrar endereço por CEP formatado")
     void shouldFindAddressByNormalizedZipCode() {
         // Arrange
         String zipCode = "01310-100";
@@ -58,7 +60,7 @@ class AddressServiceTest {
                 "SP"
         );
 
-        when(addressRepository.findByZipCode("01310100")).thenReturn(Optional.of(expectedAddress));
+        when(addressRepository.findByZipCode("01310100")).thenReturn(List.of(expectedAddress));
 
         // Act
         AddressDTO result = addressService.findByZipCode(zipCode);
@@ -76,7 +78,7 @@ class AddressServiceTest {
     void shouldThrowExceptionWhenAddressNotFound() {
         // Arrange
         String zipCode = "99999-999";
-        when(addressRepository.findByZipCode("99999999")).thenReturn(Optional.empty());
+        when(addressRepository.findByZipCode("99999999")).thenReturn(List.of());
 
         // Act & Assert
         assertThatThrownBy(() -> addressService.findByZipCode(zipCode))
@@ -106,10 +108,10 @@ class AddressServiceTest {
                 "SP"
         );
 
-        when(addressRepository.findByZipCode("01310100")).thenReturn(Optional.of(existingAddress));
+        when(addressRepository.findByZipCode("01310100")).thenReturn(List.of(existingAddress));
 
         // Act
-        Address result = addressService.findOrCreateByAddress(zipCode);
+        Address result = addressService.findOrCreateByZipcode(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
@@ -143,12 +145,12 @@ class AddressServiceTest {
                 viaCepData.uf()
         );
 
-        when(addressRepository.findByZipCode(normalized)).thenReturn(Optional.empty());
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
         when(viaCepIntegrationService.fetchAddressByZipCode("01310100")).thenReturn(viaCepData);
         when(addressRepository.save(any(Address.class))).thenReturn(newAddress);
 
         // Act
-        Address result = addressService.findOrCreateByAddress(zipCode);
+        Address result = addressService.findOrCreateByZipcode(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
@@ -160,39 +162,26 @@ class AddressServiceTest {
     }
 
     @Test
-    @DisplayName("Deve criar endereço mínimo quando ViaCEP falha")
-    void shouldCreateMinimalAddressWhenViaCepFails() {
+    @DisplayName("Deve lançar exceção quando ViaCEP falha e não há dados completos")
+    void shouldThrowExceptionWhenViaCepFails() {
         // Arrange
         String zipCode = "01310-100";
         String normalized = "01310100";
 
-        when(addressRepository.findByZipCode(normalized)).thenReturn(Optional.empty());
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
         when(viaCepIntegrationService.fetchAddressByZipCode(normalized)).thenReturn(null);
 
-        Address fallbackAddress = new Address(
-                normalized,
-                "Endereço não encontrado",
-                "",
-                "Cidade não informada",
-                "SP"
-        );
+        // Act & Assert
+        assertThatThrownBy(() -> addressService.findOrCreateByZipcode(zipCode))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Address not found");
 
-        when(addressRepository.save(any(Address.class))).thenReturn(fallbackAddress);
-
-        // Act
-        Address result = addressService.findOrCreateByAddress(zipCode);
-
-        // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getZipCode()).isEqualTo(normalized);
-        assertThat(result.getStreet()).isEqualTo("Endereço não encontrado");
         verify(viaCepIntegrationService).fetchAddressByZipCode(normalized);
-        verify(addressRepository).save(any(Address.class));
     }
 
     @Test
-    @DisplayName("Deve criar endereço mínimo quando ViaCEP retorna erro")
-    void shouldCreateMinimalAddressWhenViaCepReturnsError() {
+    @DisplayName("Deve lançar exceção quando ViaCEP retorna erro")
+    void shouldThrowExceptionWhenViaCepReturnsError() {
         // Arrange
         String zipCode = "99999-999";
         String normalized = "99999999";
@@ -201,25 +190,15 @@ class AddressServiceTest {
                 .erro(true)
                 .build();
 
-        when(addressRepository.findByZipCode(normalized)).thenReturn(Optional.empty());
-        when(viaCepIntegrationService.fetchAddressByZipCode("99999999")).thenReturn(errorResponse);
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized)).thenReturn(errorResponse);
 
-        Address fallbackAddress = new Address(
-                normalized,
-                "Endereço não encontrado",
-                "",
-                "Cidade não informada",
-                "SP"
-        );
+        // Act & Assert
+        assertThatThrownBy(() -> addressService.findOrCreateByZipcode(zipCode))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Address not found");
 
-        when(addressRepository.save(any(Address.class))).thenReturn(fallbackAddress);
-
-        // Act
-        Address result = addressService.findOrCreateByAddress(zipCode);
-
-        // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getStreet()).isEqualTo("Endereço não encontrado");
+        verify(viaCepIntegrationService).fetchAddressByZipCode(normalized);
     }
 
     @Test
@@ -235,7 +214,7 @@ class AddressServiceTest {
                 "SP"
         );
 
-        when(addressRepository.findByZipCode("01310100")).thenReturn(Optional.of(expectedAddress));
+        when(addressRepository.findByZipCode("01310100")).thenReturn(List.of(expectedAddress));
 
         // Act
         AddressDTO result = addressService.findByZipCode(zipCode);
@@ -261,17 +240,70 @@ class AddressServiceTest {
                 .erro(false)
                 .build();
 
-        when(addressRepository.findByZipCode(normalized)).thenReturn(Optional.empty());
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
         when(viaCepIntegrationService.fetchAddressByZipCode(normalized)).thenReturn(viaCepData);
         when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        Address result = addressService.findOrCreateByAddress(zipCode);
+        Address result = addressService.findOrCreateByZipcode(zipCode);
 
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getZipCode()).isEqualTo(normalized);
         assertThat(result.getStreet()).isEmpty();
     }
-}
 
+    @Test
+    @DisplayName("Deve criar endereço manual quando ZIP não existe e dados manuais são fornecidos")
+    void shouldCreateManualAddressWhenZipMissing() {
+        // Arrange
+        AddressDTO manualDto = AddressDTO.builder()
+                .zipCode(null) // No zip
+                .street("Estrada Rural, KM 10")
+                .neighborhood("Zona Rural")
+                .city("Itu")
+                .state("SP")
+                .build();
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState(null, "Estrada Rural, KM 10", "Itu", "SP"))
+                .thenReturn(Optional.empty());
+        when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        Address result = addressService.findOrCreateByAddress(manualDto);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.isManual()).isTrue();
+        assertThat(result.getZipCode()).isNull();
+        assertThat(result.getStreet()).isEqualTo("Estrada Rural, KM 10");
+        verify(addressRepository).save(any(Address.class));
+    }
+
+    @Test
+    @DisplayName("Deve criar endereço manual quando ViaCEP não encontra o CEP")
+    void shouldCreateManualAddressWhenViaCepNotFound() {
+        // Arrange
+        String zipCode = "99999999";
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode(zipCode)
+                .street("Rua Desconhecida")
+                .city("Cidade")
+                .state("ZZ")
+                .build();
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState(zipCode, "Rua Desconhecida", "Cidade", "ZZ"))
+                .thenReturn(Optional.empty());
+        when(viaCepIntegrationService.fetchAddressByZipCode(zipCode)).thenReturn(null);
+        when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.isManual()).isTrue();
+        assertThat(result.getStreet()).isEqualTo("Rua Desconhecida");
+        verify(viaCepIntegrationService).fetchAddressByZipCode(zipCode);
+    }
+}

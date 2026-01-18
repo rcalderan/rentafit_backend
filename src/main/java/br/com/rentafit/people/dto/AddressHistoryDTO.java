@@ -20,6 +20,6 @@ public record AddressHistoryDTO(
     String complement,
     OffsetDateTime startDate,
     OffsetDateTime endDate,
-    OffsetDateTime archivedAt
+    OffsetDateTime archivedAt,
+    boolean isManual
 ) {}
-

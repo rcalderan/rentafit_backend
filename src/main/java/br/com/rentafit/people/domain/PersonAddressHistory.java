@@ -34,7 +34,7 @@ public class PersonAddressHistory {
     @Schema(description = "Person ID reference")
     private UUID personId;
 
-    @Column(name = "zip_code", nullable = false, length = 8)
+    @Column(name = "zip_code", length = 8)
     @Schema(description = "ZIP code snapshot")
     private String zipCode;
 
@@ -70,9 +70,11 @@ public class PersonAddressHistory {
     @Schema(description = "When this address stopped being active")
     private OffsetDateTime endDate;
 
+    @Column(name = "archived_at", nullable = false, updatable = false)
     @CreationTimestamp
-    @Column(name = "archived_at", nullable = false)
     @Schema(description = "When this record was archived")
     private OffsetDateTime archivedAt;
-}
 
+    @Column(name = "is_manual", nullable = false)
+    private boolean isManual;
+}

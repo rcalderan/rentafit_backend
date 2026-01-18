@@ -33,7 +33,6 @@ import java.util.UUID;
 public class ClienteItemProcessor implements ItemProcessor<ClienteDocument, Customer> {
 
     private static final Logger log = LoggerFactory.getLogger(ClienteItemProcessor.class);
-    private static final String UNKNOWN_ZIP_CODE = "00000000";
 
     private final LegacyIdMapper legacyIdMapper;
     private final DatabaseEncryptionConverter encryptionConverter;
@@ -121,30 +120,25 @@ public class ClienteItemProcessor implements ItemProcessor<ClienteDocument, Cust
      * Resolve ou cria um Address baseado nos dados do endereço
      */
     private Address resolveOrCreateAddress(ClienteDocument.EnderecoData enderecoData) {
-        if (enderecoData.getCep() == null || enderecoData.getCep().isBlank()) {
-            // Create minimal address if no CEP
-            return addressRepository.findById(UNKNOWN_ZIP_CODE)
-                    .orElseGet(() -> addressRepository.save(new Address(
-                            UNKNOWN_ZIP_CODE,
-                            enderecoData.getRua() != null ? enderecoData.getRua() : "Não informado",
-                            enderecoData.getBairro(),
-                            enderecoData.getCidade() != null ? enderecoData.getCidade() : "Não informado",
-                            enderecoData.getEstado() != null ? enderecoData.getEstado() : "SP"
-                    )));
-        }
-
         String normalizedZipCode = ZipCodeUtils.normalize(enderecoData.getCep());
+        String street = enderecoData.getRua() != null ? enderecoData.getRua() : "Não informado";
+        String city = enderecoData.getCidade() != null ? enderecoData.getCidade() : "Não informado";
+        String state = enderecoData.getEstado() != null ? enderecoData.getEstado() : "SP";
 
-        // Check if address already exists
-        return addressRepository.findById(normalizedZipCode)
+        // Check if address already exists by composite key
+        return addressRepository.findByZipCodeAndStreetAndCityAndState(
+                        normalizedZipCode,
+                        street,
+                        city,
+                        state)
                 .orElseGet(() -> {
                     // Create new immutable address
                     Address address = new Address(
                             normalizedZipCode,
-                            enderecoData.getRua() != null ? enderecoData.getRua() : "",
+                            street,
                             enderecoData.getBairro(),
-                            enderecoData.getCidade() != null ? enderecoData.getCidade() : "",
-                            enderecoData.getEstado() != null ? enderecoData.getEstado() : ""
+                            city,
+                            state
                     );
                     return addressRepository.save(address);
                 });

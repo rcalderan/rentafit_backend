@@ -38,6 +38,7 @@ public class PeopleMapper {
                 .startDate(history.getStartDate())
                 .endDate(history.getEndDate())
                 .archivedAt(history.getArchivedAt())
+                .isManual(history.isManual())
                 .build();
     }
 

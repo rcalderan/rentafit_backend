@@ -36,7 +36,7 @@ public class PersonAddressDetails {
     private Person person;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "zip_code", nullable = false)
+    @JoinColumn(name = "address_id", nullable = false)
     @Schema(description = "Address reference")
     private Address address;
 
