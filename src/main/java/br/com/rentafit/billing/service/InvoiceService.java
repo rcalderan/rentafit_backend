@@ -27,6 +27,11 @@ public class InvoiceService {
         return invoiceRepository.findByAccessKey(accessKey);
     }
 
+    @Transactional(readOnly = true)
+    public Optional<Invoice> getByInvoiceNumber(Long invoiceNumber) {
+        return invoiceRepository.findByInvoiceNumber(invoiceNumber);
+    }
+
     @Transactional
     public Invoice save(Invoice invoice) {
         return invoiceRepository.save(invoice);

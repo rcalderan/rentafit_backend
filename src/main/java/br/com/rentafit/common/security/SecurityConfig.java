@@ -23,6 +23,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final SecurityFilter securityFilter;
+    private final CertificateAuthenticationFilter certificateAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -41,6 +42,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
+                // Ordem: Certificado -> JWT
+                // CertificateFilter adiciona ROLE_CERTIFICATE_AUTH se mTLS presente
+                // SecurityFilter (JWT) adiciona roles do usuário (ADMIN/EMPLOYEE)
+                .addFilterBefore(certificateAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

@@ -4,6 +4,8 @@ import br.com.rentafit.billing.service.NfsePortalService;
 import br.com.rentafit.billing.domain.Invoice;
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.billing.dto.DpsResponse;
+import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
+import br.com.rentafit.billing.dto.InvoiceEmissionResponseDTO;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.repository.CustomerRepository;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +18,7 @@ import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,15 +45,24 @@ class BillingServiceTest {
     @DisplayName("Should emit an invoice successfully")
     void shouldEmitInvoiceSuccessfully() {
         UUID customerId = UUID.randomUUID();
-        BigDecimal serviceValue = new BigDecimal("100.00");
         Customer customer = new Customer();
         customer.setId(customerId);
         customer.setName("John Doe");
         customer.setDocument("12345678000199");
 
+        InvoiceEmissionRequestDTO request = InvoiceEmissionRequestDTO.builder()
+                .customerId(customerId)
+                .serviceValue(new BigDecimal("100.00"))
+                .nbsCode("1.0101")
+                .serviceDescription("Test service")
+                .cityCode("3550308")
+                .build();
+
         DpsResponse dpsResponse = DpsResponse.builder()
                 .accessKey("dummy-access-key")
                 .protocol("dummy-protocol")
+                .status("AUTORIZADA")
+                .dhProcessamento(OffsetDateTime.now())
                 .build();
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
@@ -58,14 +70,14 @@ class BillingServiceTest {
                 .thenReturn(Mono.just(dpsResponse));
         when(invoiceService.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        Mono<Invoice> result = billingService.emitInvoice(customerId, serviceValue);
+        Mono<InvoiceEmissionResponseDTO> result = billingService.emitInvoice(request);
 
         StepVerifier.create(result)
-                .assertNext(invoice -> {
-                    assertThat(invoice.getAccessKey()).isEqualTo("dummy-access-key");
-                    assertThat(invoice.getServiceValue()).isEqualTo(serviceValue);
-                    assertThat(invoice.getCustomer()).isEqualTo(customer);
-                    assertThat(invoice.getStatus()).isEqualTo(Invoice.InvoiceStatus.AUTHORIZED);
+                .assertNext(response -> {
+                    assertThat(response.getAccessKey()).isEqualTo("dummy-access-key");
+                    assertThat(response.getServiceValue()).isEqualByComparingTo(new BigDecimal("100.00"));
+                    assertThat(response.getStatus()).isEqualTo("AUTHORIZED");
+                    assertThat(response.getTaxes()).isNotNull();
                 })
                 .verifyComplete();
     }
@@ -74,13 +86,21 @@ class BillingServiceTest {
     @DisplayName("Should throw exception when customer not found")
     void shouldThrowExceptionWhenCustomerNotFound() {
         UUID customerId = UUID.randomUUID();
+        InvoiceEmissionRequestDTO request = InvoiceEmissionRequestDTO.builder()
+                .customerId(customerId)
+                .serviceValue(BigDecimal.TEN)
+                .nbsCode("1.0101")
+                .serviceDescription("Test")
+                .cityCode("3550308")
+                .build();
+
         when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
 
-        try {
-            billingService.emitInvoice(customerId, BigDecimal.TEN);
-        } catch (RuntimeException e) {
-            assertThat(e.getMessage()).isEqualTo("Cliente não encontrado");
-        }
+        Mono<InvoiceEmissionResponseDTO> result = billingService.emitInvoice(request);
+
+        StepVerifier.create(result)
+                .expectError(RuntimeException.class)
+                .verify();
     }
 }
 

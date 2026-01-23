@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 public class StsTokenService {
     private static final long RENEWAL_MARGIN_SECONDS = 60;
 
-    @Value("${nfs-e.sts.enabled:true}")
+    @Value("${nfs-e.sts.enabled}")
     private boolean stsEnabled;
 
     private final WebClient stsWebClient;
