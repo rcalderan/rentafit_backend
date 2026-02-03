@@ -6,9 +6,11 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
-import lombok.Data;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.experimental.SuperBuilder;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -20,9 +22,11 @@ import java.util.UUID;
 @Entity
 @Table(name = "people")
 @Inheritance(strategy = InheritanceType.JOINED)
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@SuperBuilder
 @Schema(description = "Base entity for all people in the system")
 public abstract class Person {
 
@@ -51,6 +55,7 @@ public abstract class Person {
     @Schema(description = "Email address", example = "john.doe@example.com")
     private String email;
 
+    @Builder.Default
     @OneToMany(mappedBy = "person", cascade = CascadeType.ALL, orphanRemoval = true)
     @Schema(description = "Address history and current details")
     private List<PersonAddressDetails> addressDetails = new ArrayList<>();

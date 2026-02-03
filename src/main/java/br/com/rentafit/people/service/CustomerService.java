@@ -95,9 +95,9 @@ public class CustomerService {
     }
 
     @Transactional
-    public CustomerDetailsDTO update(UUID id, CustomerDTO dto) {
-        Customer customer = customerRepository.findById(id)
-                .orElseThrow(() -> ResourceNotFoundException.forId("Customer", id));
+    public CustomerDetailsDTO update(CustomerDTO dto) {
+        Customer customer = customerRepository.findById(dto.id())
+                .orElseThrow(() -> ResourceNotFoundException.forId("Customer", dto.id()));
 
         customer.updateBasicFieldsFromDTO(dto);
 

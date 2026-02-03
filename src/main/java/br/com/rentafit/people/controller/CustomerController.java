@@ -119,17 +119,17 @@ public class CustomerController {
         }
     }
 
-    @PutMapping("/{id}")
+    @PutMapping
     @Operation(summary = "Update an existing customer")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Customer updated successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid input data"),
-        @ApiResponse(responseCode = "404", description = "Customer not found")
+        @ApiResponse(responseCode = "404", description = "Customer not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<CustomerDetailsDTO> update(
-            @PathVariable UUID id,
             @Valid @RequestBody CustomerDTO dto) {
-        return ResponseEntity.ok(customerService.update(id, dto));
+        return ResponseEntity.ok(customerService.update(dto));
     }
 
     @DeleteMapping("/{id}")

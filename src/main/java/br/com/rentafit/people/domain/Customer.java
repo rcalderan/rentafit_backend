@@ -6,12 +6,10 @@ import br.com.rentafit.people.dto.CustomerDetailsDTO;
 import br.com.rentafit.people.util.ZipCodeUtils;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.NotNull;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,10 +31,12 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@SuperBuilder
 @EqualsAndHashCode(callSuper = true)
 @Schema(description = "Customer entity extending Person")
 public class Customer extends Person {
 
+    @Builder.Default
     @Column(name = "is_authenticated")
     @Schema(description = "Whether the customer is authenticated", example = "false")
     @Getter
@@ -51,9 +51,12 @@ public class Customer extends Person {
     @Schema(description = "Employee who created this customer record")
     private Employee createdBy;
 
+    @Builder.Default
     @ElementCollection
     @CollectionTable(name = "customer_phones", joinColumns = @JoinColumn(name = "customer_id"))
     @Column(name = "phone")
+    @NotNull(message = "A lista de telefones não pode ser nula")
+    @Size(min = 1, max = 2, message = "O cliente deve ter entre 1 e 2 telefones")
     @Schema(description = "List of customer phone numbers")
     private List<String> phones = new ArrayList<>();
 
@@ -108,6 +111,7 @@ public class Customer extends Person {
         return CustomerDetailsDTO.builder()
                 .id(this.getId())
                 .name(this.getName())
+                .legacyId(this.getLegacyId())
                 .document(this.getDocument())
                 .email(this.getEmail())
                 .isAuthenticated(this.getIsAuthenticated() != null && this.getIsAuthenticated())

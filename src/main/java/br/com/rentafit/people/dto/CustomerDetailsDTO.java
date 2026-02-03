@@ -3,6 +3,7 @@ package br.com.rentafit.people.dto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
+import org.hibernate.validator.constraints.UniqueElements;
 
 import java.util.List;
 import java.util.UUID;
@@ -40,7 +41,8 @@ public record CustomerDetailsDTO(
     @Size(max = 100, message = "Complement must not exceed 100 characters")
     String complement,
 
-    @Size(max = 10, message = "Maximum 10 phone numbers allowed")
-    List<@NotBlank(message = "Phone number cannot be blank")
-         @Size(max = 20, message = "Phone must not exceed 20 characters") String> phones
+    @UniqueElements(message = "Os números de telefone devem ser únicos")
+    @Size(min = 1, max = 2, message = "O cliente deve ter entre 1 e 2 telefones")
+    List<@NotBlank(message = "O número do telefone não pode estar em branco")
+         @Size(max = 20, message = "O telefone não deve exceder 20 caracteres") String> phones
 ) {}
