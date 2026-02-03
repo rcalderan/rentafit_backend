@@ -24,8 +24,8 @@ public class NfseViaService {
 
     public NfseViaService(@Qualifier("nfseViaRecepcaoWebClient") WebClient recepcaoWebClient,
                           @Qualifier("nfseViaConsultasWebClient") WebClient consultasWebClient,
-                          @Qualifier("nfsKeyStore") KeyStore nfsKeyStore,
-                          @Value("${nfs-e.certificate.password}") String certificatePassword) {
+                          @org.springframework.lang.Nullable @Qualifier("nfsKeyStore") KeyStore nfsKeyStore,
+                          @Value("${nfs-e.certificate.password:}") String certificatePassword) {
         this.recepcaoWebClient = recepcaoWebClient;
         this.consultasWebClient = consultasWebClient;
         this.nfsKeyStore = nfsKeyStore;
@@ -96,6 +96,11 @@ public class NfseViaService {
                           String cLocEmi,
                           String serie,
                           String numeroDps) throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
+
+        if (nfsKeyStore == null) {
+            throw new IllegalStateException("KeyStore não inicializado. Certificado digital é obrigatório para assinar XML.");
+        }
+
         // Monta DPS apenas (sem wrapper NFSe) e com Id consistente
         String versaoAplic = "Teste_1.0";
         String descricaoServ = "SERVICOS DE CONSULTORIA EM TI";
@@ -170,6 +175,11 @@ public class NfseViaService {
      */
     private String signAndEncode(String base64Gzip) {
         try {
+            if (nfsKeyStore == null) {
+                log.warn("Certificado não configurado. Enviando XML sem assinatura.");
+                return base64Gzip;
+            }
+
             // 1. Decodificar e descompactar
             String xml = NfseViaUtil.decodeAndDecompress(base64Gzip);
 
@@ -249,7 +259,7 @@ public class NfseViaService {
      * Consultar resultado por protocolo.
      * O protocolo pode vir formatado (com . e /) mas a API espera no formato limpo.
      * Exemplo formatado: "2026012513270559612.345.678/000BE156DF3"
-     * Exemplo limpo: "2026012311385371200000000STRINGE2B347A6"
+     * Exemplo limpo: "202601251327055961234567800BE156DF3"
      */
     public Mono<Object> consultarPorProtocolo(String protocolo) {
 

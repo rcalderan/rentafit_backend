@@ -8,6 +8,7 @@ import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
 import br.com.rentafit.billing.dto.InvoiceEmissionResponseDTO;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.repository.CustomerRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +41,12 @@ class BillingServiceTest {
 
     @InjectMocks
     private BillingService billingService;
+
+    @BeforeEach
+    void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(billingService, "ibsAliquotaPadrao", new BigDecimal("0.025"));
+        org.springframework.test.util.ReflectionTestUtils.setField(billingService, "cbsAliquotaPadrao", new BigDecimal("0.015"));
+    }
 
     @Test
     @DisplayName("Should emit an invoice successfully")
@@ -103,4 +110,3 @@ class BillingServiceTest {
                 .verify();
     }
 }
-
