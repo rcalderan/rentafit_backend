@@ -59,7 +59,6 @@ public class AddressService {
         // 2. Try to fetch from ViaCEP
         try {
             ViaCepResponseDTO viaCepData = viaCepIntegrationService.fetchAddressByZipCode(normalizedZipCode);
-
             if (viaCepData != null && !viaCepData.hasError()) {
                 Address newAddress = new Address(viaCepData);
                 addressRepository.save(newAddress);
