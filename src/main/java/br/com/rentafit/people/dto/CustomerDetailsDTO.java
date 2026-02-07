@@ -42,7 +42,8 @@ public record CustomerDetailsDTO(
     String complement,
 
     @UniqueElements(message = "Os números de telefone devem ser únicos")
-    @Size(min = 1, max = 2, message = "O cliente deve ter entre 1 e 2 telefones")
-    List<@NotBlank(message = "O número do telefone não pode estar em branco")
-         @Size(max = 20, message = "O telefone não deve exceder 20 caracteres") String> phones
+    @NotNull(message = "A lista de telefones não pode ser nula")
+    @Size(min = 1, max = 5, message = "O cliente deve ter entre 1 e 5 telefones")
+    List<String> phones
+
 ) {}

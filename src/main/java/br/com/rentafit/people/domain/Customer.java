@@ -56,7 +56,7 @@ public class Customer extends Person {
     @CollectionTable(name = "customer_phones", joinColumns = @JoinColumn(name = "customer_id"))
     @Column(name = "phone")
     @NotNull(message = "A lista de telefones não pode ser nula")
-    @Size(min = 1, max = 2, message = "O cliente deve ter entre 1 e 2 telefones")
+    @Size(min = 1, max = 5, message = "O cliente deve ter entre 1 e 2 telefones")
     @Schema(description = "List of customer phone numbers")
     private List<String> phones = new ArrayList<>();
 
