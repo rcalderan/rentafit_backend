@@ -323,6 +323,8 @@ mvn clean compile
 
 ## 🧪 Testes
 
+### Testes Unitários e de Integração
+
 ```bash
 # Executar todos os testes
 mvn test
@@ -330,6 +332,55 @@ mvn test
 # Executar com cobertura
 mvn verify
 ```
+
+### Testes da API com Postman
+
+O projeto inclui uma coleção unificada do Postman com todos os endpoints da API.
+
+**Localização:** `src/test/postman/`
+
+#### 📦 Coleção Unificada (RECOMENDADO)
+
+**Arquivo:** `Rentafit_Unified_API.postman_collection.json`
+
+Coleção completa e unificada com todos os módulos:
+- ✅ **Auth** - Login, Refresh Token, Profile
+- ✅ **People - Customers** - CRUD completo de clientes
+- ✅ **People - Employees** - CRUD completo de funcionários
+- ✅ **Product - Categories** - Gerenciamento de categorias
+- ✅ **Product - Rental Items** - Produtos de aluguel
+- ✅ **Product - Retail Items** - Produtos para venda
+- ✅ **Product - Stock** - Gestão de estoque e movimentações
+
+**Características:**
+- 🔐 Autenticação automática via Bearer Token
+- 📝 Scripts automáticos para salvar IDs e tokens
+- 🌍 Suporte para múltiplos environments (Local/Production)
+- 📚 Documentação completa de cada endpoint
+
+#### 🌍 Environments
+
+- **Local:** `Rentafit_Local.postman_environment.json`
+  - Base URL: `http://localhost:8080`
+  
+- **Production:** `Rentafit_Production.postman_environment.json`
+  - Base URL: `https://api.rentafit.com.br`
+
+#### 📖 Documentação
+
+Consulte o guia completo de uso da coleção Postman:
+- **Arquivo:** `src/test/postman/README_POSTMAN.md`
+- Instruções de importação e configuração
+- Fluxo de testes recomendado
+- Exemplos de requests
+- Troubleshooting
+
+#### 🚀 Quick Start
+
+1. Importe a coleção: `Rentafit_Unified_API.postman_collection.json`
+2. Importe o environment: `Rentafit_Local.postman_environment.json`
+3. Execute: `Auth → Login` (credenciais: admin/admin123)
+4. Teste os demais endpoints (token salvo automaticamente)
 
 ---
 

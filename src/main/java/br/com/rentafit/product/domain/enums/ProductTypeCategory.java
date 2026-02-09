@@ -1,9 +1,9 @@
 package br.com.rentafit.product.domain.enums;
 
 public enum ProductTypeCategory {
-    RENTAL("Aluguel"),
-    RETAIL("Venda"),
-    ACCESSORY("Acessório");
+    RENTAL("RENTAL"),
+    RETAIL("RETAIL"),
+    ACCESSORY("ACCESSORY");
 
     private final String displayName;
 
