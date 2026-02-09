@@ -1,0 +1,749 @@
+{
+	"info": {
+		"_postman_id": "product-module-2026",
+		"name": "Rentafit - Product Module API",
+		"description": "Coleção completa de testes para o módulo de produtos do Rentafit, incluindo gerenciamento de produtos, categorias e estoque.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "rentafit-product"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.accessToken);",
+									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refreshToken);",
+									"    console.log(\"Token salvo: \" + jsonData.accessToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Endpoint de autenticação. Retorna access_token e refresh_token."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints de autenticação"
+		},
+		{
+			"name": "Categories",
+			"item": [
+				{
+					"name": "Create Category",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"fitness_equipment\",\n    \"displayName\": \"Equipamentos de Fitness\",\n    \"description\": \"Equipamentos para treino e exercícios\",\n    \"productType\": \"RENTAL\",\n    \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories"
+							]
+						},
+						"description": "Cria uma nova categoria de produto"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories"
+							]
+						},
+						"description": "Lista todas as categorias"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Busca uma categoria específica por ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Categories by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/type/RENTAL",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"type",
+								"RENTAL"
+							]
+						},
+						"description": "Lista categorias por tipo de produto. Valores possíveis: RENTAL, RETAIL, ACCESSORY"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/active",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"active"
+							]
+						},
+						"description": "Lista apenas categorias ativas"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"fitness_equipment\",\n    \"displayName\": \"Equipamentos de Fitness Premium\",\n    \"description\": \"Equipamentos de alta qualidade para treino e exercícios\",\n    \"productType\": \"RENTAL\",\n    \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Atualiza uma categoria existente"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Remove uma categoria"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de categorias"
+		},
+		{
+			"name": "Products",
+			"item": [
+				{
+					"name": "Create Rental Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"product_id\", jsonData.id);",
+									"    console.log(\"Product ID salvo: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Esteira Profissional\",\n    \"categoryId\": \"{{category_id}}\",\n    \"size\": \"Grande\",\n    \"color\": \"Preto\",\n    \"brand\": \"Movement\",\n    \"value\": 150.00,\n    \"description\": \"Esteira profissional para treinos intensos\",\n    \"legacyId\": \"EST-001\",\n    \"status\": \"AVAILABLE\",\n    \"notes\": \"Produto em excelente estado\",\n    \"minRentalDays\": 7,\n    \"condition\": \"EXCELLENT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						},
+						"description": "Cria um produto de aluguel (RentalItem)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Retail Product",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Whey Protein 1kg\",\n    \"categoryId\": \"{{category_id}}\",\n    \"brand\": \"IntegralMédica\",\n    \"value\": 89.90,\n    \"description\": \"Suplemento de proteína de alto valor biológico\",\n    \"details\": \"1kg de whey protein concentrado\",\n    \"sku\": \"WHP-INT-1KG\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						},
+						"description": "Cria um produto para venda (RetailProduct)"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Accessory",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Tapete para Esteira\",\n    \"categoryId\": \"{{category_id}}\",\n    \"brand\": \"FitMat\",\n    \"value\": 45.00,\n    \"description\": \"Tapete protetor para esteiras\",\n    \"compatibleWith\": \"Esteiras de até 2m\",\n    \"sku\": \"TAP-EST-001\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							]
+						},
+						"description": "Cria um acessório"
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products?page=0&size=10&sort=name,asc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Número da página (começando em 0)"
+								},
+								{
+									"key": "size",
+									"value": "10",
+									"description": "Quantidade de itens por página"
+								},
+								{
+									"key": "sort",
+									"value": "name,asc",
+									"description": "Campo e direção de ordenação (asc/desc)"
+								}
+							]
+						},
+						"description": "Lista todos os produtos com paginação"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{product_id}}"
+							]
+						},
+						"description": "Busca um produto específico por ID"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Esteira Profissional Premium\",\n    \"categoryId\": \"{{category_id}}\",\n    \"size\": \"Grande\",\n    \"color\": \"Preto\",\n    \"brand\": \"Movement Pro\",\n    \"value\": 180.00,\n    \"description\": \"Esteira profissional top de linha para treinos intensos\",\n    \"legacyId\": \"EST-001\",\n    \"status\": \"AVAILABLE\",\n    \"notes\": \"Produto em excelente estado - Atualizado\",\n    \"minRentalDays\": 5,\n    \"condition\": \"EXCELLENT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{product_id}}"
+							]
+						},
+						"description": "Atualiza um produto existente"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Product",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"{{product_id}}"
+							]
+						},
+						"description": "Remove um produto"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de produtos (RentalItem, RetailProduct, Accessory)"
+		},
+		{
+			"name": "Stock",
+			"item": [
+				{
+					"name": "Get Stock by Product ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/{{product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"{{product_id}}"
+							]
+						},
+						"description": "Busca informações de estoque de um produto específico"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Low Stock Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/low",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"low"
+							]
+						},
+						"description": "Lista produtos com estoque baixo (abaixo do nível mínimo)"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Stock Movements",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/{{product_id}}/movements",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"{{product_id}}",
+								"movements"
+							]
+						},
+						"description": "Lista todas as movimentações de estoque de um produto"
+					},
+					"response": []
+				},
+				{
+					"name": "Add Stock",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/add?productId={{product_id}}&quantity=10&userId={{user_id}}&notes=Entrada de estoque inicial",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"add"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "10",
+									"description": "Quantidade a adicionar"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário responsável"
+								},
+								{
+									"key": "notes",
+									"value": "Entrada de estoque inicial",
+									"description": "Observações (opcional)"
+								}
+							]
+						},
+						"description": "Adiciona quantidade ao estoque de um produto"
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Stock",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/remove?productId={{product_id}}&quantity=2&userId={{user_id}}&notes=Produto danificado",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"remove"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "2",
+									"description": "Quantidade a remover"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário responsável"
+								},
+								{
+									"key": "notes",
+									"value": "Produto danificado",
+									"description": "Observações (opcional)"
+								}
+							]
+						},
+						"description": "Remove quantidade do estoque de um produto"
+					},
+					"response": []
+				},
+				{
+					"name": "Reserve Stock",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/reserve?productId={{product_id}}&quantity=3&userId={{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"reserve"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "3",
+									"description": "Quantidade a reservar"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário"
+								}
+							]
+						},
+						"description": "Reserva quantidade do estoque para um cliente/pedido"
+					},
+					"response": []
+				},
+				{
+					"name": "Release Reservation",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/release?productId={{product_id}}&quantity=3&userId={{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"release"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "3",
+									"description": "Quantidade a liberar"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário"
+								}
+							]
+						},
+						"description": "Libera reserva de estoque previamente realizada"
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de estoque e movimentações"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "category_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID da categoria para testes"
+		},
+		{
+			"key": "product_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do produto para testes"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do usuário para operações de estoque"
+		}
+	]
+}

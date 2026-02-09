@@ -8,6 +8,7 @@ receita/
 .env
 .legado
 .prompt
+.docs
 
 ### STS ###
 .apt_generated
