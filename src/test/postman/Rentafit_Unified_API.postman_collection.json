@@ -1,0 +1,1434 @@
+{
+	"info": {
+		"_postman_id": "rentafit-unified-2026",
+		"name": "Rentafit - Unified API Collection",
+		"description": "Coleção completa e unificada de todos os endpoints da API Rentafit, incluindo módulos de Autenticação, Pessoas, Produtos e Faturamento.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "rentafit-unified"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.accessToken);",
+									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refreshToken);",
+									"    console.log(\"Access Token salvo: \" + jsonData.accessToken);",
+									"    console.log(\"Refresh Token salvo: \" + jsonData.refreshToken);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"admin123\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Realiza o login do usuário e retorna access token JWT e refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"access_token\", jsonData.accessToken);",
+									"    pm.collectionVariables.set(\"refresh_token\", jsonData.refreshToken);",
+									"    console.log(\"Tokens renovados com sucesso!\");",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refreshToken\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/auth/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"refresh"
+							]
+						},
+						"description": "Renova o access token utilizando o refresh token."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Current User Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.id) {",
+									"        pm.collectionVariables.set(\"user_id\", jsonData.id);",
+									"        console.log(\"User ID salvo: \" + jsonData.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/auth/me",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"me"
+							]
+						},
+						"description": "Retorna os dados completos do usuário logado baseado no token JWT."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Public Key (RSA)",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/auth/public-key",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"public-key"
+							]
+						},
+						"description": "Obtém a chave pública RSA para criptografia de dados sensíveis no front-end."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints de autenticação e gerenciamento de tokens"
+		},
+		{
+			"name": "People - Customers",
+			"item": [
+				{
+					"name": "List All Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers?page=0&size=10&sort=name,asc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Número da página (começando em 0)"
+								},
+								{
+									"key": "size",
+									"value": "10",
+									"description": "Quantidade de itens por página"
+								},
+								{
+									"key": "sort",
+									"value": "name,asc",
+									"description": "Campo e direção de ordenação (asc/desc)"
+								}
+							]
+						},
+						"description": "Lista todos os clientes com paginação."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/byId/{{customer_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"byId",
+								"{{customer_id}}"
+							]
+						},
+						"description": "Busca um cliente específico por ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by Document",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/byDocument/12345678900",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"byDocument",
+								"12345678900"
+							]
+						},
+						"description": "Busca um cliente pelo CPF/CNPJ."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by Legacy ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/byLegacyId/123",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"byLegacyId",
+								"123"
+							]
+						},
+						"description": "Busca um cliente pelo ID do sistema legado."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer Address History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/{{customer_id}}/address-history",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"{{customer_id}}",
+								"address-history"
+							]
+						},
+						"description": "Retorna o histórico de endereços de um cliente."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"customer_id\", jsonData.id);",
+									"    console.log(\"Customer ID salvo: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"João da Silva\",\n    \"document\": \"12345678900\",\n    \"email\": \"joao.silva@email.com\",\n    \"isAuthenticated\": false,\n    \"notes\": \"Cliente VIP\",\n    \"legacyId\": 1001,\n    \"address\": {\n        \"street\": \"Rua das Flores\",\n        \"neighborhood\": \"Centro\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"zipCode\": \"01234567\"\n    },\n    \"number\": \"100\",\n    \"complement\": \"Apto 12\",\n    \"phones\": [\n        \"11987654321\",\n        \"1133334444\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers"
+							]
+						},
+						"description": "Cria um novo cliente."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": \"{{customer_id}}\",\n    \"name\": \"João da Silva Santos\",\n    \"document\": \"12345678900\",\n    \"email\": \"joao.santos@email.com\",\n    \"isAuthenticated\": true,\n    \"notes\": \"Cliente VIP Premium\",\n    \"legacyId\": 1001,\n    \"address\": {\n        \"street\": \"Rua das Flores\",\n        \"neighborhood\": \"Centro\",\n        \"city\": \"São Paulo\",\n        \"state\": \"SP\",\n        \"zipCode\": \"01234567\"\n    },\n    \"number\": \"100\",\n    \"complement\": \"Apto 12A\",\n    \"phones\": [\n        \"11987654321\",\n        \"1133334444\",\n        \"11999998888\"\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers"
+							]
+						},
+						"description": "Atualiza um cliente existente."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/{{customer_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"customers",
+								"{{customer_id}}"
+							]
+						},
+						"description": "Remove um cliente."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de clientes"
+		},
+		{
+			"name": "People - Employees",
+			"item": [
+				{
+					"name": "List All Employees",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees?page=0&size=10&sort=name,asc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Número da página (começando em 0)"
+								},
+								{
+									"key": "size",
+									"value": "10",
+									"description": "Quantidade de itens por página"
+								},
+								{
+									"key": "sort",
+									"value": "name,asc",
+									"description": "Campo e direção de ordenação (asc/desc)"
+								}
+							]
+						},
+						"description": "Lista todos os funcionários com paginação."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Employee by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/{{employee_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees",
+								"{{employee_id}}"
+							]
+						},
+						"description": "Busca um funcionário específico por ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"employee_id\", jsonData.id);",
+									"    console.log(\"Employee ID salvo: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Maria Santos\",\n    \"document\": \"98765432100\",\n    \"email\": \"maria.santos@rentafit.com.br\",\n    \"initials\": \"MS\",\n    \"roleLevel\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees"
+							]
+						},
+						"description": "Cria um novo funcionário."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Employee",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Maria Santos Silva\",\n    \"document\": \"98765432100\",\n    \"email\": \"maria.silva@rentafit.com.br\",\n    \"initials\": \"MSS\",\n    \"roleLevel\": 3\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/{{employee_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees",
+								"{{employee_id}}"
+							]
+						},
+						"description": "Atualiza um funcionário existente."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Employee",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/{{employee_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"employees",
+								"{{employee_id}}"
+							]
+						},
+						"description": "Remove um funcionário."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de funcionários"
+		},
+		{
+			"name": "Product - Categories",
+			"item": [
+				{
+					"name": "Create Category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"category_id\", jsonData.id);",
+									"    console.log(\"Category ID salvo: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"fitness_equipment\",\n    \"displayName\": \"Equipamentos de Fitness\",\n    \"description\": \"Equipamentos para treino e exercícios\",\n    \"productType\": \"RENTAL\",\n    \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories"
+							]
+						},
+						"description": "Cria uma nova categoria de produto."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories"
+							]
+						},
+						"description": "Lista todas as categorias."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Category by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Busca uma categoria específica por ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Categories by Type",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/type/RENTAL",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"type",
+								"RENTAL"
+							]
+						},
+						"description": "Lista categorias por tipo de produto. Valores possíveis: RENTAL, RETAIL, ACCESSORY"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Active Categories",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/active",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"active"
+							]
+						},
+						"description": "Lista apenas categorias ativas."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Category",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"fitness_equipment\",\n    \"displayName\": \"Equipamentos de Fitness Premium\",\n    \"description\": \"Equipamentos de alta qualidade para treino e exercícios\",\n    \"productType\": \"RENTAL\",\n    \"active\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Atualiza uma categoria existente."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Category",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"categories",
+								"{{category_id}}"
+							]
+						},
+						"description": "Remove uma categoria."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de categorias de produtos"
+		},
+		{
+			"name": "Product - Rental Items",
+			"item": [
+				{
+					"name": "Create Rental Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"rental_product_id\", jsonData.id);",
+									"    console.log(\"Rental Product ID salvo: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Esteira Profissional\",\n    \"categoryId\": \"{{category_id}}\",\n    \"size\": \"Grande\",\n    \"color\": \"Preto\",\n    \"brand\": \"Movement\",\n    \"value\": 150.00,\n    \"description\": \"Esteira profissional para treinos intensos\",\n    \"legacyId\": \"EST-001\",\n    \"status\": \"AVAILABLE\",\n    \"notes\": \"Produto em excelente estado\",\n    \"minRentalDays\": 7,\n    \"condition\": \"EXCELLENT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/rental",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"rental"
+							]
+						},
+						"description": "Cria um produto de aluguel (RentalItem)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Rental Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/rental?page=0&size=10&sort=name,asc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"rental"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Número da página (começando em 0)"
+								},
+								{
+									"key": "size",
+									"value": "10",
+									"description": "Quantidade de itens por página"
+								},
+								{
+									"key": "sort",
+									"value": "name,asc",
+									"description": "Campo e direção de ordenação (asc/desc)"
+								}
+							]
+						},
+						"description": "Lista todos os produtos de aluguel com paginação."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Rental Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/rental/{{rental_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"rental",
+								"{{rental_product_id}}"
+							]
+						},
+						"description": "Busca um produto de aluguel específico por ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Rental Product by Legacy ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/rental/byLegacy/EST-001",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"rental",
+								"byLegacy",
+								"EST-001"
+							]
+						},
+						"description": "Busca um produto de aluguel pelo ID do sistema legado."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Rental Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Esteira Profissional Premium\",\n    \"categoryId\": \"{{category_id}}\",\n    \"size\": \"Grande\",\n    \"color\": \"Preto\",\n    \"brand\": \"Movement Pro\",\n    \"value\": 180.00,\n    \"description\": \"Esteira profissional top de linha para treinos intensos\",\n    \"status\": \"AVAILABLE\",\n    \"notes\": \"Produto em excelente estado - Atualizado\",\n    \"minRentalDays\": 5,\n    \"condition\": \"EXCELLENT\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/rental/{{rental_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"rental",
+								"{{rental_product_id}}"
+							]
+						},
+						"description": "Atualiza um produto de aluguel existente."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Rental Product",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/rental/{{rental_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"rental",
+								"{{rental_product_id}}"
+							]
+						},
+						"description": "Remove um produto de aluguel."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de produtos de aluguel (RentalItem)"
+		},
+		{
+			"name": "Product - Retail Items",
+			"item": [
+				{
+					"name": "Create Retail Product",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"retail_product_id\", jsonData.id);",
+									"    console.log(\"Retail Product ID salvo: \" + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Whey Protein 1kg\",\n    \"categoryId\": \"{{category_id}}\",\n    \"brand\": \"IntegralMédica\",\n    \"value\": 89.90,\n    \"description\": \"Suplemento de proteína de alto valor biológico\",\n    \"details\": \"1kg de whey protein concentrado\",\n    \"size\": \"1kg\",\n    \"sku\": \"WHP-INT-1KG\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/retail",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"retail"
+							]
+						},
+						"description": "Cria um produto para venda (RetailProduct)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get All Retail Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/retail?page=0&size=10&sort=name,asc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"retail"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0",
+									"description": "Número da página (começando em 0)"
+								},
+								{
+									"key": "size",
+									"value": "10",
+									"description": "Quantidade de itens por página"
+								},
+								{
+									"key": "sort",
+									"value": "name,asc",
+									"description": "Campo e direção de ordenação (asc/desc)"
+								}
+							]
+						},
+						"description": "Lista todos os produtos para venda com paginação."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Retail Product by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/retail/{{retail_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"retail",
+								"{{retail_product_id}}"
+							]
+						},
+						"description": "Busca um produto de venda específico por ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Retail Product by SKU",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/retail/bysku/WHP-INT-1KG",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"retail",
+								"bysku",
+								"WHP-INT-1KG"
+							]
+						},
+						"description": "Busca um produto de venda pelo SKU."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Retail Product",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Whey Protein 1kg Premium\",\n    \"categoryId\": \"{{category_id}}\",\n    \"brand\": \"IntegralMédica\",\n    \"value\": 99.90,\n    \"description\": \"Suplemento de proteína de altíssimo valor biológico\",\n    \"details\": \"1kg de whey protein isolado premium\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/retail/{{retail_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"retail",
+								"{{retail_product_id}}"
+							]
+						},
+						"description": "Atualiza um produto de venda existente."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Retail Product",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/products/retail/{{retail_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"products",
+								"retail",
+								"{{retail_product_id}}"
+							]
+						},
+						"description": "Remove um produto de venda."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de produtos para venda (RetailProduct)"
+		},
+		{
+			"name": "Product - Stock",
+			"item": [
+				{
+					"name": "Get Stock by Product ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/{{rental_product_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"{{rental_product_id}}"
+							]
+						},
+						"description": "Busca informações de estoque de um produto específico."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Low Stock Products",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/low",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"low"
+							]
+						},
+						"description": "Lista produtos com estoque baixo (abaixo do nível mínimo)."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Stock Movements",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/{{rental_product_id}}/movements",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"{{rental_product_id}}",
+								"movements"
+							]
+						},
+						"description": "Lista todas as movimentações de estoque de um produto."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Stock",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/add?productId={{rental_product_id}}&quantity=10&userId={{user_id}}&notes=Entrada de estoque inicial",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"add"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{rental_product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "10",
+									"description": "Quantidade a adicionar"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário responsável"
+								},
+								{
+									"key": "notes",
+									"value": "Entrada de estoque inicial",
+									"description": "Observações (opcional)"
+								}
+							]
+						},
+						"description": "Adiciona quantidade ao estoque de um produto."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Stock",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/remove?productId={{rental_product_id}}&quantity=2&userId={{user_id}}&notes=Produto danificado",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"remove"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{rental_product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "2",
+									"description": "Quantidade a remover"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário responsável"
+								},
+								{
+									"key": "notes",
+									"value": "Produto danificado",
+									"description": "Observações (opcional)"
+								}
+							]
+						},
+						"description": "Remove quantidade do estoque de um produto."
+					},
+					"response": []
+				},
+				{
+					"name": "Reserve Stock",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/reserve?productId={{rental_product_id}}&quantity=3&userId={{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"reserve"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{rental_product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "3",
+									"description": "Quantidade a reservar"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário"
+								}
+							]
+						},
+						"description": "Reserva quantidade do estoque para um cliente/pedido."
+					},
+					"response": []
+				},
+				{
+					"name": "Release Reservation",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/stock/release?productId={{rental_product_id}}&quantity=3&userId={{user_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"stock",
+								"release"
+							],
+							"query": [
+								{
+									"key": "productId",
+									"value": "{{rental_product_id}}",
+									"description": "UUID do produto"
+								},
+								{
+									"key": "quantity",
+									"value": "3",
+									"description": "Quantidade a liberar"
+								},
+								{
+									"key": "userId",
+									"value": "{{user_id}}",
+									"description": "UUID do usuário"
+								}
+							]
+						},
+						"description": "Libera reserva de estoque previamente realizada."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para gerenciamento de estoque e movimentações"
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string",
+			"description": "JWT Access Token obtido no login"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string",
+			"description": "Refresh Token para renovação do access token"
+		},
+		{
+			"key": "user_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do usuário logado"
+		},
+		{
+			"key": "customer_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do cliente para testes"
+		},
+		{
+			"key": "employee_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do funcionário para testes"
+		},
+		{
+			"key": "category_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID da categoria para testes"
+		},
+		{
+			"key": "rental_product_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do produto de aluguel para testes"
+		},
+		{
+			"key": "retail_product_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do produto de venda para testes"
+		}
+	]
+}
