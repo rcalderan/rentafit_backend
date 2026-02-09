@@ -30,7 +30,8 @@ public class RetailProductController {
     @Operation(summary = "Create a new retail product")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Product created successfully"),
-            @ApiResponse(responseCode = "400", description = "Invalid input data")
+            @ApiResponse(responseCode = "400", description = "Invalid input data"),
+            @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<ProductRetailDetailsDTO> create(@Valid @RequestBody ProductRetailDTO dto) {
         ProductRetailDetailsDTO created = retailProductService.create(dto);
@@ -41,7 +42,8 @@ public class RetailProductController {
     @Operation(summary = "Get product by ID")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product found"),
-            @ApiResponse(responseCode = "404", description = "Product not found")
+            @ApiResponse(responseCode = "404", description = "Product not found"),
+            @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<ProductRetailDetailsDTO> findById(@PathVariable UUID id) {
         return ResponseEntity.ok(retailProductService.findById(id));
@@ -59,7 +61,8 @@ public class RetailProductController {
     @Operation(summary = "Update a product")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product updated successfully"),
-            @ApiResponse(responseCode = "404", description = "Product not found")
+            @ApiResponse(responseCode = "404", description = "Product not found"),
+            @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<ProductRetailDetailsDTO> update(@PathVariable UUID id, @Valid @RequestBody ProductRetailUpdateDTO dto) {
         return ResponseEntity.ok(retailProductService.update(id, dto));

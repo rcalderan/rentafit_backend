@@ -1,5 +1,6 @@
 package br.com.rentafit.product.domain;
 
+import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.product.domain.enums.StockMovementType;
 import br.com.rentafit.product.dto.StockDTO;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -58,7 +59,7 @@ public class Stock {
 
     public void reserve(Integer quantity) {
         if (quantityAvailable < quantity) {
-            throw new IllegalArgumentException("Estoque insuficiente");
+            throw new ValidationException("Estoque insuficiente");
         }
         this.quantityAvailable -= quantity;
         this.quantityReserved += quantity;
@@ -67,7 +68,7 @@ public class Stock {
 
     public void release(Integer quantity) {
         if (quantityReserved < quantity) {
-            throw new IllegalStateException("Quantidade reservada insuficiente");
+            throw new ValidationException("Quantidade reservada insuficiente");
         }
         this.quantityReserved -= quantity;
         this.quantityAvailable += quantity;
@@ -82,7 +83,7 @@ public class Stock {
 
     public void removeStock(Integer quantity) {
         if (quantityAvailable < quantity) {
-            throw new IllegalArgumentException("Estoque insuficiente");
+            throw new ValidationException("Estoque insuficiente");
         }
         this.quantityAvailable -= quantity;
         this.quantityTotal -= quantity;

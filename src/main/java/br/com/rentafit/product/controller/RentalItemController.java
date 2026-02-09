@@ -31,18 +31,12 @@ public class RentalItemController {
     @Operation(summary = "Create a new rental product")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Product created successfully"),
-        @ApiResponse(responseCode = "400", description = "Invalid input data")
+        @ApiResponse(responseCode = "400", description = "Invalid input data"),
+        @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<RentalItemDetailsDTO> create(@Valid @RequestBody RentalItemDTO dto) {
-        try {
-            RentalItemDetailsDTO created = rentalItemService.create(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(created);
-        } catch (IllegalArgumentException | ValidationException ex) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            throw new RuntimeException(e);
-        }
+        RentalItemDetailsDTO created = rentalItemService.create(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping("/{id}")
@@ -67,7 +61,8 @@ public class RentalItemController {
     @Operation(summary = "Update a product")
     @ApiResponses({
         @ApiResponse(responseCode = "200", description = "Product updated successfully"),
-        @ApiResponse(responseCode = "404", description = "Product not found")
+        @ApiResponse(responseCode = "404", description = "Product not found"),
+        @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<RentalItemDetailsDTO> update(@PathVariable UUID id, @Valid @RequestBody RentalItemUpdateDTO dto) {
         return ResponseEntity.ok(rentalItemService.update(id, dto));
@@ -78,7 +73,8 @@ public class RentalItemController {
     @Operation(summary = "Get product by legacyId")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Product found"),
-            @ApiResponse(responseCode = "404", description = "Product not found")
+            @ApiResponse(responseCode = "404", description = "Product not found"),
+            @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<RentalItemDetailsDTO> findByLegacyId(@PathVariable String id) {
         return ResponseEntity.ok(rentalItemService.findByLegacyId(id));
@@ -88,7 +84,8 @@ public class RentalItemController {
     @Operation(summary = "Delete a product")
     @ApiResponses({
         @ApiResponse(responseCode = "204", description = "Product deleted successfully"),
-        @ApiResponse(responseCode = "404", description = "Product not found")
+        @ApiResponse(responseCode = "404", description = "Product not found"),
+        @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         rentalItemService.delete(id);

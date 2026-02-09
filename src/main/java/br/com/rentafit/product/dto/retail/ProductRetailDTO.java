@@ -18,6 +18,7 @@ public record ProductRetailDTO(
     @NotNull(message = "Category is required")
     UUID categoryId,
 
+    @NotBlank(message = "Name is required")
     @Size(max = 50)
     String size,
 

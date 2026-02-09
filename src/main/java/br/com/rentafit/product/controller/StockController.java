@@ -86,6 +86,7 @@ public class StockController {
     @PostMapping("/remove")
     @Operation(summary = "Remove stock")
     @ApiResponse(responseCode = "200", description = "Stock removed successfully")
+    @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     public ResponseEntity<Void> remove(
         @RequestParam UUID productId,
         @RequestParam Integer quantity,

@@ -33,7 +33,7 @@ public class RetailProductService {
         log.debug("Creating product: {}", dto.name());
 
         Category category = categoryRepository.findById(dto.categoryId())
-                .orElseThrow(() -> new IllegalArgumentException("Category not found"));
+                .orElseThrow(() -> new ValidationException("Category not found"));
 
         if (dto.sku() != null) {
             if (checkSkuExists(dto.sku())) {
