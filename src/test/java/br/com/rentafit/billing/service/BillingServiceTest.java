@@ -1,6 +1,5 @@
 package br.com.rentafit.billing.service;
 
-import br.com.rentafit.billing.service.NfsePortalService;
 import br.com.rentafit.billing.domain.Invoice;
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.billing.dto.DpsResponse;
@@ -103,8 +102,7 @@ class BillingServiceTest {
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
 
-        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> {
-            billingService.emitInvoice(request);
-        });
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> billingService.emitInvoice(request));
     }
 }

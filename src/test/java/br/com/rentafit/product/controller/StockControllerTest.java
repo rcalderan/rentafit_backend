@@ -15,12 +15,11 @@ import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -88,7 +87,7 @@ class StockControllerTest {
     @DisplayName("Should get low stock products")
     void testGetLowStock() {
         // Arrange
-        List<StockDTO> lowStockProducts = Arrays.asList(stockDTO);
+        List<StockDTO> lowStockProducts = Collections.singletonList(stockDTO);
         when(stockService.getLowStockProducts()).thenReturn(lowStockProducts);
 
         // Act
@@ -106,7 +105,7 @@ class StockControllerTest {
     @DisplayName("Should get stock movements for a product")
     void testGetMovements() {
         // Arrange
-        List<StockMovementDTO> movements = Arrays.asList(stockMovementDTO);
+        List<StockMovementDTO> movements = Collections.singletonList(stockMovementDTO);
         when(stockService.getStockMovements(productId)).thenReturn(movements);
 
         // Act

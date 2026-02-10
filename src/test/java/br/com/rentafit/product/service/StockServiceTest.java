@@ -20,10 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -49,14 +46,13 @@ class StockServiceTest {
     private UUID productId;
     private UUID userId;
     private Stock stock;
-    private RetailProduct product;
 
     @BeforeEach
     void setUp() {
         productId = UUID.randomUUID();
         userId = UUID.randomUUID();
 
-        product = RetailProduct.builder()
+        RetailProduct product = RetailProduct.builder()
                 .id(productId)
                 .build();
 
@@ -212,7 +208,7 @@ class StockServiceTest {
     @DisplayName("Should get low stock products")
     void testGetLowStockProducts() {
         // Arrange
-        List<Stock> lowStockItems = Arrays.asList(stock);
+        List<Stock> lowStockItems = Collections.singletonList(stock);
         when(stockRepository.findLowStockItems()).thenReturn(lowStockItems);
 
         // Act
@@ -221,7 +217,7 @@ class StockServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).productId()).isEqualTo(productId);
+        assertThat(result.getFirst().productId()).isEqualTo(productId);
 
         verify(stockRepository, times(1)).findLowStockItems();
     }
@@ -240,7 +236,7 @@ class StockServiceTest {
                 .notes("Entrada de estoque")
                 .build();
 
-        List<StockMovement> movements = Arrays.asList(movement);
+        List<StockMovement> movements = Collections.singletonList(movement);
         when(stockMovementRepository.findByStockProductIdOrderByMovementDateDesc(productId)).thenReturn(movements);
 
         // Act
@@ -249,7 +245,7 @@ class StockServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).type()).isEqualTo("ENTRADA");
+        assertThat(result.getFirst().type()).isEqualTo("ENTRADA");
 
         verify(stockMovementRepository, times(1)).findByStockProductIdOrderByMovementDateDesc(productId);
     }

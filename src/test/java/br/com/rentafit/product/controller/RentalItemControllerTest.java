@@ -42,7 +42,6 @@ class RentalItemControllerTest {
     private RentalItemController rentalItemController;
 
     private UUID productId;
-    private UUID categoryId;
     private RentalItemDTO rentalItemDTO;
     private RentalItemDetailsDTO rentalItemDetailsDTO;
     private RentalItemUpdateDTO rentalItemUpdateDTO;
@@ -50,7 +49,7 @@ class RentalItemControllerTest {
     @BeforeEach
     void setUp() {
         productId = UUID.randomUUID();
-        categoryId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
 
         rentalItemDTO = RentalItemDTO.builder()
                 .name("Vestido de Noiva")
@@ -148,7 +147,7 @@ class RentalItemControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSize(1);
-        assertThat(response.getBody().getContent().get(0).id()).isEqualTo(productId);
+        assertThat(response.getBody().getContent().getFirst().id()).isEqualTo(productId);
 
         verify(rentalItemService, times(1)).findAll(any(Pageable.class));
     }

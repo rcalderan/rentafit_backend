@@ -195,7 +195,7 @@ class RentalItemServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).id()).isEqualTo(productId);
+        assertThat(result.getContent().getFirst().id()).isEqualTo(productId);
 
         verify(rentalItemRepository, times(1)).findAll(pageable);
     }

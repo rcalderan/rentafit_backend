@@ -15,7 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -106,7 +106,7 @@ class CategoryControllerTest {
     @DisplayName("Should find all categories")
     void testFindAll() {
         // Arrange
-        List<CategoryDTO> categories = Arrays.asList(categoryDTO);
+        List<CategoryDTO> categories = Collections.singletonList(categoryDTO);
         when(categoryService.findAll()).thenReturn(categories);
 
         // Act
@@ -116,7 +116,7 @@ class CategoryControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody()).hasSize(1);
-        assertThat(response.getBody().get(0).id()).isEqualTo(categoryId);
+        assertThat(response.getBody().getFirst().id()).isEqualTo(categoryId);
 
         verify(categoryService, times(1)).findAll();
     }
@@ -125,7 +125,7 @@ class CategoryControllerTest {
     @DisplayName("Should find categories by product type")
     void testFindByType() {
         // Arrange
-        List<CategoryDTO> categories = Arrays.asList(categoryDTO);
+        List<CategoryDTO> categories = Collections.singletonList(categoryDTO);
         when(categoryService.findByProductType(ProductTypeCategory.RENTAL)).thenReturn(categories);
 
         // Act
@@ -135,7 +135,7 @@ class CategoryControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody()).hasSize(1);
-        assertThat(response.getBody().get(0).productType()).isEqualTo("RENTAL");
+        assertThat(response.getBody().getFirst().productType()).isEqualTo("RENTAL");
 
         verify(categoryService, times(1)).findByProductType(ProductTypeCategory.RENTAL);
     }
@@ -144,7 +144,7 @@ class CategoryControllerTest {
     @DisplayName("Should find active categories")
     void testFindActive() {
         // Arrange
-        List<CategoryDTO> categories = Arrays.asList(categoryDTO);
+        List<CategoryDTO> categories = Collections.singletonList(categoryDTO);
         when(categoryService.findActiveCategories()).thenReturn(categories);
 
         // Act
@@ -154,7 +154,7 @@ class CategoryControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody()).hasSize(1);
-        assertThat(response.getBody().get(0).active()).isTrue();
+        assertThat(response.getBody().getFirst().active()).isTrue();
 
         verify(categoryService, times(1)).findActiveCategories();
     }

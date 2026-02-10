@@ -14,10 +14,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -109,7 +106,7 @@ class CategoryServiceTest {
     @DisplayName("Should find all categories")
     void testFindAll() {
         // Arrange
-        List<Category> categories = Arrays.asList(category);
+        List<Category> categories = Collections.singletonList(category);
         when(categoryRepository.findAll()).thenReturn(categories);
 
         // Act
@@ -118,7 +115,7 @@ class CategoryServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).id()).isEqualTo(categoryId);
+        assertThat(result.getFirst().id()).isEqualTo(categoryId);
 
         verify(categoryRepository, times(1)).findAll();
     }
@@ -127,7 +124,7 @@ class CategoryServiceTest {
     @DisplayName("Should find categories by product type")
     void testFindByProductType() {
         // Arrange
-        List<Category> categories = Arrays.asList(category);
+        List<Category> categories = Collections.singletonList(category);
         when(categoryRepository.findByProductType(ProductTypeCategory.RENTAL)).thenReturn(categories);
 
         // Act
@@ -136,7 +133,7 @@ class CategoryServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).productType()).isEqualTo("RENTAL");
+        assertThat(result.getFirst().productType()).isEqualTo("RENTAL");
 
         verify(categoryRepository, times(1)).findByProductType(ProductTypeCategory.RENTAL);
     }
@@ -145,7 +142,7 @@ class CategoryServiceTest {
     @DisplayName("Should find active categories")
     void testFindActiveCategories() {
         // Arrange
-        List<Category> categories = Arrays.asList(category);
+        List<Category> categories = Collections.singletonList(category);
         when(categoryRepository.findByActiveTrue()).thenReturn(categories);
 
         // Act
@@ -154,7 +151,7 @@ class CategoryServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).active()).isTrue();
+        assertThat(result.getFirst().active()).isTrue();
 
         verify(categoryRepository, times(1)).findByActiveTrue();
     }

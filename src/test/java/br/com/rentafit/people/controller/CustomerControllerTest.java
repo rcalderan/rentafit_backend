@@ -23,7 +23,6 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -86,8 +85,8 @@ class CustomerControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSize(1);
-        assertThat(response.getBody().getContent().get(0).id()).isEqualTo(customerId);
-        assertThat(response.getBody().getContent().get(0).name()).isEqualTo("João Silva");
+        assertThat(response.getBody().getContent().getFirst().id()).isEqualTo(customerId);
+        assertThat(response.getBody().getContent().getFirst().name()).isEqualTo("João Silva");
         assertThat(response.getBody().getTotalElements()).isEqualTo(1);
 
         verify(customerService, times(1)).findAll(any(Pageable.class));

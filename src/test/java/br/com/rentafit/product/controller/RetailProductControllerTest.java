@@ -43,7 +43,6 @@ class RetailProductControllerTest {
     private RetailProductController retailProductController;
 
     private UUID productId;
-    private UUID categoryId;
     private ProductRetailDTO productRetailDTO;
     private ProductRetailDetailsDTO productRetailDetailsDTO;
     private ProductRetailUpdateDTO productRetailUpdateDTO;
@@ -51,7 +50,7 @@ class RetailProductControllerTest {
     @BeforeEach
     void setUp() {
         productId = UUID.randomUUID();
-        categoryId = UUID.randomUUID();
+        UUID categoryId = UUID.randomUUID();
 
         productRetailDTO = ProductRetailDTO.builder()
                 .name("Camisa Polo")
@@ -154,7 +153,7 @@ class RetailProductControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSize(1);
-        assertThat(response.getBody().getContent().get(0).id()).isEqualTo(productId);
+        assertThat(response.getBody().getContent().getFirst().id()).isEqualTo(productId);
 
         verify(retailProductService, times(1)).findAll(any(Pageable.class));
     }
