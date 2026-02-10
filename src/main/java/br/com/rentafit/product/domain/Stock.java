@@ -1,7 +1,6 @@
 package br.com.rentafit.product.domain;
 
 import br.com.rentafit.common.exception.ValidationException;
-import br.com.rentafit.product.domain.enums.StockMovementType;
 import br.com.rentafit.product.dto.StockDTO;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;

@@ -153,10 +153,10 @@ class CustomerControllerTest {
 
         CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva Updated", "12345678900",
                 "joao.updated@example.com", true, null, addressDTO, "123", "Apto 10", List.of("11987654321"));
-        when(customerService.update(eq(customerId), any(CustomerDTO.class))).thenReturn(detailsDTO);
+        when(customerService.update(any(CustomerDTO.class))).thenReturn(detailsDTO);
 
         // Act
-        ResponseEntity<CustomerDetailsDTO> response = customerController.update(customerId, updatedDTO);
+        ResponseEntity<CustomerDetailsDTO> response = customerController.update(updatedDTO);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -165,7 +165,7 @@ class CustomerControllerTest {
         assertThat(response.getBody().name()).isEqualTo("João Silva Updated");
         assertThat(response.getBody().email()).isEqualTo("joao.updated@example.com");
 
-        verify(customerService, times(1)).update(eq(customerId), any(CustomerDTO.class));
+        verify(customerService, times(1)).update(any(CustomerDTO.class));
     }
 
     @Test

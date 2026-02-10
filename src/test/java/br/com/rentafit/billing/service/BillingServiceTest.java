@@ -67,7 +67,7 @@ class BillingServiceTest {
 
         DpsResponse dpsResponse = DpsResponse.builder()
                 .accessKey("dummy-access-key")
-                .protocol("dummy-protocol")
+                .protocol("1234567890dummy-protocol")
                 .status("AUTORIZADA")
                 .dhProcessamento(OffsetDateTime.now())
                 .build();
@@ -103,10 +103,8 @@ class BillingServiceTest {
 
         when(customerRepository.findById(customerId)).thenReturn(Optional.empty());
 
-        Mono<InvoiceEmissionResponseDTO> result = billingService.emitInvoice(request);
-
-        StepVerifier.create(result)
-                .expectError(RuntimeException.class)
-                .verify();
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> {
+            billingService.emitInvoice(request);
+        });
     }
 }

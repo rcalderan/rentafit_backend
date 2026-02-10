@@ -229,6 +229,7 @@ class CustomerServiceTest {
         Address newAddress = new Address("12345678", "Rua Nova", "Centro", "Rio de Janeiro", "RJ");
         AddressDTO addressDTO = AddressDTO.builder().zipCode("12345-678").street("Rua Nova").city("Rio de Janeiro").state("RJ").build();
         CustomerDTO updateDTO = CustomerDTO.builder()
+                .id(customerId)
                 .name("Updated")
                 .email("u@example.com")
                 .document("123")
@@ -250,7 +251,7 @@ class CustomerServiceTest {
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CustomerDetailsDTO result = customerService.update(customerId, updateDTO);
+        CustomerDetailsDTO result = customerService.update(updateDTO);
 
         // Assert
         assertThat(result).isNotNull();
@@ -273,6 +274,7 @@ class CustomerServiceTest {
 
         AddressDTO addressDTO = AddressDTO.builder().zipCode("01310-100").build();
         CustomerDTO updateDTO = CustomerDTO.builder()
+                .id(customerId)
                 .number("1001") // change number
                 .complement("Apt 202")
                 .address(addressDTO)
@@ -289,7 +291,7 @@ class CustomerServiceTest {
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CustomerDetailsDTO result = customerService.update(customerId, updateDTO);
+        CustomerDetailsDTO result = customerService.update(updateDTO);
 
         // Assert
         assertThat(result).isNotNull();
@@ -312,6 +314,7 @@ class CustomerServiceTest {
 
         AddressDTO addressDTO = AddressDTO.builder().zipCode("01310-100").build();
         CustomerDTO updateDTO = CustomerDTO.builder()
+                .id(customerId)
                 .number("1000")
                 .complement("Apt 201")
                 .address(addressDTO)
@@ -321,7 +324,7 @@ class CustomerServiceTest {
         when(customerRepository.save(any(Customer.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CustomerDetailsDTO result = customerService.update(customerId, updateDTO);
+        CustomerDetailsDTO result = customerService.update(updateDTO);
 
         // Assert
         assertThat(result).isNotNull();
