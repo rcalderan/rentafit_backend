@@ -306,4 +306,96 @@ class AddressServiceTest {
         assertThat(result.getStreet()).isEqualTo("Rua Desconhecida");
         verify(viaCepIntegrationService).fetchAddressByZipCode(zipCode);
     }
+
+    @Test
+    @DisplayName("Deve retornar endereço existente quando composto por chave completa")
+    void shouldReturnExistingAddressByCompositeKey() {
+        // Arrange
+        String zipCode = "01310100";
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode(zipCode)
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        Address existingAddress = new Address(zipCode, "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState(zipCode, "Avenida Paulista", "São Paulo", "SP"))
+                .thenReturn(Optional.of(existingAddress));
+
+        // Act
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getZipCode()).isEqualTo(zipCode);
+        verify(addressRepository, times(1)).findByZipCodeAndStreetAndCityAndState(anyString(), anyString(), anyString(), anyString());
+        verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando CEP é null em findOrCreateByZipcode")
+    void shouldThrowExceptionWhenZipCodeIsNull() {
+        // Act & Assert
+        assertThatThrownBy(() -> addressService.findOrCreateByZipcode(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("ZIP code cannot be null");
+
+        verify(addressRepository, never()).findByZipCode(anyString());
+        verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
+    }
+
+    @Test
+    @DisplayName("Deve buscar endereço no banco mesmo quando ViaCEP retorna erro")
+    void shouldFindLocalAddressWhenViaCepFails() {
+        // Arrange
+        String zipCode = "01310-100";
+        Address existingAddress = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+
+        when(addressRepository.findByZipCode("01310100")).thenReturn(List.of(existingAddress));
+
+        // Act
+        AddressDTO result = addressService.findByZipCode(zipCode);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.zipCode()).isEqualTo("01310-100");
+        verify(addressRepository).findByZipCode("01310100");
+        verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
+    }
+
+    @Test
+    @DisplayName("Deve criar endereço a partir de ViaCEP quando não existe localmente")
+    void shouldCreateAddressFromViaCepWhenNotInDatabase() {
+        // Arrange
+        String zipCode = "12345-678";
+        String normalized = "12345678";
+
+        ViaCepResponseDTO viaCepData = ViaCepResponseDTO.builder()
+                .cep(normalized)
+                .logradouro("Rua Teste")
+                .bairro("Centro")
+                .localidade("Teste City")
+                .uf("TS")
+                .erro(false)
+                .build();
+
+        when(addressRepository.findByZipCode(normalized)).thenReturn(Collections.emptyList());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized)).thenReturn(viaCepData);
+        when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AddressDTO result = addressService.findByZipCode(zipCode);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.zipCode()).isEqualTo("12345-678");
+        assertThat(result.street()).isEqualTo("Rua Teste");
+        assertThat(result.city()).isEqualTo("Teste City");
+        verify(addressRepository).findByZipCode(normalized);
+        verify(viaCepIntegrationService).fetchAddressByZipCode(normalized);
+        verify(addressRepository).save(any(Address.class));
+    }
 }

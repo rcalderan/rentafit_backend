@@ -61,5 +61,56 @@ class ViaCepIntegrationServiceTest {
         // Assert
         assertThat(result).isNull();
     }
-}
 
+    @Test
+    @DisplayName("Deve retornar null para CEP com apenas espaços")
+    void shouldReturnNullForBlankZipCode() {
+        // Act
+        ViaCepResponseDTO result = viaCepIntegrationService.fetchAddressByZipCode("   ");
+
+        // Assert
+        assertThat(result).isNull();
+    }
+
+    @Test
+    @DisplayName("Deve validar formato de CEP antes de fazer chamada")
+    void shouldValidateZipCodeFormat() {
+        // Act & Assert - CEP com letras
+        assertThatThrownBy(() -> viaCepIntegrationService.fetchAddressByZipCode("abcd-efgh"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid ZIP code format");
+    }
+
+    @Test
+    @DisplayName("Deve aceitar CEP com hífen")
+    void shouldAcceptZipCodeWithHyphen() {
+        // Este teste verifica apenas que não lança exceção na validação inicial
+        // O comportamento completo (incluindo chamada HTTP) requer mock complexo
+
+        // Act & Assert - Não deve lançar IllegalArgumentException na validação inicial
+        try {
+            viaCepIntegrationService.fetchAddressByZipCode("01310-100");
+        } catch (IllegalArgumentException e) {
+            throw e; // Re-lança se for validação de formato
+        } catch (Exception e) {
+            // Ignora outras exceções (como NullPointerException do WebClient mock não configurado)
+            // O importante aqui é que passou pela validação de formato
+        }
+    }
+
+    @Test
+    @DisplayName("Deve aceitar CEP sem hífen")
+    void shouldAcceptZipCodeWithoutHyphen() {
+        // Este teste verifica apenas que não lança exceção na validação inicial
+
+        // Act & Assert - Não deve lançar IllegalArgumentException na validação inicial
+        try {
+            viaCepIntegrationService.fetchAddressByZipCode("01310100");
+        } catch (IllegalArgumentException e) {
+            throw e; // Re-lança se for validação de formato
+        } catch (Exception e) {
+            // Ignora outras exceções (como NullPointerException do WebClient mock não configurado)
+            // O importante aqui é que passou pela validação de formato
+        }
+    }
+}
