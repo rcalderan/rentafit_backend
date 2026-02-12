@@ -11,13 +11,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.crossstore.ChangeSetPersister;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.util.List;
 import java.util.UUID;
@@ -55,16 +53,7 @@ public class CustomerController {
             @ApiResponse(responseCode = "404", description = "Customer not found")
     })
     public ResponseEntity<CustomerDetailsDTO> findByDocument(@PathVariable String document) {
-        try {
-            return ResponseEntity.ok(customerService.findByDocument(document));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().build();
-        } catch (ResourceNotFoundException notFoundException){
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            throw new RuntimeException(e);
-        }
+        return ResponseEntity.ok(customerService.findByDocument(document));
     }
 
     @GetMapping("/byLegacyId/{legacyId}")
@@ -75,14 +64,7 @@ public class CustomerController {
             @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<CustomerDetailsDTO> findByLegacyId(@PathVariable Integer legacyId) {
-        try{
-            return ResponseEntity.ok(customerService.findByLegacyId(legacyId));
-        } catch (ResourceNotFoundException notFoundException){
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            throw new RuntimeException(e);
-        }
+        return ResponseEntity.ok(customerService.findByLegacyId(legacyId));
     }
 
     @GetMapping("/{id}/address-history")
@@ -107,16 +89,8 @@ public class CustomerController {
             @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<CustomerDetailsDTO> create(@Valid @RequestBody CustomerDTO dto) {
-        try {
-            CustomerDetailsDTO created = customerService.create(dto);
-            return ResponseEntity.status(HttpStatus.CREATED).body(created);
-        } catch (HttpClientErrorException e) {
-            System.out.println(e.getMessage());
-            return ResponseEntity.unprocessableEntity().build();
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            return  ResponseEntity.internalServerError().build();
-        }
+        CustomerDetailsDTO created = customerService.create(dto);
+        return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping

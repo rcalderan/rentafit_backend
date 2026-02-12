@@ -1,6 +1,7 @@
 package br.com.rentafit.people.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
+import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.domain.PersonAddressDetails;
@@ -55,15 +56,10 @@ public class CustomerService {
 
     @Transactional(readOnly = true)
     public CustomerDetailsDTO findByLegacyId(Integer legacyId) {
-        try{
-            Customer customer = customerRepository.findByLegacyId(legacyId)
-                    .orElseThrow(() ->new ResourceNotFoundException("Customer", "LegacyId", legacyId));
-            return customer.toDTO();
 
-        } catch (Exception e) {
-            System.out.println(e.getMessage());
-            throw new RuntimeException(e);
-        }
+        Customer customer = customerRepository.findByLegacyId(legacyId)
+                .orElseThrow(() ->new ResourceNotFoundException("Customer", "LegacyId", legacyId));
+        return customer.toDTO();
     }
 
 
@@ -73,8 +69,7 @@ public class CustomerService {
         if (dto.document() != null) {
             customerRepository.findByDocument(dto.document())
                     .ifPresent(existing -> {
-                        throw new HttpClientErrorException(HttpStatusCode.valueOf(409),
-                            "Customer with this document already exists");
+                        throw new ValidationException("Customer with this document already exists");
                     });
         }
 

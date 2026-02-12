@@ -1,6 +1,5 @@
 package br.com.rentafit.people.controller;
 
-import br.com.rentafit.common.exception.ExternalServiceTimeoutException;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.dto.AddressDTO;
 import br.com.rentafit.people.service.AddressService;
@@ -16,7 +15,6 @@ import org.springframework.http.ResponseEntity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 /**
