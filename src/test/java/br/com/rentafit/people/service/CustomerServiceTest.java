@@ -214,6 +214,76 @@ class CustomerServiceTest {
         verify(customerRepository, never()).save(any());
     }
 
+    // ==================== findByDocument Tests ====================
+
+    @Test
+    @DisplayName("Deve encontrar cliente por documento")
+    void shouldFindCustomerByDocument() {
+        // Arrange
+        String document = "12345678900";
+        testCustomer.setDocument(document);
+        when(customerRepository.findByDocument(document)).thenReturn(Optional.of(testCustomer));
+
+
+        // Act
+        CustomerDetailsDTO result = customerService.findByDocument(document);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.document()).isEqualTo(document);
+        verify(customerRepository).findByDocument(document);
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando cliente não encontrado por documento")
+    void shouldThrowExceptionWhenCustomerNotFoundByDocument() {
+        // Arrange
+        String document = "99999999999";
+        when(customerRepository.findByDocument(document)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> customerService.findByDocument(document))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Customer not found with Document: " + document);
+
+        verify(customerRepository).findByDocument(document);
+    }
+
+    // ==================== findByLegacyId Tests ====================
+
+    @Test
+    @DisplayName("Deve encontrar cliente por legacyId")
+    void shouldFindCustomerByLegacyId() {
+        // Arrange
+        Integer legacyId = 123;
+        testCustomer.setLegacyId(legacyId);
+        when(customerRepository.findByLegacyId(legacyId)).thenReturn(Optional.of(testCustomer));
+
+
+        // Act
+        CustomerDetailsDTO result = customerService.findByLegacyId(legacyId);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.legacyId()).isEqualTo(legacyId);
+        verify(customerRepository).findByLegacyId(legacyId);
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando cliente não encontrado por legacyId")
+    void shouldThrowExceptionWhenCustomerNotFoundByLegacyId() {
+        // Arrange
+        Integer legacyId = 999;
+        when(customerRepository.findByLegacyId(legacyId)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> customerService.findByLegacyId(legacyId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Customer not found with LegacyId: " + legacyId);
+
+        verify(customerRepository).findByLegacyId(legacyId);
+    }
+
     // ==================== update Tests ====================
 
     @Test

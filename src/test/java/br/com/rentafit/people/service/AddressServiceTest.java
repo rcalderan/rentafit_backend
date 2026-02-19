@@ -5,6 +5,8 @@ import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.dto.AddressDTO;
 import br.com.rentafit.people.dto.ViaCepResponseDTO;
 import br.com.rentafit.people.repository.AddressRepository;
+import br.com.rentafit.people.repository.PersonAddressDetailsRepository;
+import br.com.rentafit.people.repository.PersonAddressHistoryRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,6 +35,12 @@ class AddressServiceTest {
 
     @Mock
     private AddressRepository addressRepository;
+
+    @Mock
+    private PersonAddressDetailsRepository addressDetailsRepository;
+
+    @Mock
+    private PersonAddressHistoryRepository addressHistoryRepository;
 
     @Mock
     private ViaCepIntegrationService viaCepIntegrationService;
@@ -398,4 +406,166 @@ class AddressServiceTest {
         verify(viaCepIntegrationService).fetchAddressByZipCode(normalized);
         verify(addressRepository).save(any(Address.class));
     }
+
+    // ==================== handleAddressUpdate Tests ====================
+
+    @Test
+    @DisplayName("Deve arquivar endereço antigo quando endereço muda")
+    void shouldArchiveOldAddressWhenAddressChanges() {
+        // Arrange
+        br.com.rentafit.people.domain.Customer customer = new br.com.rentafit.people.domain.Customer();
+        customer.setId(java.util.UUID.randomUUID());
+
+        Address oldAddress = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        br.com.rentafit.people.domain.PersonAddressDetails currentDetails =
+            new br.com.rentafit.people.domain.PersonAddressDetails();
+        currentDetails.setAddress(oldAddress);
+        currentDetails.setNumber("1000");
+        currentDetails.setComplement("Apt 201");
+        currentDetails.setStartDate(java.time.OffsetDateTime.now().minusMonths(1));
+        customer.setCurrentAddress(currentDetails);
+
+        Address newAddress = new Address("12345678", "Rua Nova", "Centro", "Rio de Janeiro", "RJ");
+        AddressDTO newAddressDTO = AddressDTO.builder()
+                .zipCode("12345-678")
+                .street("Rua Nova")
+                .city("Rio de Janeiro")
+                .state("RJ")
+                .build();
+
+        br.com.rentafit.people.dto.CustomerDTO dto = br.com.rentafit.people.dto.CustomerDTO.builder()
+                .address(newAddressDTO)
+                .number("2000")
+                .complement("Casa")
+                .build();
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(java.util.Optional.empty());
+        when(addressRepository.save(any(Address.class))).thenReturn(newAddress);
+        when(viaCepIntegrationService.fetchAddressByZipCode(anyString())).thenReturn(null);
+
+        // Act
+        addressService.handleAddressUpdate(customer, dto);
+
+        // Assert
+        verify(addressDetailsRepository).save(any(br.com.rentafit.people.domain.PersonAddressDetails.class));
+        verify(addressHistoryRepository).save(any(br.com.rentafit.people.domain.PersonAddressHistory.class));
+        assertThat(customer.getCurrentAddress()).isNotNull();
+        assertThat(customer.getCurrentAddress().getAddress().getZipCode()).isEqualTo("12345678");
+    }
+
+    @Test
+    @DisplayName("Deve atualizar apenas details quando endereço não muda")
+    void shouldUpdateOnlyDetailsWhenAddressDoesNotChange() {
+        // Arrange
+        br.com.rentafit.people.domain.Customer customer = new br.com.rentafit.people.domain.Customer();
+        customer.setId(java.util.UUID.randomUUID());
+
+        Address address = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        br.com.rentafit.people.domain.PersonAddressDetails currentDetails =
+            new br.com.rentafit.people.domain.PersonAddressDetails();
+        currentDetails.setAddress(address);
+        currentDetails.setNumber("1000");
+        currentDetails.setComplement("Apt 201");
+        currentDetails.setStartDate(java.time.OffsetDateTime.now().minusMonths(1));
+        customer.setCurrentAddress(currentDetails);
+
+        AddressDTO sameAddressDTO = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        br.com.rentafit.people.dto.CustomerDTO dto = br.com.rentafit.people.dto.CustomerDTO.builder()
+                .address(sameAddressDTO)
+                .number("1001") // mudou o número
+                .complement("Apt 202")
+                .build();
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState("01310100", "Avenida Paulista", "São Paulo", "SP"))
+                .thenReturn(java.util.Optional.of(address));
+
+        // Act
+        addressService.handleAddressUpdate(customer, dto);
+
+        // Assert
+        verify(addressDetailsRepository).save(any(br.com.rentafit.people.domain.PersonAddressDetails.class));
+        verify(addressHistoryRepository).save(any(br.com.rentafit.people.domain.PersonAddressHistory.class));
+        assertThat(customer.getCurrentAddress().getNumber()).isEqualTo("1001");
+        assertThat(customer.getCurrentAddress().getComplement()).isEqualTo("Apt 202");
+    }
+
+    @Test
+    @DisplayName("Deve criar novo endereço quando cliente não tem endereço atual")
+    void shouldCreateNewAddressWhenCustomerHasNoCurrentAddress() {
+        // Arrange
+        br.com.rentafit.people.domain.Customer customer = new br.com.rentafit.people.domain.Customer();
+        customer.setId(java.util.UUID.randomUUID());
+        customer.setCurrentAddress(null);
+
+        Address newAddress = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        AddressDTO addressDTO = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        br.com.rentafit.people.dto.CustomerDTO dto = br.com.rentafit.people.dto.CustomerDTO.builder()
+                .address(addressDTO)
+                .number("1000")
+                .complement("Apt 201")
+                .build();
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(java.util.Optional.of(newAddress));
+
+        // Act
+        addressService.handleAddressUpdate(customer, dto);
+
+        // Assert
+        verify(addressHistoryRepository, never()).save(any());
+        assertThat(customer.getCurrentAddress()).isNotNull();
+        assertThat(customer.getCurrentAddress().getAddress()).isEqualTo(newAddress);
+    }
+
+    @Test
+    @DisplayName("Não deve fazer nada quando endereço e details não mudam")
+    void shouldDoNothingWhenAddressAndDetailsDoNotChange() {
+        // Arrange
+        br.com.rentafit.people.domain.Customer customer = new br.com.rentafit.people.domain.Customer();
+        customer.setId(java.util.UUID.randomUUID());
+
+        Address address = new Address("01310100", "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        br.com.rentafit.people.domain.PersonAddressDetails currentDetails =
+            new br.com.rentafit.people.domain.PersonAddressDetails();
+        currentDetails.setAddress(address);
+        currentDetails.setNumber("1000");
+        currentDetails.setComplement("Apt 201");
+        currentDetails.setStartDate(java.time.OffsetDateTime.now().minusMonths(1));
+        customer.setCurrentAddress(currentDetails);
+
+        AddressDTO sameAddressDTO = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        br.com.rentafit.people.dto.CustomerDTO dto = br.com.rentafit.people.dto.CustomerDTO.builder()
+                .address(sameAddressDTO)
+                .number("1000")
+                .complement("Apt 201")
+                .build();
+
+        // Act
+        addressService.handleAddressUpdate(customer, dto);
+
+        // Assert
+        verify(addressDetailsRepository, never()).save(any());
+        verify(addressHistoryRepository, never()).save(any());
+        verify(addressRepository, never()).save(any());
+    }
 }
+

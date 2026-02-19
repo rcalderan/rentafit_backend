@@ -182,5 +182,97 @@ class CustomerControllerTest {
 
         verify(customerService, times(1)).delete(customerId);
     }
+
+    @Test
+    @DisplayName("Should return customer when findByDocument is called with valid document")
+    void testFindByDocument() {
+        // Arrange
+        String document = "12345678900";
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", document,
+                "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
+        when(customerService.findByDocument(document)).thenReturn(detailsDTO);
+
+        // Act
+        ResponseEntity<CustomerDetailsDTO> response = customerController.findByDocument(document);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().document()).isEqualTo(document);
+        assertThat(response.getBody().name()).isEqualTo("João Silva");
+
+        verify(customerService, times(1)).findByDocument(document);
+    }
+
+    @Test
+    @DisplayName("Should return customer when findByLegacyId is called with valid legacy ID")
+    void testFindByLegacyId() {
+        // Arrange
+        Integer legacyId = 123;
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, legacyId, "João Silva", "12345678900",
+                "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
+        when(customerService.findByLegacyId(legacyId)).thenReturn(detailsDTO);
+
+        // Act
+        ResponseEntity<CustomerDetailsDTO> response = customerController.findByLegacyId(legacyId);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().legacyId()).isEqualTo(legacyId);
+        assertThat(response.getBody().name()).isEqualTo("João Silva");
+
+        verify(customerService, times(1)).findByLegacyId(legacyId);
+    }
+
+    @Test
+    @DisplayName("Should return address history when getAddressHistory is called")
+    void testGetAddressHistory() {
+        // Arrange
+        var history1 = new br.com.rentafit.people.dto.AddressHistoryDTO(
+                UUID.randomUUID(),
+                "01310-100",
+                "Avenida Paulista",
+                "Bela Vista",
+                "São Paulo",
+                "SP",
+                "123",
+                "Apto 10",
+                java.time.OffsetDateTime.now().minusMonths(6),
+                java.time.OffsetDateTime.now().minusMonths(1),
+                java.time.OffsetDateTime.now().minusMonths(1),
+                false
+        );
+        var history2 = new br.com.rentafit.people.dto.AddressHistoryDTO(
+                UUID.randomUUID(),
+                "12345-678",
+                "Rua Antiga",
+                "Centro",
+                "Rio de Janeiro",
+                "RJ",
+                "456",
+                "Casa",
+                java.time.OffsetDateTime.now().minusYears(2),
+                java.time.OffsetDateTime.now().minusMonths(6),
+                java.time.OffsetDateTime.now().minusMonths(6),
+                false
+        );
+        List<br.com.rentafit.people.dto.AddressHistoryDTO> historyList = List.of(history1, history2);
+
+        when(customerService.getAddressHistory(customerId)).thenReturn(historyList);
+
+        // Act
+        ResponseEntity<List<br.com.rentafit.people.dto.AddressHistoryDTO>> response =
+                customerController.getAddressHistory(customerId);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody()).hasSize(2);
+        assertThat(response.getBody().get(0).number()).isEqualTo("123");
+        assertThat(response.getBody().get(1).number()).isEqualTo("456");
+
+        verify(customerService, times(1)).getAddressHistory(customerId);
+    }
 }
 

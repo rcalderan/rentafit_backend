@@ -2,11 +2,11 @@ package br.com.rentafit.auth.controller;
 
 import br.com.rentafit.auth.domain.RefreshToken;
 import br.com.rentafit.auth.domain.UserAccount;
-import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.service.RefreshTokenService;
+import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
 import br.com.rentafit.common.security.TokenService;
 import org.junit.jupiter.api.DisplayName;
@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 
@@ -135,4 +136,37 @@ class AuthControllerTest {
             assertThat(e.getMessage()).isEqualTo("Refresh token is not in database!");
         }
     }
+
+    @Test
+    @DisplayName("Should return 403 when login with BCrypt hash password")
+    void login_WithBCryptHash() {
+        // BCrypt hash example
+        LoginRequestDTO request = new LoginRequestDTO("user", "$2a$10$abcdefghijklmnopqrstuvwxyz123456789012345678901234");
+
+        // Act
+        ResponseEntity<LoginResponseDTO> response = authController.login(request);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Should return 403 when authentication fails")
+    void login_AuthenticationFailure() {
+        LoginRequestDTO request = new LoginRequestDTO("user", "wrong-password");
+
+        when(authenticationManager.authenticate(any()))
+            .thenThrow(new BadCredentialsException("Bad credentials"));
+
+        // Act
+        ResponseEntity<LoginResponseDTO> response = authController.login(request);
+
+        // Assert
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
 }
+
+
+
+
+

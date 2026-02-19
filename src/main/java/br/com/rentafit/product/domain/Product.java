@@ -34,7 +34,7 @@ public abstract class Product {
     protected String color;
     protected String brand;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(name = "\"value\"", nullable = false, precision = 10, scale = 2)
     protected BigDecimal value;
 
     @Column(columnDefinition = "TEXT")

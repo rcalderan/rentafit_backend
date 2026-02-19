@@ -1,0 +1,569 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Rentafit API - CRUD Tests",
+		"description": "Collection for testing Customer and Employee CRUD operations with validation",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "12345678"
+	},
+	"item": [
+		{
+			"name": "Customers",
+			"item": [
+				{
+					"name": "List All Customers",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers?page=0&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get paginated list of customers"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/{{customer_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers", "{{customer_id}}"]
+						},
+						"description": "Get a specific customer by UUID"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer - Valid",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"customer_id\", jsonData.id);",
+									"    pm.test(\"Customer created successfully\", function () {",
+									"        pm.expect(pm.response.code).to.equal(201);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"João Silva\",\n  \"document\": \"12345678901\",\n  \"email\": \"joao.silva@example.com\",\n  \"isAuthenticated\": false,\n  \"notes\": \"Cliente regular\",\n  \"address\": {\n    \"zipCode\": \"12345-678\",\n    \"street\": \"Rua das Flores\",\n    \"neighborhood\": \"Centro\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\"\n  },\n  \"number\": \"123\",\n  \"complement\": \"Apto 45\",\n  \"phones\": [\n    \"11987654321\",\n    \"1133334444\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers"]
+						},
+						"description": "Create a new customer with valid data"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer - Invalid (Missing Name)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"document\": \"12345678901\",\n  \"email\": \"teste@example.com\",\n  \"isAuthenticated\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers"]
+						},
+						"description": "Test validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer - Invalid Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Maria Santos\",\n  \"document\": \"98765432100\",\n  \"email\": \"email-invalido\",\n  \"isAuthenticated\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers"]
+						},
+						"description": "Test email validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer - Invalid Document",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Pedro Oliveira\",\n  \"document\": \"123\",\n  \"email\": \"pedro@example.com\",\n  \"isAuthenticated\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers"]
+						},
+						"description": "Test document validation (CPF/CNPJ) - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Customer - Invalid ZIP Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Ana Costa\",\n  \"document\": \"11122233344\",\n  \"email\": \"ana@example.com\",\n  \"isAuthenticated\": false,\n  \"address\": {\n    \"zipCode\": \"123\",\n    \"street\": \"Rua Teste\",\n    \"city\": \"Rio de Janeiro\",\n    \"state\": \"RJ\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers"]
+						},
+						"description": "Test ZIP code format validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"João Silva Updated\",\n  \"document\": \"12345678901\",\n  \"email\": \"joao.updated@example.com\",\n  \"isAuthenticated\": true,\n  \"notes\": \"Cliente VIP\",\n  \"address\": {\n    \"zipCode\": \"12345-678\",\n    \"street\": \"Rua das Flores\",\n    \"neighborhood\": \"Centro\",\n    \"city\": \"São Paulo\",\n    \"state\": \"SP\"\n  },\n  \"number\": \"123\",\n  \"complement\": \"Apto 45\",\n  \"phones\": [\n    \"11987654321\"\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/{{customer_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers", "{{customer_id}}"]
+						},
+						"description": "Update an existing customer"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Customer - Not Found",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test\",\n  \"document\": \"12345678901\",\n  \"email\": \"test@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers", "00000000-0000-0000-0000-000000000000"]
+						},
+						"description": "Test 404 Not Found response"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/{{customer_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers", "{{customer_id}}"]
+						},
+						"description": "Delete a customer by ID - returns 204 No Content"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Customer - Not Found",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/customers/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "customers", "00000000-0000-0000-0000-000000000000"]
+						},
+						"description": "Test 404 Not Found when deleting non-existent customer"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Employees",
+			"item": [
+				{
+					"name": "List All Employees",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees?page=0&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "10"
+								}
+							]
+						},
+						"description": "Get paginated list of employees"
+					},
+					"response": []
+				},
+				{
+					"name": "Get Employee by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/{{employee_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees", "{{employee_id}}"]
+						},
+						"description": "Get a specific employee by UUID"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee - Valid",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"employee_id\", jsonData.id);",
+									"    pm.test(\"Employee created successfully\", function () {",
+									"        pm.expect(pm.response.code).to.equal(201);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Maria Santos\",\n  \"document\": \"98765432100\",\n  \"email\": \"maria.santos@rentafit.com\",\n  \"initials\": \"MS\",\n  \"roleLevel\": 2\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"]
+						},
+						"description": "Create a new employee with valid data"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee - Invalid (Missing Name)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"document\": \"11122233344\",\n  \"email\": \"teste@rentafit.com\",\n  \"initials\": \"TS\",\n  \"roleLevel\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"]
+						},
+						"description": "Test validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee - Invalid (Missing Initials)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Pedro Costa\",\n  \"document\": \"55566677788\",\n  \"email\": \"pedro@rentafit.com\",\n  \"roleLevel\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"]
+						},
+						"description": "Test initials validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee - Invalid Role Level (Too Low)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Ana Lima\",\n  \"document\": \"44455566677\",\n  \"email\": \"ana@rentafit.com\",\n  \"initials\": \"AL\",\n  \"roleLevel\": 0\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"]
+						},
+						"description": "Test roleLevel @Min validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee - Invalid Role Level (Too High)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Carlos Souza\",\n  \"document\": \"33344455566\",\n  \"email\": \"carlos@rentafit.com\",\n  \"initials\": \"CS\",\n  \"roleLevel\": 15\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"]
+						},
+						"description": "Test roleLevel @Max validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Create Employee - Invalid Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Julia Ferreira\",\n  \"document\": \"22233344455\",\n  \"email\": \"email-sem-arroba\",\n  \"initials\": \"JF\",\n  \"roleLevel\": 3\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees"]
+						},
+						"description": "Test email validation - should return 400 Bad Request"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Employee",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Maria Santos Updated\",\n  \"document\": \"98765432100\",\n  \"email\": \"maria.updated@rentafit.com\",\n  \"initials\": \"MSU\",\n  \"roleLevel\": 3\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/{{employee_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees", "{{employee_id}}"]
+						},
+						"description": "Update an existing employee"
+					},
+					"response": []
+				},
+				{
+					"name": "Update Employee - Not Found",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Test\",\n  \"document\": \"12345678901\",\n  \"email\": \"test@rentafit.com\",\n  \"initials\": \"TS\",\n  \"roleLevel\": 1\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees", "00000000-0000-0000-0000-000000000000"]
+						},
+						"description": "Test 404 Not Found response"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Employee",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/{{employee_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees", "{{employee_id}}"]
+						},
+						"description": "Delete an employee by ID - returns 204 No Content"
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Employee - Not Found",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/employees/00000000-0000-0000-0000-000000000000",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "employees", "00000000-0000-0000-0000-000000000000"]
+						},
+						"description": "Test 404 Not Found when deleting non-existent employee"
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "API Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/actuator/health",
+							"host": ["{{base_url}}"],
+							"path": ["actuator", "health"]
+						},
+						"description": "Check if the API is running"
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "customer_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "employee_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}
+

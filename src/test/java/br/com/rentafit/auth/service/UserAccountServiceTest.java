@@ -150,5 +150,71 @@ class UserAccountServiceTest {
 
         verify(userAccountRepository, times(1)).findByUsername(username);
     }
+
+    @Test
+    @DisplayName("Should get user with details when user exists")
+    void testGetUserWithDetails_Success() {
+        // Arrange
+        when(userAccountRepository.findByUsernameWithDetails(username)).thenReturn(Optional.of(userAccount));
+
+        // Act
+        Optional<UserAccount> result = userAccountService.getUserWithDetails(username);
+
+        // Assert
+        assertThat(result).isPresent();
+        assertThat(result.get().getUsername()).isEqualTo(username);
+        assertThat(result.get().getId()).isEqualTo(userAccount.getId());
+
+        verify(userAccountRepository, times(1)).findByUsernameWithDetails(username);
+    }
+
+    @Test
+    @DisplayName("Should return empty when user does not exist in getUserWithDetails")
+    void testGetUserWithDetails_NotFound() {
+        // Arrange
+        String nonExistentUsername = "nonexistent";
+        when(userAccountRepository.findByUsernameWithDetails(nonExistentUsername)).thenReturn(Optional.empty());
+
+        // Act
+        Optional<UserAccount> result = userAccountService.getUserWithDetails(nonExistentUsername);
+
+        // Assert
+        assertThat(result).isEmpty();
+
+        verify(userAccountRepository, times(1)).findByUsernameWithDetails(nonExistentUsername);
+    }
+
+    @Test
+    @DisplayName("Should find user profile when user exists")
+    void testFindUserProfile_Success() {
+        // Arrange
+        when(userAccountRepository.findByUsernameWithDetails(username)).thenReturn(Optional.of(userAccount));
+
+        // Act
+        Optional<UserAccount> result = userAccountService.findUserProfile(username);
+
+        // Assert
+        assertThat(result).isPresent();
+        assertThat(result.get().getUsername()).isEqualTo(username);
+
+        verify(userAccountRepository, times(1)).findByUsernameWithDetails(username);
+    }
+
+    @Test
+    @DisplayName("Should return empty when user profile not found")
+    void testFindUserProfile_NotFound() {
+        // Arrange
+        String nonExistentUsername = "nonexistent";
+        when(userAccountRepository.findByUsernameWithDetails(nonExistentUsername)).thenReturn(Optional.empty());
+
+        // Act
+        Optional<UserAccount> result = userAccountService.findUserProfile(nonExistentUsername);
+
+        // Assert
+        assertThat(result).isEmpty();
+
+        verify(userAccountRepository, times(1)).findByUsernameWithDetails(nonExistentUsername);
+    }
 }
+
 

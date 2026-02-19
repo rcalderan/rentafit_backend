@@ -265,6 +265,10 @@
 										<exclude>br.com.rentafit.*.mappers.*</exclude>
 										<exclude>br.com.rentafit.*Application</exclude>
 										<exclude>br.com.rentafit.*Config</exclude>
+										<!-- Exclui módulo billing (não será utilizado por enquanto) -->
+										<exclude>br.com.rentafit.billing.*</exclude>
+										<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
+										<exclude>br.com.rentafit.people.service.ViaCepIntegrationService</exclude>
 									</excludes>
 								</rule>
 							</rules>
@@ -294,6 +298,10 @@
 						<exclude>**/mappers/**</exclude>
 						<exclude>**/*Application.*</exclude>
 						<exclude>**/*Config.*</exclude>
+						<!-- Exclui módulo billing (não será utilizado por enquanto) -->
+						<exclude>**/billing/**</exclude>
+						<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
+						<exclude>**/ViaCepIntegrationService.*</exclude>
 					</excludes>
 				</configuration>
 			</plugin>

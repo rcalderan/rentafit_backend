@@ -113,4 +113,45 @@ class RefreshTokenServiceTest {
 
         assertThat(deletedCount).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("Should return 0 when user not found in deleteByUserId")
+    void deleteByUserId_UserNotFound() {
+        UUID userId = UUID.randomUUID();
+        when(userAccountRepository.findById(userId)).thenReturn(Optional.empty());
+
+        int deletedCount = refreshTokenService.deleteByUserId(userId);
+
+        assertThat(deletedCount).isEqualTo(0);
+        verify(refreshTokenRepository, never()).deleteByUserAccount(any());
+    }
+
+    @Test
+    @DisplayName("Should throw exception when user not found in createRefreshToken")
+    void createRefreshToken_UserNotFound() {
+        UserAccount user = new UserAccount();
+        user.setId(UUID.randomUUID());
+
+        when(userAccountRepository.findById(user.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> refreshTokenService.createRefreshToken(user))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Failed to create refresh token")
+                .hasCauseInstanceOf(RuntimeException.class);
+
+        verify(refreshTokenRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should handle token not found")
+    void findByToken_NotFound() {
+        String tokenStr = "non-existent-token";
+        when(refreshTokenRepository.findByToken(tokenStr)).thenReturn(Optional.empty());
+
+        Optional<RefreshToken> result = refreshTokenService.findByToken(tokenStr);
+
+        assertThat(result).isEmpty();
+    }
 }
+
+
