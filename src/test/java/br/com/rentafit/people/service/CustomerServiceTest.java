@@ -1,6 +1,7 @@
 package br.com.rentafit.people.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
+import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.domain.PersonAddressDetails;
@@ -207,7 +208,8 @@ class CustomerServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> customerService.create(createDTO))
-                .isInstanceOf(HttpClientErrorException.class);
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("already exists");
 
         verify(customerRepository, never()).save(any());
     }
