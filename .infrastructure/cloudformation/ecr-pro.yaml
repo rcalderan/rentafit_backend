@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECR repository for Rentafit PRO'
+
+Parameters:
+  RepositoryName:
+    Type: String
+    Default: rentafit-api-pro
+
+Resources:
+  EcrRepository:
+    Type: AWS::ECR::Repository
+    DeletionPolicy: Retain
+    Properties:
+      RepositoryName: !Ref RepositoryName
+
+Outputs:
+  RepositoryName:
+    Value: !Ref EcrRepository
+  RepositoryUri:
+    Value: !GetAtt EcrRepository.RepositoryUri
+

@@ -13,7 +13,11 @@
         "ecr:UploadLayerPart",
         "ecr:CompleteLayerUpload",
         "ecr:DescribeRepositories",
-        "ecr:ListImages"
+        "ecr:ListImages",
+        "ecr:CreateRepository",
+        "ecr:DeleteRepository",
+        "ecr:TagResource",
+        "ecr:UntagResource"
       ],
       "Resource": "*"
     },
@@ -98,4 +102,3 @@
     }
   ]
 }
-
