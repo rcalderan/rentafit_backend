@@ -4,8 +4,10 @@ Description: 'Recursos de Seguranca e Persistencia (IAM, EFS)'
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
-  PrivateSubnets:
-    Type: List<AWS::EC2::Subnet::Id>
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
   DbPasswordSecretArn:
     Type: String
     Description: ARN do secret no Secrets Manager para DB_PASSWORD
@@ -81,20 +83,14 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref HKFileSystem
-      SubnetId:
-        Fn::Select:
-          - 0
-          - Ref: PrivateSubnets
+      SubnetId: !Ref PrivateSubnet1Id
       SecurityGroups: [ !Ref EFSSecurityGroup ]
 
   MountTarget2:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref HKFileSystem
-      SubnetId:
-        Fn::Select:
-          - 1
-          - Ref: PrivateSubnets
+      SubnetId: !Ref PrivateSubnet2Id
       SecurityGroups: [ !Ref EFSSecurityGroup ]
 
 Outputs:
