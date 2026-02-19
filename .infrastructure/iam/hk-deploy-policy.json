@@ -13,13 +13,20 @@
         "ecr:UploadLayerPart",
         "ecr:CompleteLayerUpload",
         "ecr:DescribeRepositories",
-        "ecr:ListImages",
+        "ecr:ListImages"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRRepoCreateDeleteHK",
+      "Effect": "Allow",
+      "Action": [
         "ecr:CreateRepository",
         "ecr:DeleteRepository",
         "ecr:TagResource",
         "ecr:UntagResource"
       ],
-      "Resource": "*"
+      "Resource": "arn:aws:ecr:*:*:repository/rentafit-*-hk"
     },
     {
       "Sid": "ECSTaskManagement",
@@ -51,8 +58,34 @@
         "cloudformation:ListStackResources"
       ],
       "Resource": [
-        "arn:aws:cloudformation:*:*:stack/rentafit-hk-stack/*"
+        "arn:aws:cloudformation:*:*:stack/rentafit-hk-vpc/*",
+        "arn:aws:cloudformation:*:*:stack/rentafit-hk-security-persistence/*",
+        "arn:aws:cloudformation:*:*:stack/rentafit-hk-stack/*",
+        "arn:aws:cloudformation:*:*:stack/rentafit-hk-ecr/*"
       ]
+    },
+    {
+      "Sid": "EC2VPCManagement",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc",
+        "ec2:ModifyVpcAttribute",
+        "ec2:DeleteVpc",
+        "ec2:CreateSubnet",
+        "ec2:DeleteSubnet",
+        "ec2:CreateInternetGateway",
+        "ec2:AttachInternetGateway",
+        "ec2:DetachInternetGateway",
+        "ec2:DeleteInternetGateway",
+        "ec2:CreateRouteTable",
+        "ec2:DeleteRouteTable",
+        "ec2:CreateRoute",
+        "ec2:DeleteRoute",
+        "ec2:AssociateRouteTable",
+        "ec2:DisassociateRouteTable",
+        "ec2:CreateTags"
+      ],
+      "Resource": "*"
     },
     {
       "Sid": "IAMPassRole",
