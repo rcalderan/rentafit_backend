@@ -156,6 +156,8 @@ jobs:
       with:
         name: rentafit-hk-vpc
         template: .infrastructure/cloudformation/vpc.yaml
+        parameter-overrides: >-
+          AvailabilityZone=${{ secrets.AWS_AZ_HK }}
 
     - name: Get VPC Stack Outputs
       id: get-outputs
@@ -194,7 +196,6 @@ jobs:
         parameter-overrides: >-
           VpcId=${{ needs.vpc-hk.outputs.vpc-id }},
           PrivateSubnet1Id=${{ needs.vpc-hk.outputs.private-subnet-1 }},
-          PrivateSubnet2Id=${{ needs.vpc-hk.outputs.private-subnet-2 }},
           DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }}
         capabilities: CAPABILITY_NAMED_IAM
 
