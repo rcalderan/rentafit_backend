@@ -73,7 +73,7 @@ jobs:
     - name: Setup Java
       uses: actions/setup-java@v4
       with:
-        java-version: '25'
+        java-version: '21'
         distribution: 'temurin'
         cache: maven
 
@@ -96,12 +96,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
+    - name: Configure AWS credentials for HK
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
+        aws-region: ${{ secrets.AWS_REGION_HK }}
 
     - name: Login to Amazon ECR
       id: login-ecr
@@ -122,14 +122,18 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: rentafit-hk-stack
-        template: infrastructure/cloudformation/ecs-hk.yaml
+        template: .infrastructure/cloudformation/ecs-hk.yaml
         parameter-overrides: >-
           ImageUri=${{ steps.build-image.outputs.image }},
-          VpcId=${{ secrets.AWS_VPC_ID }},
-          Subnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
+          VpcId=${{ secrets.AWS_VPC_ID_HK }},
+          Subnets=${{ secrets.AWS_PRIVATE_SUBNETS_HK }},
           FileSystemId=${{ secrets.AWS_HK_EFS_ID }},
-          ExecutionRoleArn=${{ secrets.AWS_ECS_EXEC_ROLE_ARN }},
-          TaskRoleArn=${{ secrets.AWS_ECS_TASK_ROLE_ARN }}
+          EfsSecurityGroupId=${{ secrets.AWS_EFS_SG_ID_HK }},
+          ExecutionRoleArn=${{ secrets.AWS_ECS_EXEC_ROLE_ARN_HK }},
+          TaskRoleArn=${{ secrets.AWS_ECS_TASK_ROLE_ARN_HK }},
+          DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }},
+          AllowedIngressCidr=${{ secrets.AWS_APP_INGRESS_CIDR_HK }},
+          AppIngressSecurityGroupId=${{ secrets.AWS_APP_INGRESS_SG_HK }}
 
   deploy-pro:
     needs: build
@@ -164,7 +168,7 @@ jobs:
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: rentafit-pro-stack
-        template: infrastructure/cloudformation/rds-pro.yaml
+        template: .infrastructure/cloudformation/rds-pro.yaml
         parameter-overrides: >-
           VpcId=${{ secrets.AWS_VPC_ID }},
           PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},

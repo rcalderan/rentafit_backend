@@ -1,14 +1,17 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Recursos de Segurana e Persistncia (IAM, EFS)'
+Description: 'Recursos de Seguranca e Persistencia (IAM, EFS)'
 
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
   PrivateSubnets:
     Type: List<AWS::EC2::Subnet::Id>
+  DbPasswordSecretArn:
+    Type: String
+    Description: ARN do secret no Secrets Manager para DB_PASSWORD
 
 Resources:
-  # IAM Role para Execuo da Task do ECS
+  # IAM Role para Execucao da Task do ECS
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -22,8 +25,17 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
         - arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess
+      Policies:
+        - PolicyName: RentafitSecretsManagerRead
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref DbPasswordSecretArn
 
-  # IAM Role para a Task em si (Permisses de Runtime como EFS)
+  # IAM Role para a Task em si (Permissoes de Runtime como EFS)
   ECSTaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -44,7 +56,7 @@ Resources:
                   - elasticfilesystem:ClientMount
                   - elasticfilesystem:ClientWrite
                   - elasticfilesystem:ClientRootAccess
-                Resource: "*" # Idealmente limitar ao ARN do EFS criado abaixo
+                Resource: !GetAtt HKFileSystem.Arn # Limitado ao ARN do EFS criado abaixo
 
   # Security Group para o EFS
   EFSSecurityGroup:
@@ -52,11 +64,7 @@ Resources:
     Properties:
       GroupDescription: Permite acesso NFS do ECS
       VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 2049
-          ToPort: 2049
-          CidrIp: 0.0.0.0/0 # Em prod, restringir ao SG do ECS
+      # Ingresso sera criado no stack do ECS com SourceSecurityGroupId
 
   # EFS para persistncia de dados em HK
   HKFileSystem:
@@ -73,14 +81,20 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref HKFileSystem
-      SubnetId: !Select [ 0, !Ref PrivateSubnets ]
+      SubnetId:
+        Fn::Select:
+          - 0
+          - Ref: PrivateSubnets
       SecurityGroups: [ !Ref EFSSecurityGroup ]
 
   MountTarget2:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref HKFileSystem
-      SubnetId: !Select [ 1, !Ref PrivateSubnets ]
+      SubnetId:
+        Fn::Select:
+          - 1
+          - Ref: PrivateSubnets
       SecurityGroups: [ !Ref EFSSecurityGroup ]
 
 Outputs:
@@ -90,4 +104,5 @@ Outputs:
     Value: !GetAtt ECSTaskRole.Arn
   FileSystemId:
     Value: !Ref HKFileSystem
-
+  EfsSecurityGroupId:
+    Value: !Ref EFSSecurityGroup

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'RDS PostgreSQL para Produo (PRO)'
+Description: 'RDS PostgreSQL para Produção (PRO)'
 
 Parameters:
   VpcId:

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'ECS Service para Homologao (HK) com Persistncia Postgres via EFS'
+Description: 'ECS Service para Homologação (HK) com Persistência Postgres via EFS'
 
 Parameters:
   VpcId:
@@ -8,6 +8,9 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
   FileSystemId:
     Type: String
+  EfsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: Security group do EFS criado no stack de persistencia
   ExecutionRoleArn:
     Type: String
   TaskRoleArn:
@@ -15,6 +18,21 @@ Parameters:
   ImageUri:
     Type: String
     Default: 'public.ecr.aws/rentafit/api:latest'
+  DbPasswordSecretArn:
+    Type: String
+    Description: ARN do secret no Secrets Manager para DB_PASSWORD
+  AllowedIngressCidr:
+    Type: String
+    Default: ''
+    Description: 'CIDR permitido para acesso ao app (ex: 203.0.113.10/32)'
+  AppIngressSecurityGroupId:
+    Type: String
+    Default: ''
+    Description: 'Security group permitido (ex: SG do ALB). Use este OU AllowedIngressCidr'
+
+Conditions:
+  UseIngressCidr: !Not [!Equals [!Ref AllowedIngressCidr, '']]
+  UseIngressSecurityGroup: !Not [!Equals [!Ref AppIngressSecurityGroupId, '']]
 
 Resources:
   ECSCluster:
@@ -47,8 +65,9 @@ Resources:
           Environment:
             - Name: SPRING_PROFILES_ACTIVE
               Value: hk
+          Secrets:
             - Name: DB_PASSWORD
-              Value: 'hk_secret_password' # Em prod, usar Secrets Manager
+              ValueFrom: !Ref DbPasswordSecretArn
           MountPoints:
             - SourceVolume: pg_data
               ContainerPath: /var/lib/postgresql/data
@@ -71,7 +90,7 @@ Resources:
       ServiceName: rentafit-hk-service
       Cluster: !Ref ECSCluster
       TaskDefinition: !Ref HKTaskDefinition
-      DesiredCount: 1 # Obrigatrio 1 para evitar conflito de escrita no Postgres EFS
+      DesiredCount: 1 # Obrigatório 1 para evitar conflito de escrita no Postgres EFS
       LaunchType: FARGATE
       NetworkConfiguration:
         AwsvpcConfiguration:
@@ -86,8 +105,31 @@ Resources:
       GroupDescription: Acesso app
       VpcId: !Ref VpcId
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 8080
-          ToPort: 8080
-          CidrIp: 0.0.0.0/0
+        - !If
+          - UseIngressSecurityGroup
+          - IpProtocol: tcp
+            FromPort: 8080
+            ToPort: 8080
+            SourceSecurityGroupId: !Ref AppIngressSecurityGroupId
+          - !Ref 'AWS::NoValue'
+        - !If
+          - UseIngressCidr
+          - IpProtocol: tcp
+            FromPort: 8080
+            ToPort: 8080
+            CidrIp: !Ref AllowedIngressCidr
+          - !Ref 'AWS::NoValue'
 
+  EfsIngressFromAppSecurityGroup:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Permite NFS do SG da aplicacao para o SG do EFS
+      GroupId: !Ref EfsSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 2049
+      ToPort: 2049
+      SourceSecurityGroupId: !Ref AppSecurityGroup
+
+Outputs:
+  AppSecurityGroupId:
+    Value: !Ref AppSecurityGroup
