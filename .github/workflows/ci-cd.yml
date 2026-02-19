@@ -1,14 +1,14 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches: [ master, develop ]
   pull_request:
     branches: [ master, develop ]
+    types: [ opened, synchronize, reopened, closed ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.event.action != 'closed' || github.event.pull_request.merged == true
 
     strategy:
       matrix:
@@ -65,7 +65,7 @@ jobs:
 
   security-check:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
 
     steps:
     - uses: actions/checkout@v4
@@ -92,7 +92,10 @@ jobs:
   deploy-hk:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
+    env:
+      ECR_REPOSITORY: rentafit-api-hk
+      ECR_STACK_NAME: rentafit-hk-ecr
     steps:
     - uses: actions/checkout@v4
 
@@ -103,6 +106,14 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
         aws-region: ${{ secrets.AWS_REGION_HK }}
 
+    - name: Ensure ECR repository (HK)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: ${{ env.ECR_STACK_NAME }}
+        template: .infrastructure/cloudformation/ecr-hk.yaml
+        parameter-overrides: >-
+          RepositoryName=${{ env.ECR_REPOSITORY }}
+
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -110,7 +121,7 @@ jobs:
     - name: Build, tag, and push image to Amazon ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: rentafit-api
+        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
@@ -138,7 +149,10 @@ jobs:
   deploy-pro:
     needs: build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'master'
+    env:
+      ECR_REPOSITORY: rentafit-api-pro
+      ECR_STACK_NAME: rentafit-pro-ecr
     steps:
     - uses: actions/checkout@v4
 
@@ -149,6 +163,14 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ secrets.AWS_REGION }}
 
+    - name: Ensure ECR repository (PRO)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: ${{ env.ECR_STACK_NAME }}
+        template: .infrastructure/cloudformation/ecr-pro.yaml
+        parameter-overrides: >-
+          RepositoryName=${{ env.ECR_REPOSITORY }}
+
     - name: Login to Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
@@ -156,7 +178,7 @@ jobs:
     - name: Build, tag, and push image to Amazon ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: rentafit-api
+        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
