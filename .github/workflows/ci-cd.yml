@@ -89,14 +89,16 @@ jobs:
         path: target/dependency-check-report.*
         retention-days: 30
 
-  security-persistence-hk:
+  # ─── HK PIPELINE ────────────────────────────────────────────────────────────
+
+  vpc-hk:
     runs-on: ubuntu-latest
     if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
     outputs:
-      execution-role-arn: ${{ steps.get-outputs.outputs.ExecutionRoleArn }}
-      task-role-arn: ${{ steps.get-outputs.outputs.TaskRoleArn }}
-      file-system-id: ${{ steps.get-outputs.outputs.FileSystemId }}
-      efs-security-group-id: ${{ steps.get-outputs.outputs.EfsSecurityGroupId }}
+      vpc-id: ${{ steps.get-outputs.outputs.VpcId }}
+      private-subnets: ${{ steps.get-outputs.outputs.PrivateSubnets }}
+      private-subnet-1: ${{ steps.get-outputs.outputs.PrivateSubnet1Id }}
+      private-subnet-2: ${{ steps.get-outputs.outputs.PrivateSubnet2Id }}
     steps:
     - uses: actions/checkout@v4
 
@@ -106,67 +108,6 @@ jobs:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
         aws-region: ${{ secrets.AWS_REGION_HK }}
-
-    - name: Deploy Security & Persistence Stack (EFS, IAM roles)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: rentafit-hk-security-persistence
-        template: .infrastructure/cloudformation/security-persistence.yaml
-        parameter-overrides: >-
-          VpcId=${{ secrets.AWS_VPC_ID_HK }},
-          PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS_HK }},
-          DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }}
-        capabilities: CAPABILITY_NAMED_IAM
-
-    - name: Get Stack Outputs
-      id: get-outputs
-      run: |
-        aws cloudformation describe-stacks \
-          --stack-name rentafit-hk-security-persistence \
-          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
-          --output text | while read key value; do
-          echo "$key=$value" >> $GITHUB_OUTPUT
-        done
-
-  deploy-hk:
-    needs: [build, security-persistence-hk]
-    runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
-    env:
-      ECR_REPOSITORY: rentafit-api-hk
-      ECR_STACK_NAME: rentafit-hk-ecr
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Configure AWS credentials for HK
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-        aws-region: ${{ secrets.AWS_REGION_HK }}
-
-    - name: Ensure ECR repository (HK)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: ${{ env.ECR_STACK_NAME }}
-        template: .infrastructure/cloudformation/ecr-hk.yaml
-        parameter-overrides: >-
-          RepositoryName=${{ env.ECR_REPOSITORY }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Build, tag, and push image to Amazon ECR
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      id: build-image
 
     - name: Cleanup VPC Stack if ROLLBACK_FAILED
       run: |
@@ -215,10 +156,106 @@ jobs:
       with:
         name: rentafit-hk-vpc
         template: .infrastructure/cloudformation/vpc.yaml
+
+    - name: Get VPC Stack Outputs
+      id: get-outputs
+      run: |
+        aws cloudformation describe-stacks \
+          --stack-name rentafit-hk-vpc \
+          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+          --output text | while read key value; do
+          echo "$key=$value" >> $GITHUB_OUTPUT
+        done
+
+  security-persistence-hk:
+    needs: vpc-hk
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
+    outputs:
+      execution-role-arn: ${{ steps.get-outputs.outputs.ExecutionRoleArn }}
+      task-role-arn: ${{ steps.get-outputs.outputs.TaskRoleArn }}
+      file-system-id: ${{ steps.get-outputs.outputs.FileSystemId }}
+      efs-security-group-id: ${{ steps.get-outputs.outputs.EfsSecurityGroupId }}
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure AWS credentials for HK
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
+        aws-region: ${{ secrets.AWS_REGION_HK }}
+
+    - name: Deploy Security & Persistence Stack (EFS, IAM roles)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: rentafit-hk-security-persistence
+        template: .infrastructure/cloudformation/security-persistence.yaml
+        parameter-overrides: >-
+          VpcId=${{ needs.vpc-hk.outputs.vpc-id }},
+          PrivateSubnet1Id=${{ needs.vpc-hk.outputs.private-subnet-1 }},
+          PrivateSubnet2Id=${{ needs.vpc-hk.outputs.private-subnet-2 }},
+          DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }}
+        capabilities: CAPABILITY_NAMED_IAM
+
+    - name: Get Security Stack Outputs
+      id: get-outputs
+      run: |
+        aws cloudformation describe-stacks \
+          --stack-name rentafit-hk-security-persistence \
+          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
+          --output text | while read key value; do
+          echo "$key=$value" >> $GITHUB_OUTPUT
+        done
+
+  deploy-hk:
+    needs: [build, vpc-hk, security-persistence-hk]
+    runs-on: ubuntu-latest
+    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
+    env:
+      ECR_REPOSITORY: rentafit-api-hk
+      ECR_STACK_NAME: rentafit-hk-ecr
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configure AWS credentials for HK
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
+        aws-region: ${{ secrets.AWS_REGION_HK }}
+
+    - name: Ensure ECR repository (HK)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: ${{ env.ECR_STACK_NAME }}
+        template: .infrastructure/cloudformation/ecr-hk.yaml
+        parameter-overrides: >-
+          RepositoryName=${{ env.ECR_REPOSITORY }}
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Deploy HK Infrastructure (CloudFormation)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: rentafit-hk-stack
+        template: .infrastructure/cloudformation/ecs-hk.yaml
         parameter-overrides: >-
           ImageUri=${{ steps.build-image.outputs.image }},
-          VpcId=${{ secrets.AWS_VPC_ID_HK }},
-          Subnets=${{ secrets.AWS_PRIVATE_SUBNETS_HK }},
+          VpcId=${{ needs.vpc-hk.outputs.vpc-id }},
+          Subnets=${{ needs.vpc-hk.outputs.private-subnets }},
           FileSystemId=${{ needs.security-persistence-hk.outputs.file-system-id }},
           EfsSecurityGroupId=${{ needs.security-persistence-hk.outputs.efs-security-group-id }},
           ExecutionRoleArn=${{ needs.security-persistence-hk.outputs.execution-role-arn }},
@@ -226,6 +263,8 @@ jobs:
           DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }},
           AllowedIngressCidr=${{ secrets.AWS_APP_INGRESS_CIDR_HK }},
           AppIngressSecurityGroupId=${{ secrets.AWS_APP_INGRESS_SG_HK }}
+
+  # ─── PRO PIPELINE ───────────────────────────────────────────────────────────
 
   deploy-pro:
     needs: build
@@ -237,7 +276,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
-    - name: Configure AWS credentials
+    - name: Configure AWS credentials for PRO
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -257,15 +296,14 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build, tag, and push image to Amazon ECR
+      id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-      id: build-image
 
     - name: Deploy PRO Infrastructure (CloudFormation)
       uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -277,17 +315,17 @@ jobs:
           PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
           DBPassword=${{ secrets.PRO_DB_PASSWORD }}
 
+  # ─── NOTIFY ─────────────────────────────────────────────────────────────────
+
   notify:
-    needs: [build, security-persistence-hk, deploy-hk, deploy-pro]
+    needs: [build, vpc-hk, security-persistence-hk, deploy-hk, deploy-pro]
     runs-on: ubuntu-latest
     if: always()
-
     steps:
     - name: Notify on Success
       if: success()
       run: |
         echo "✅ Pipeline completed successfully!"
-        echo "Build Status: PASSED"
         echo "Branch: ${{ github.ref }}"
         echo "Commit: ${{ github.sha }}"
 
@@ -295,6 +333,5 @@ jobs:
       if: failure()
       run: |
         echo "❌ Pipeline failed!"
-        echo "Build Status: FAILED"
         echo "Branch: ${{ github.ref }}"
         echo "Commit: ${{ github.sha }}"
