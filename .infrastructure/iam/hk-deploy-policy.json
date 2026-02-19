@@ -13,13 +13,20 @@
         "ecr:UploadLayerPart",
         "ecr:CompleteLayerUpload",
         "ecr:DescribeRepositories",
-        "ecr:ListImages",
+        "ecr:ListImages"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECRRepoCreateDeleteHK",
+      "Effect": "Allow",
+      "Action": [
         "ecr:CreateRepository",
         "ecr:DeleteRepository",
         "ecr:TagResource",
         "ecr:UntagResource"
       ],
-      "Resource": "*"
+      "Resource": "arn:aws:ecr:*:*:repository/rentafit-*-hk"
     },
     {
       "Sid": "ECSTaskManagement",
