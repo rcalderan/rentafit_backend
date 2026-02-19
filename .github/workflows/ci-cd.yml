@@ -46,18 +46,18 @@ jobs:
     - name: Run Integration Tests
       run: mvn verify -DskipUnitTests=false
 
-    - name: Code Quality Analysis (SonarQube)
-      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
-      run: |
-        mvn sonar:sonar \
-          -Dsonar.projectKey=rentafit \
-          -Dsonar.projectName=Rentafit \
-          -Dsonar.sources=src/main/java \
-          -Dsonar.tests=src/test/java
-      env:
-        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
-      continue-on-error: true  # Não interrompe se SonarQube falhar
+#    - name: Code Quality Analysis (SonarQube)
+#      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
+#      run: |
+#        mvn sonar:sonar \
+#          -Dsonar.projectKey=rentafit \
+#          -Dsonar.projectName=Rentafit \
+#          -Dsonar.sources=src/main/java \
+#          -Dsonar.tests=src/test/java
+#      env:
+#        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+#        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
+#      continue-on-error: true  # Não interrompe se SonarQube falhar
 
     - name: Check Code Coverage
       run: mvn jacoco:report
@@ -89,90 +89,89 @@ jobs:
         path: target/dependency-check-report.*
         retention-days: 30
 
-  deploy-dev:
+  deploy-hk:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
-
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        java-version: '25'
-        distribution: 'temurin'
-        cache: maven
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Build JAR
-      run: mvn clean package -DskipTests
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Upload JAR Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: rentafit-dev-jar
-        path: target/Rentafit-*.jar
-        retention-days: 30
-
-    - name: Deploy to Development
-      run: |
-        echo "🚀 Deploying to development environment..."
-        echo "JAR file: target/Rentafit-*.jar"
-        # Adicione seu comando de deployment aqui
-        # Exemplo: docker build, push, deploy em servidor staging
+    - name: Build, tag, and push image to Amazon ECR
       env:
-        DEPLOY_ENV: development
-        JAVA_VERSION: 25
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: rentafit-api
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      id: build-image
 
-  deploy-prod:
+    - name: Deploy HK Infrastructure (CloudFormation)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: rentafit-hk-stack
+        template: infrastructure/cloudformation/ecs-hk.yaml
+        parameter-overrides: >-
+          ImageUri=${{ steps.build-image.outputs.image }},
+          VpcId=${{ secrets.AWS_VPC_ID }},
+          Subnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
+          FileSystemId=${{ secrets.AWS_HK_EFS_ID }},
+          ExecutionRoleArn=${{ secrets.AWS_ECS_EXEC_ROLE_ARN }},
+          TaskRoleArn=${{ secrets.AWS_ECS_TASK_ROLE_ARN }}
+
+  deploy-pro:
     needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
-
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
       with:
-        java-version: '25'
-        distribution: 'temurin'
-        cache: maven
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Build JAR
-      run: mvn clean package -DskipTests
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Upload JAR Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: rentafit-prod-jar
-        path: target/Rentafit-*.jar
-        retention-days: 90
-
-    - name: Create Release
-      if: startsWith(github.ref, 'refs/tags/')
-      uses: actions/create-release@v1
+    - name: Build, tag, and push image to Amazon ECR
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        body: Production release
-        draft: false
-        prerelease: false
-
-    - name: Deploy to Production
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: rentafit-api
+        IMAGE_TAG: ${{ github.sha }}
       run: |
-        echo "🚀 Deploying to production environment..."
-        echo "JAR file: target/Rentafit-*.jar"
-        # Adicione seu comando de deployment aqui
-        # Exemplo: docker build, push, deploy em servidor produção
-      env:
-        DEPLOY_ENV: production
-        JAVA_VERSION: 25
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      id: build-image
+
+    - name: Deploy PRO Infrastructure (CloudFormation)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: rentafit-pro-stack
+        template: infrastructure/cloudformation/rds-pro.yaml
+        parameter-overrides: >-
+          VpcId=${{ secrets.AWS_VPC_ID }},
+          PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
+          DBPassword=${{ secrets.PRO_DB_PASSWORD }}
 
   notify:
-    needs: [build, deploy-dev, deploy-prod]
+    needs: [build, deploy-hk, deploy-pro]
     runs-on: ubuntu-latest
     if: always()
 
@@ -192,4 +191,3 @@ jobs:
         echo "Build Status: FAILED"
         echo "Branch: ${{ github.ref }}"
         echo "Commit: ${{ github.sha }}"
-

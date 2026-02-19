@@ -1,0 +1,52 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'RDS PostgreSQL para Produo (PRO)'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+  DBPassword:
+    Type: String
+    NoEcho: true
+
+Resources:
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnets para RDS Rentafit
+      SubnetIds: !Ref PrivateSubnets
+
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permite acesso ao Postgres do ECS
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: 10.0.0.0/16 # Restringir ao IP da VPC
+
+  ProductionDatabase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: rentafit
+      AllocatedStorage: '20'
+      DBInstanceClass: db.t4g.micro # Free tier eligible ou baixo custo
+      Engine: postgres
+      EngineVersion: '14'
+      MasterUsername: postgres
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups: [ !Ref RDSSecurityGroup ]
+      MultiAZ: false # Definir true para alta disponibilidade em PRO real
+      PubliclyAccessible: false
+      StorageType: gp3
+      BackupRetentionPeriod: 7
+      DeleteAutomatedBackups: true
+
+Outputs:
+  DBEndpoint:
+    Value: !GetAtt ProductionDatabase.Endpoint.Address
+

@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'ECS Service para Homologao (HK) com Persistncia Postgres via EFS'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  Subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+  FileSystemId:
+    Type: String
+  ExecutionRoleArn:
+    Type: String
+  TaskRoleArn:
+    Type: String
+  ImageUri:
+    Type: String
+    Default: 'public.ecr.aws/rentafit/api:latest'
+
+Resources:
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: Rentafit-HK-Cluster
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /ecs/rentafit-hk
+      RetentionInDays: 7
+
+  HKTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: rentafit-hk
+      Cpu: '512'
+      Memory: '1024'
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !Ref ExecutionRoleArn
+      TaskRoleArn: !Ref TaskRoleArn
+      ContainerDefinitions:
+        - Name: rentafit-api
+          Image: !Ref ImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8080
+          Environment:
+            - Name: SPRING_PROFILES_ACTIVE
+              Value: hk
+            - Name: DB_PASSWORD
+              Value: 'hk_secret_password' # Em prod, usar Secrets Manager
+          MountPoints:
+            - SourceVolume: pg_data
+              ContainerPath: /var/lib/postgresql/data
+              ReadOnly: false
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: ecs
+      Volumes:
+        - Name: pg_data
+          EfsVolumeConfiguration:
+            FileSystemId: !Ref FileSystemId
+            TransitEncryption: ENABLED
+
+  HKService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: rentafit-hk-service
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref HKTaskDefinition
+      DesiredCount: 1 # Obrigatrio 1 para evitar conflito de escrita no Postgres EFS
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED # Mudar para DISABLED se houver NAT Gateway
+          Subnets: !Ref Subnets
+          SecurityGroups:
+            - !Ref AppSecurityGroup
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Acesso app
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 0.0.0.0/0
+
