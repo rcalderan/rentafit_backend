@@ -1,19 +1,16 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Recursos de Seguranca e Persistencia (IAM, EFS)'
+Description: 'Recursos de Segurança e Persistência (IAM, EFS)'
 
 Parameters:
   VpcId:
     Type: AWS::EC2::VPC::Id
   PrivateSubnet1Id:
     Type: AWS::EC2::Subnet::Id
-  PrivateSubnet2Id:
-    Type: AWS::EC2::Subnet::Id
   DbPasswordSecretArn:
     Type: String
     Description: ARN do secret no Secrets Manager para DB_PASSWORD
 
 Resources:
-  # IAM Role para Execucao da Task do ECS
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -66,7 +63,7 @@ Resources:
     Properties:
       GroupDescription: Permite acesso NFS do ECS
       VpcId: !Ref VpcId
-      # Ingresso sera criado no stack do ECS com SourceSecurityGroupId
+      # Ingresso será criado no stack do ECS com SourceSecurityGroupId
 
   # EFS para persistncia de dados em HK
   HKFileSystem:
@@ -84,13 +81,6 @@ Resources:
     Properties:
       FileSystemId: !Ref HKFileSystem
       SubnetId: !Ref PrivateSubnet1Id
-      SecurityGroups: [ !Ref EFSSecurityGroup ]
-
-  MountTarget2:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref HKFileSystem
-      SubnetId: !Ref PrivateSubnet2Id
       SecurityGroups: [ !Ref EFSSecurityGroup ]
 
 Outputs:

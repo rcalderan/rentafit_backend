@@ -1,10 +1,13 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'VPC para o ecossistema Rentafit (Subnets Públicas e Privadas)'
+Description: 'VPC para o ecossistema Rentafit HK (Single AZ)'
 
 Parameters:
   VpcCIDR:
     Type: String
     Default: 10.0.0.0/16
+  AvailabilityZone:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Description: 'AZ para os recursos (ex: us-east-1a)'
 
 Resources:
   VPC:
@@ -15,14 +18,14 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: Rentafit-VPC
+          Value: Rentafit-HK-VPC
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
         - Key: Name
-          Value: Rentafit-IGW
+          Value: Rentafit-HK-IGW
 
   VPCGatewayAttachment:
     Type: AWS::EC2::VPCGatewayAttachment
@@ -30,58 +33,34 @@ Resources:
       VpcId: !Ref VPC
       InternetGatewayId: !Ref InternetGateway
 
-  # Subnets Públicas (ALB / CloudFront / NAT GW)
-  PublicSubnet1:
+  PublicSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Ref AvailabilityZone
       MapPublicIpOnLaunch: true
       Tags:
         - Key: Name
-          Value: Rentafit-Public-1
+          Value: Rentafit-HK-Public
 
-  PublicSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.2.0/24
-      AvailabilityZone: !Select [ 1, !GetAZs '' ]
-      MapPublicIpOnLaunch: true
-      Tags:
-        - Key: Name
-          Value: Rentafit-Public-2
-
-  # Subnets Privadas (App / RDS)
-  PrivateSubnet1:
+  PrivateSubnet:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       CidrBlock: 10.0.3.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      AvailabilityZone: !Ref AvailabilityZone
       Tags:
         - Key: Name
-          Value: Rentafit-Private-1
+          Value: Rentafit-HK-Private
 
-  PrivateSubnet2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      VpcId: !Ref VPC
-      CidrBlock: 10.0.4.0/24
-      AvailabilityZone: !Select [ 1, !GetAZs '' ]
-      Tags:
-        - Key: Name
-          Value: Rentafit-Private-2
-
-  # Tabelas de Roteamento
   PublicRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
       Tags:
         - Key: Name
-          Value: Rentafit-Public-RT
+          Value: Rentafit-HK-Public-RT
 
   PublicRoute:
     Type: AWS::EC2::Route
@@ -91,27 +70,20 @@ Resources:
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
 
-  PublicSubnet1Association:
+  PublicSubnetAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      SubnetId: !Ref PublicSubnet1
-      RouteTableId: !Ref PublicRouteTable
-
-  PublicSubnet2Association:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref PublicSubnet2
+      SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
 Outputs:
   VpcId:
     Value: !Ref VPC
   PublicSubnets:
-    Value: !Join [",", [!Ref PublicSubnet1, !Ref PublicSubnet2]]
+    Value: !Ref PublicSubnet
   PrivateSubnets:
-    Value: !Join [",", [!Ref PrivateSubnet1, !Ref PrivateSubnet2]]
+    Value: !Ref PrivateSubnet
   PrivateSubnet1Id:
-    Value: !Ref PrivateSubnet1
+    Value: !Ref PrivateSubnet
   PrivateSubnet2Id:
-    Value: !Ref PrivateSubnet2
-
+    Value: !Ref PrivateSubnet
