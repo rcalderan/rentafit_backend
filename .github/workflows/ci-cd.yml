@@ -109,7 +109,7 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
         aws-region: ${{ secrets.AWS_REGION_HK }}
 
-    - name: Cleanup VPC Stack if ROLLBACK_FAILED
+    - name: Cleanup VPC Stack if ROLLBACK state
       run: |
         STATUS=$(aws cloudformation describe-stacks \
           --stack-name rentafit-hk-vpc \
@@ -118,8 +118,8 @@ jobs:
 
         echo "Stack status: $STATUS"
 
-        if [ "$STATUS" = "ROLLBACK_FAILED" ]; then
-          echo "Stack em ROLLBACK_FAILED. Limpando IGW manualmente antes de deletar..."
+        if [ "$STATUS" = "ROLLBACK_FAILED" ] || [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+          echo "Stack em $STATUS. Limpando IGW manualmente antes de deletar..."
 
           # Obter VPC ID do stack
           VPC_ID=$(aws cloudformation describe-stack-resource \
