@@ -2,6 +2,7 @@ package br.com.rentafit.auth;
 
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.repository.UserAccountRepository;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -10,6 +11,13 @@ import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Teste de diagnóstico completo de autenticação.
+ * Este teste é desabilitado por padrão pois é usado apenas para debugging manual.
+ * Para executá-lo localmente, remova a anotação @Disabled e rode:
+ * mvn test -Dtest=FullAuthenticationDiagnosticTest
+ */
+@Disabled("Teste de diagnóstico - Use apenas localmente para debugging")
 @SpringBootTest
 @ActiveProfiles("local")
 public class FullAuthenticationDiagnosticTest {
