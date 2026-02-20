@@ -23,7 +23,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         java-version: ${{ matrix.java-version }}
-        distribution: 'murine'
+        distribution: 'temurin'
         cache: maven
 
     - name: Display Java version
@@ -74,7 +74,7 @@ jobs:
       uses: actions/setup-java@v4
       with:
         java-version: '21'
-        distribution: 'murine'
+        distribution: 'temurin'
         cache: maven
 
     - name: Run Dependency Check (OWASP)
