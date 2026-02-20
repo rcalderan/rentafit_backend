@@ -106,7 +106,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-        aws-region: ${{ secrets.AWS_REGION }}
+        aws-region: ${{ vars.AWS_REGION }}
 
     - name: Cleanup VPC Stack if ROLLBACK state
       run: |
