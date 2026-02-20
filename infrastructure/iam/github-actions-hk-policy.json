@@ -1,0 +1,46 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ECRAuth",
+            "Effect": "Allow",
+            "Action": "ecr:GetAuthorizationToken",
+            "Resource": "*"
+        },
+        {
+            "Sid": "ECRPushHK",
+            "Effect": "Allow",
+            "Action": [
+                "ecr:BatchCheckLayerAvailability",
+                "ecr:GetDownloadUrlForLayer",
+                "ecr:PutImage",
+                "ecr:InitiateLayerUpload",
+                "ecr:UploadLayerPart",
+                "ecr:CompleteLayerUpload",
+                "ecr:DescribeRepositories",
+                "ecr:ListImages"
+            ],
+            "Resource": "arn:aws:ecr:*:*:repository/rentafit-api-hk"
+        },
+        {
+            "Sid": "ECSDeployHK",
+            "Effect": "Allow",
+            "Action": [
+                "ecs:UpdateService",
+                "ecs:DescribeServices"
+            ],
+            "Resource": [
+                "arn:aws:ecs:*:*:service/Rentafit-HK-Cluster/rentafit-hk-service",
+                "arn:aws:ecs:*:*:cluster/Rentafit-HK-Cluster"
+            ]
+        },
+        {
+            "Sid": "LogsReadHK",
+            "Effect": "Allow",
+            "Action": [
+                "logs:DescribeLogGroups"
+            ],
+            "Resource": "*"
+        }
+    ]
+}

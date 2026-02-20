@@ -76,6 +76,20 @@ Resources:
       SubnetId: !Ref PublicSubnet
       RouteTableId: !Ref PublicRouteTable
 
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: Rentafit-HK-Private-RT
+
+  PrivateSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      RouteTableId: !Ref PrivateRouteTable
+
 Outputs:
   VpcId:
     Value: !Ref VPC
@@ -84,6 +98,4 @@ Outputs:
   PrivateSubnets:
     Value: !Ref PrivateSubnet
   PrivateSubnet1Id:
-    Value: !Ref PrivateSubnet
-  PrivateSubnet2Id:
     Value: !Ref PrivateSubnet
