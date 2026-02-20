@@ -3,24 +3,24 @@ set -e
 
 # Se ambiente for HK, inicializa e sobe o Postgres interno
 if [ "$SPRING_PROFILES_ACTIVE" = "hk" ]; then
-  echo "--- Configurando Ambiente de Homologao (HK) ---"
+  echo "--- Configurando Ambiente de Homologação (HK) ---"
 
-  # O diretrio /var/lib/postgresql/data  onde o EFS estar montado
-  DATA_DIR="/var/lib/postgresql/data"
+  # Path padrão do postgresql-14 instalado via apt no Ubuntu 22.04
+  DATA_DIR="/var/lib/postgresql/14/main"
 
-  # Ajusta permisses (necessrio pois o EFS pode vir com root/root)
-  chown -R postgres:postgres $DATA_DIR
-  chmod 700 $DATA_DIR
+  # Garante permissões corretas no diretório de dados
+  chown -R postgres:postgres /var/lib/postgresql
+  chmod 700 "$DATA_DIR"
 
-  # Inicializa o banco se estiver vazio
-  if [ -z "$(ls -A $DATA_DIR)" ]; then
-    echo "Inicializando repositrio de dados do Postgres no EFS..."
-    sudo -u postgres /usr/lib/postgresql/14/bin/initdb -D $DATA_DIR
-  fi
-
-  # Inicia o servio
+  # Inicia o cluster usando pg_ctlcluster (respeita configuração padrão do apt)
   echo "Iniciando PostgreSQL..."
-  service postgresql start
+  pg_ctlcluster 14 main start
+
+  # Aguarda o Postgres aceitar conexões
+  until sudo -u postgres pg_isready -q; do
+    echo "Aguardando PostgreSQL ficar pronto..."
+    sleep 1
+  done
 
   # Garante que o banco 'rentafit' existe e configura senha
   sudo -u postgres psql -tc "SELECT 1 FROM pg_database WHERE datname = 'rentafit'" | grep -q 1 || \
@@ -31,7 +31,7 @@ if [ "$SPRING_PROFILES_ACTIVE" = "hk" ]; then
   echo "PostgreSQL pronto para uso."
 fi
 
-# Inicia a aplicao Java
-echo "Iniciando aplicao Spring Boot: $SPRING_APPLICATION_NAME..."
+# Inicia a aplicação Spring Boot
+echo "Iniciando aplicação Spring Boot: $SPRING_APPLICATION_NAME..."
 exec java -jar app.jar
 
