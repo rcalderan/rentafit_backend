@@ -195,6 +195,17 @@ jobs:
 
         echo "✅ Stack em estado '$STATUS', prosseguindo com deploy."
 
+    - name: Resolve AvailabilityZone
+      id: resolve-az
+      run: |
+        AZ=$(aws ec2 describe-availability-zones \
+          --filters "Name=state,Values=available" \
+          --query 'AvailabilityZones[0].ZoneName' \
+          --output text)
+        echo "Região: $AWS_REGION"
+        echo "Primeira AZ disponível: $AZ"
+        echo "az=$AZ" >> $GITHUB_OUTPUT
+
     - name: Deploy VPC Stack
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
@@ -202,7 +213,7 @@ jobs:
         template: .infrastructure/cloudformation/vpc.yaml
         no-fail-on-empty-changeset: "1"
         parameter-overrides: >-
-          AvailabilityZone=${{ secrets.AWS_AZ_HK }}
+          AvailabilityZone=${{ steps.resolve-az.outputs.az }}
 
     - name: Get VPC Stack Outputs
       id: get-outputs
