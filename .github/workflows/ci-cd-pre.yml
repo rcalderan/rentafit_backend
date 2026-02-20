@@ -93,7 +93,7 @@ jobs:
 
   vpc-hk:
     runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
+    if: github.event.pull_request.merged == true && github.base_ref == 'develop'
     outputs:
       vpc-id: ${{ steps.get-outputs.outputs.VpcId }}
       private-subnets: ${{ steps.get-outputs.outputs.PrivateSubnets }}
