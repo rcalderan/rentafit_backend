@@ -121,32 +121,56 @@ jobs:
           echo "Stack em $STATUS. Limpando IGW manualmente antes de deletar..."
 
           # Obter VPC ID do stack
-          VPC_ID=$(aws cloudformation describe-stack-resource \
+          VPC_ID=$(aws cloudformation describe-stack-resources \
             --stack-name rentafit-hk-vpc \
-            --logical-resource-id VPC \
-            --query 'StackResourceDetail.PhysicalResourceId' \
+            --query "StackResources[?ResourceType=='AWS::EC2::VPC'].PhysicalResourceId | [0]" \
             --output text 2>/dev/null || echo "")
+          # Normaliza "None" retornado pela query quando não há resultado
+          [ "$VPC_ID" = "None" ] && VPC_ID=""
           echo "VPC_ID=\"$VPC_ID\""
           if [ -n "$VPC_ID" ]; then
             # Detach e delete todos os IGWs da VPC
             IGW_IDS=$(aws ec2 describe-internet-gateways \
               --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
               --query 'InternetGateways[*].InternetGatewayId' \
-              --output text)        
+              --output text 2>/dev/null || echo "")
+            # Normaliza "None" retornado pela query quando não há IGWs
+            [ "$IGW_IDS" = "None" ] && IGW_IDS=""
             echo "IGW_IDS=\"$IGW_IDS\""
-        
+
             for IGW_ID in $IGW_IDS; do
               echo "Detaching IGW $IGW_ID from VPC $VPC_ID..."
-              aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID
+              aws ec2 detach-internet-gateway --internet-gateway-id "$IGW_ID" --vpc-id "$VPC_ID"
               echo "Deleting IGW $IGW_ID..."
-              aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID
+              aws ec2 delete-internet-gateway --internet-gateway-id "$IGW_ID"
             done
           fi
 
           echo "Deletando stack..."
-          aws cloudformation delete-stack --stack-name rentafit-hk-vpc
-          aws cloudformation wait stack-delete-complete --stack-name rentafit-hk-vpc
-          echo "Stack deletado com sucesso."
+          if ! aws cloudformation delete-stack --stack-name rentafit-hk-vpc; then
+            echo "❌ Falha ao solicitar delete do stack. Abortando."
+            exit 1
+          fi
+
+          echo "Aguardando delete completar (timeout: 10min)..."
+          if aws cloudformation wait stack-delete-complete \
+              --stack-name rentafit-hk-vpc \
+              --cli-read-timeout 600 \
+              --cli-connect-timeout 60 2>/dev/null; then
+            echo "✅ Stack deletado com sucesso."
+          else
+            # Verifica se o stack realmente sumiu (wait falha também quando stack não existe)
+            FINAL_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name rentafit-hk-vpc \
+              --query 'Stacks[0].StackStatus' \
+              --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+            if [ "$FINAL_STATUS" = "DOES_NOT_EXIST" ]; then
+              echo "✅ Stack removido com sucesso."
+            else
+              echo "❌ Delete falhou ou timeout. Status atual: $FINAL_STATUS"
+              exit 1
+            fi
+          fi
         else
           echo "Stack em estado '$STATUS', nenhuma limpeza necessária."
         fi
@@ -156,6 +180,7 @@ jobs:
       with:
         name: rentafit-hk-vpc
         template: .infrastructure/cloudformation/vpc.yaml
+        no-fail-on-empty-changeset: "1"
         parameter-overrides: >-
           AvailabilityZone=${{ secrets.AWS_AZ_HK }}
 
@@ -165,7 +190,7 @@ jobs:
         aws cloudformation describe-stacks \
           --stack-name rentafit-hk-vpc \
           --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
-          --output text | while read key value; do
+          --output text | while IFS=$'\t' read -r key value; do
           echo "$key=$value" >> $GITHUB_OUTPUT
         done
 
