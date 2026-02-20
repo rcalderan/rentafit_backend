@@ -6,7 +6,7 @@ AWSTemplateFormatVersion: '2010-09-09'
 #     --template-file .infrastructure/cloudformation/ecs-hk.yaml \
 #     --capabilities CAPABILITY_NAMED_IAM \
 #     --parameter-overrides VpcId=vpc-xxx PublicSubnet=subnet-xxx DbPassword=suasenha
-Description: 'ECS Cluster + Service para Homologação (HK) — Single AZ, DB no container'
+Description: 'ECS Cluster + Service para Homologacao (HK) - Single AZ, DB no container'
 
 Parameters:
   VpcId:
@@ -15,7 +15,7 @@ Parameters:
 
   PublicSubnet:
     Type: AWS::EC2::Subnet::Id
-    Description: 'Subnet pública (saída para internet) — do stack vpc.yaml'
+    Description: 'Subnet publica (saida para internet) - do stack vpc.yaml'
 
   ImageUri:
     Type: String
@@ -29,7 +29,7 @@ Parameters:
 
 Resources:
 
-  # ─── IAM ────────────────────────────────────────────────────────────────────
+  # --- IAM -------------------------------------------------------------------
 
   ECSTaskExecutionRole:
     Type: AWS::IAM::Role
@@ -45,7 +45,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 
-  # ─── LOGGING ────────────────────────────────────────────────────────────────
+  # --- LOGGING ---------------------------------------------------------------
 
   LogGroup:
     Type: AWS::Logs::LogGroup
@@ -53,12 +53,12 @@ Resources:
       LogGroupName: /ecs/rentafit-hk
       RetentionInDays: 7
 
-  # ─── SECURITY GROUP ─────────────────────────────────────────────────────────
+  # --- SECURITY GROUP --------------------------------------------------------
 
   AppSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: 'Acesso publico porta 8080 — ambiente HK'
+      GroupDescription: 'Acesso publico porta 8080 - ambiente HK'
       VpcId: !Ref VpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -74,7 +74,7 @@ Resources:
         - Key: Name
           Value: Rentafit-HK-App-SG
 
-  # ─── ECS ────────────────────────────────────────────────────────────────────
+  # --- ECS -------------------------------------------------------------------
 
   ECSCluster:
     Type: AWS::ECS::Cluster
