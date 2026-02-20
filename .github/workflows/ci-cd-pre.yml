@@ -106,7 +106,7 @@ jobs:
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-        aws-region: ${{ secrets.AWS_REGION_HK }}
+        aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Cleanup VPC Stack if ROLLBACK state
       run: |
@@ -242,7 +242,7 @@ jobs:
 #      with:
 #        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
 #        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-#        aws-region: ${{ secrets.AWS_REGION_HK }}
+#        aws-region: ${{ secrets.AWS_REGION }}
 #
 #    - name: Deploy Security & Persistence Stack (EFS, IAM roles)
 #      uses: aws-actions/aws-cloudformation-github-deploy@v1
@@ -280,7 +280,7 @@ jobs:
 #      with:
 #        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
 #        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-#        aws-region: ${{ secrets.AWS_REGION_HK }}
+#        aws-region: ${{ secrets.AWS_REGION }}
 #
 #    - name: Ensure ECR repository (HK)
 #      uses: aws-actions/aws-cloudformation-github-deploy@v1
