@@ -120,10 +120,11 @@ jobs:
         if [ "$STATUS" = "ROLLBACK_FAILED" ] || [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
           echo "Stack em $STATUS. Limpando IGW manualmente antes de deletar..."
 
-          # Obter VPC ID do stack
-          VPC_ID=$(aws cloudformation describe-stack-resources \
-            --stack-name rentafit-hk-vpc \
-            --query "StackResources[?ResourceType=='AWS::EC2::VPC'].PhysicalResourceId | [0]" \
+          # Obter VPC ID diretamente na EC2 via tag do CloudFormation
+          # describe-stack-resources não retorna PhysicalResourceId em ROLLBACK_COMPLETE
+          VPC_ID=$(aws ec2 describe-vpcs \
+            --filters "Name=tag:aws:cloudformation:stack-name,Values=rentafit-hk-vpc" \
+            --query 'Vpcs[0].VpcId' \
             --output text 2>/dev/null || echo "")
           # Normaliza "None" retornado pela query quando não há resultado
           [ "$VPC_ID" = "None" ] && VPC_ID=""
