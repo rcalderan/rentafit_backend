@@ -12,10 +12,3 @@ Resources:
     DeletionPolicy: Retain
     Properties:
       RepositoryName: !Ref RepositoryName
-
-Outputs:
-  RepositoryName:
-    Value: !Ref EcrRepository
-  RepositoryUri:
-    Value: !GetAtt EcrRepository.RepositoryUri
-
