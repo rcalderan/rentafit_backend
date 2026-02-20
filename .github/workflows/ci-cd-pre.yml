@@ -118,35 +118,35 @@ jobs:
         echo "Stack status: $STATUS"
 
         if [ "$STATUS" = "ROLLBACK_FAILED" ] || [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-          echo "Stack em $STATUS. Limpando IGW manualmente antes de deletar..."
+          echo "Stack em $STATUS. Limpando recursos órfãos antes de deletar..."
 
-          # Obter VPC ID diretamente na EC2 via tag do CloudFormation
-          # describe-stack-resources não retorna PhysicalResourceId em ROLLBACK_COMPLETE
+          # ── Tentar limpar IGW órfão (best-effort, não bloqueia o delete) ──
           VPC_ID=$(aws ec2 describe-vpcs \
             --filters "Name=tag:aws:cloudformation:stack-name,Values=rentafit-hk-vpc" \
             --query 'Vpcs[0].VpcId' \
             --output text 2>/dev/null || echo "")
-          # Normaliza "None" retornado pela query quando não há resultado
           [ "$VPC_ID" = "None" ] && VPC_ID=""
           echo "VPC_ID=\"$VPC_ID\""
+
           if [ -n "$VPC_ID" ]; then
-            # Detach e delete todos os IGWs da VPC
             IGW_IDS=$(aws ec2 describe-internet-gateways \
               --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
               --query 'InternetGateways[*].InternetGatewayId' \
               --output text 2>/dev/null || echo "")
-            # Normaliza "None" retornado pela query quando não há IGWs
             [ "$IGW_IDS" = "None" ] && IGW_IDS=""
             echo "IGW_IDS=\"$IGW_IDS\""
 
             for IGW_ID in $IGW_IDS; do
               echo "Detaching IGW $IGW_ID from VPC $VPC_ID..."
-              aws ec2 detach-internet-gateway --internet-gateway-id "$IGW_ID" --vpc-id "$VPC_ID"
+              aws ec2 detach-internet-gateway --internet-gateway-id "$IGW_ID" --vpc-id "$VPC_ID" || true
               echo "Deleting IGW $IGW_ID..."
-              aws ec2 delete-internet-gateway --internet-gateway-id "$IGW_ID"
+              aws ec2 delete-internet-gateway --internet-gateway-id "$IGW_ID" || true
             done
+          else
+            echo "Nenhuma VPC órfã encontrada, seguindo para delete do stack."
           fi
 
+          # ── Delete do stack SEMPRE executa, independente do VPC_ID ──
           echo "Deletando stack..."
           if ! aws cloudformation delete-stack --stack-name rentafit-hk-vpc; then
             echo "❌ Falha ao solicitar delete do stack. Abortando."
@@ -160,13 +160,12 @@ jobs:
               --cli-connect-timeout 60 2>/dev/null; then
             echo "✅ Stack deletado com sucesso."
           else
-            # Verifica se o stack realmente sumiu (wait falha também quando stack não existe)
             FINAL_STATUS=$(aws cloudformation describe-stacks \
               --stack-name rentafit-hk-vpc \
               --query 'Stacks[0].StackStatus' \
               --output text 2>/dev/null || echo "DOES_NOT_EXIST")
             if [ "$FINAL_STATUS" = "DOES_NOT_EXIST" ]; then
-              echo "✅ Stack removido com sucesso."
+              echo "✅ Stack não existe mais, considerado removido."
             else
               echo "❌ Delete falhou ou timeout. Status atual: $FINAL_STATUS"
               exit 1
@@ -175,6 +174,26 @@ jobs:
         else
           echo "Stack em estado '$STATUS', nenhuma limpeza necessária."
         fi
+
+    - name: Pre-deploy guard — ensure stack is in deployable state
+      run: |
+        STATUS=$(aws cloudformation describe-stacks \
+          --stack-name rentafit-hk-vpc \
+          --query 'Stacks[0].StackStatus' \
+          --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+        echo "Pre-deploy stack status: $STATUS"
+
+        INVALID_STATES="ROLLBACK_COMPLETE ROLLBACK_FAILED DELETE_FAILED CREATE_FAILED UPDATE_ROLLBACK_FAILED"
+        for BAD in $INVALID_STATES; do
+          if [ "$STATUS" = "$BAD" ]; then
+            echo "❌ Stack está em estado inválido ($STATUS) — não é possível fazer deploy. Abortando."
+            echo "   Execute o pipeline novamente para que o step de cleanup trate o estado."
+            exit 1
+          fi
+        done
+
+        echo "✅ Stack em estado '$STATUS', prosseguindo com deploy."
 
     - name: Deploy VPC Stack
       uses: aws-actions/aws-cloudformation-github-deploy@v1
