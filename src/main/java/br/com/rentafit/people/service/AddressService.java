@@ -220,17 +220,7 @@ public class AddressService {
         PersonAddressDetails currentDetails = customer.getCurrentAddress();
 
         // Check if address actually changed (compare composite fields if ZIP is null)
-        boolean addressChanged;
-        if (currentDetails == null) {
-            addressChanged = true;
-        } else {
-            Address cur = currentDetails.getAddress();
-            AddressDTO next = dto.address();
-            addressChanged = !Objects.equals(cur.getZipCode(), newZipCode) ||
-                             !Objects.equals(cur.getStreet(), next.street()) ||
-                             !Objects.equals(cur.getCity(), next.city()) ||
-                             !Objects.equals(cur.getState(), next.state());
-        }
+        boolean addressChanged = isAddressChanged(dto, currentDetails, newZipCode);
 
         boolean detailsChanged = currentDetails != null && (
                 !Objects.equals(currentDetails.getNumber(), dto.number()) ||
@@ -261,6 +251,21 @@ public class AddressService {
                     currentDetails != null ? currentDetails.getAddress().getZipCode() : "none",
                     newZipCode);
         }
+    }
+
+    private boolean isAddressChanged(CustomerDTO dto, PersonAddressDetails currentDetails, String newZipCode) {
+        boolean addressChanged;
+        if (currentDetails == null) {
+            addressChanged = true;
+        } else {
+            Address cur = currentDetails.getAddress();
+            AddressDTO next = dto.address();
+            addressChanged = !Objects.equals(cur.getZipCode(), newZipCode) ||
+                             !Objects.equals(cur.getStreet(), next.street()) ||
+                             !Objects.equals(cur.getCity(), next.city()) ||
+                             !Objects.equals(cur.getState(), next.state());
+        }
+        return addressChanged;
     }
 
     /**
