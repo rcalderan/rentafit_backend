@@ -90,7 +90,7 @@ public class RentalContractService {
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
 
         RentalContract contract = mapper.toEntity(dto, snapshot);
-        RentalContract saved = contractRepository.save(contract);
+        RentalContract saved = contractRepository.saveAndFlush(contract);
         log.info("Created rental contract {} for customer {}", saved.getId(), snapshot.id());
         return mapper.toDetailsDTO(saved, null);
     }
@@ -134,10 +134,8 @@ public class RentalContractService {
         RentalContract contract = requireContract(id);
         requireStatus(contract, ContractStatus.DRAFT, "assinar");
 
-        // Re-valida datas e disponibilidade
         validator.validateDateOrder(contract.getPickupDate(), contract.getEventDate(), contract.getReturnDate());
 
-        // Checagem de conflitos de reserva
         List<String> warnings = validator.checkConflictsForTransition(
                 contract.getItems(), contract.getEventDate(), contract.getId());
 
@@ -159,21 +157,18 @@ public class RentalContractService {
             throw new ValidationException("O contrato deve ter ao menos um item para ser finalizado");
         }
 
-        // Valida que ao menos uma parcela está paga
         boolean hasPaidPayment = contract.getPayments().stream()
                 .anyMatch(p -> PaymentStatus.PAID.equals(p.getStatus()));
         if (!hasPaidPayment) {
             throw new ValidationException("O contrato deve ter ao menos uma parcela paga para ser finalizado");
         }
 
-        // Checagem de conflitos (pode bloquear se BLOCKING)
         List<String> warnings = validator.checkConflictsForTransition(
                 contract.getItems(), contract.getEventDate(), contract.getId());
 
         contract.setStatus(ContractStatus.FINALIZED);
         RentalContract saved = contractRepository.save(contract);
 
-        // Reserva itens e acessórios
         workflowService.onFinalize(saved);
 
         log.info("Contract {} finalized. Warnings: {}", id, warnings != null ? warnings.size() : 0);
@@ -248,7 +243,6 @@ public class RentalContractService {
                 .returned(false)
                 .build();
 
-        // Copia itens com novos UUIDs
         List<RentalContractItem> copiedItems = original.getItems().stream().map(origItem -> {
             RentalContractItem newItem = RentalContractItem.builder()
                     .contract(duplicate)

@@ -125,10 +125,12 @@ public class RentalPaymentService {
         BigDecimal currentCommitted = paymentRepository.sumValueByContractIdAndStatusIn(
                 contractId, List.of(PaymentStatus.PENDING, PaymentStatus.PAID));
 
-        // Se estiver atualizando, subtrair o valor atual do pagamento sendo editado
         if (excludePaymentId != null) {
-            paymentRepository.findById(excludePaymentId)
-                    .ifPresent(p -> {});
+            BigDecimal existingValue = paymentRepository.findById(excludePaymentId)
+                    .filter(p -> p.getValue() != null)
+                    .map(RentalPayment::getValue)
+                    .orElse(BigDecimal.ZERO);
+            currentCommitted = currentCommitted.subtract(existingValue);
         }
 
         BigDecimal projected = currentCommitted.add(newValue != null ? newValue : BigDecimal.ZERO);
