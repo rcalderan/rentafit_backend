@@ -6,6 +6,7 @@ import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalContractItem;
 import br.com.rentafit.rental.domain.RentalContractItemMeta;
 import br.com.rentafit.rental.domain.enums.ContractStatus;
+import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
@@ -85,6 +86,9 @@ public class RentalContractService {
                 .collect(Collectors.toList());
         validator.validateAccessoriesAvailability(accessoryIds);
 
+        // Valida que as parcelas somam o valor total dos itens
+        validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
+
         RentalContract contract = mapper.toEntity(dto, snapshot);
         RentalContract saved = contractRepository.save(contract);
         log.info("Created rental contract {} for customer {}", saved.getId(), snapshot.id());
@@ -110,6 +114,9 @@ public class RentalContractService {
                 .map(ContractItemMetaInputDTO::accessoryId)
                 .collect(Collectors.toList());
         validator.validateAccessoriesAvailability(accessoryIds);
+
+        // Valida que as parcelas somam o valor total dos itens
+        validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
 
         mapper.updateEntityFromDTO(contract, dto);
         RentalContract saved = contractRepository.save(contract);
@@ -150,6 +157,13 @@ public class RentalContractService {
 
         if (contract.getItems().isEmpty()) {
             throw new ValidationException("O contrato deve ter ao menos um item para ser finalizado");
+        }
+
+        // Valida que ao menos uma parcela está paga
+        boolean hasPaidPayment = contract.getPayments().stream()
+                .anyMatch(p -> PaymentStatus.PAID.equals(p.getStatus()));
+        if (!hasPaidPayment) {
+            throw new ValidationException("O contrato deve ter ao menos uma parcela paga para ser finalizado");
         }
 
         // Checagem de conflitos (pode bloquear se BLOCKING)

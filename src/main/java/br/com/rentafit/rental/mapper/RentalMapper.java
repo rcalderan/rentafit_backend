@@ -47,6 +47,13 @@ public class RentalMapper {
             contract.setItems(items);
         }
 
+        if (dto.payments() != null) {
+            List<RentalPayment> payments = dto.payments().stream()
+                    .map(paymentDto -> toPaymentEntity(paymentDto, contract))
+                    .collect(Collectors.toList());
+            contract.setPayments(payments);
+        }
+
         return contract;
     }
 
@@ -64,6 +71,14 @@ public class RentalMapper {
             dto.items().stream()
                     .map(itemDto -> toItemEntity(itemDto, contract))
                     .forEach(contract.getItems()::add);
+        }
+
+        // Replace payments
+        contract.getPayments().clear();
+        if (dto.payments() != null) {
+            dto.payments().stream()
+                    .map(paymentDto -> toPaymentEntity(paymentDto, contract))
+                    .forEach(contract.getPayments()::add);
         }
     }
 

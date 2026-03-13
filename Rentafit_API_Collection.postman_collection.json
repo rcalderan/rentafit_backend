@@ -529,6 +529,330 @@
 			]
 		},
 		{
+			"name": "Rental Contracts",
+			"item": [
+				{
+					"name": "List All Contracts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts?page=0&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts"],
+							"query": [{"key": "page","value": "0"},{"key": "size","value": "10"}]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contract by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contracts by Customer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/byCustomer/{{customer_id}}?page=0&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "byCustomer", "{{customer_id}}"],
+							"query": [{"key": "page","value": "0"},{"key": "size","value": "10"}]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Create Contract - Valid DRAFT",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"contract_id\", jsonData.id);",
+									"    pm.test(\"Contract created as DRAFT\", function () {",
+									"        pm.expect(jsonData.status).to.equal(\"DRAFT\");",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type","value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Contrato de teste\",\n  \"items\": [\n    {\n      \"rentalItemId\": null,\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco M\",\n      \"value\": 500.00,\n      \"metadata\": [\n        {\"type\": \"ACESSORIO\", \"description\": \"Véu branco\", \"accessoryId\": null},\n        {\"type\": \"OBSERVACAO\", \"description\": \"Ajuste na cintura necessário\", \"accessoryId\": null}\n      ]\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts"]
+						},
+						"description": "Cria proposta (DRAFT). Não reserva itens nem valida conflitos."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Contract (DRAFT only)",
+					"request": {
+						"method": "PUT",
+						"header": [{"key": "Content-Type","value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"contractType\": 0,\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Observação atualizada\",\n  \"items\": [\n    {\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco M\",\n      \"value\": 550.00,\n      \"metadata\": []\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}"]
+						},
+						"description": "Bloqueado se status != DRAFT. Retorna 422."
+					},
+					"response": []
+				},
+				{
+					"name": "Sign Contract (DRAFT → SIGNED)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.test(\"Contract status is SIGNED\", function () {",
+									"        pm.expect(jsonData.status).to.equal(\"SIGNED\");",
+									"    });",
+									"    if (jsonData.warnings && jsonData.warnings.length > 0) {",
+									"        console.warn(\"Conflict warnings:\", jsonData.warnings);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/sign",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "sign"]
+						},
+						"description": "Assina o contrato. Verifica conflitos de reserva. BLOCKING=422, WARNING=200 com campo warnings."
+					},
+					"response": []
+				},
+				{
+					"name": "Finalize Contract (SIGNED → FINALIZED)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.test(\"Contract status is FINALIZED\", function () {",
+									"        pm.expect(jsonData.status).to.equal(\"FINALIZED\");",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/finalize",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "finalize"]
+						},
+						"description": "Finaliza o contrato. Reserva itens (RESERVED) e acessórios catalogados. Re-valida conflitos."
+					},
+					"response": []
+				},
+				{
+					"name": "Deliver Item",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/items/{{item_id}}/deliver?attendantEmployeeId={{employee_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "items", "{{item_id}}", "deliver"],
+							"query": [{"key": "attendantEmployeeId","value": "{{employee_id}}"}]
+						},
+						"description": "Confirma entrega do item. RentalItem → RENTED."
+					},
+					"response": []
+				},
+				{
+					"name": "Process Return",
+					"request": {
+						"method": "PATCH",
+						"header": [{"key": "Content-Type","value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"actualReturnDate\": \"2026-06-09\",\n  \"returnedByEmployeeId\": \"{{employee_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/return",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "return"]
+						},
+						"description": "Processa devolução. RentalItems → MAINTENANCE. Acessórios catalogados → releaseStock."
+					},
+					"response": []
+				},
+				{
+					"name": "Duplicate Contract",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"contract_id\", jsonData.id);",
+									"    pm.test(\"Duplicated contract is DRAFT\", function () {",
+									"        pm.expect(jsonData.status).to.equal(\"DRAFT\");",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/duplicate",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "duplicate"]
+						},
+						"description": "Clona o contrato como novo DRAFT. Snapshot do cliente atualizado. Pagamentos zerados."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Payment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"payment_id\", jsonData.id);",
+									"    pm.test(\"Payment added with PENDING status\", function () {",
+									"        pm.expect(jsonData.status).to.equal(\"PENDING\");",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type","value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"installmentNumber\": 1,\n  \"paymentDate\": \"2026-05-15\",\n  \"paymentMethod\": \"PIX\",\n  \"value\": 250.00,\n  \"installments\": 1,\n  \"processedByEmployeeId\": \"{{employee_id}}\",\n  \"status\": \"PENDING\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "payments"]
+						},
+						"description": "Adiciona parcela. Permitido mesmo após FINALIZED."
+					},
+					"response": []
+				},
+				{
+					"name": "List Payments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "payments"]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update Payment",
+					"request": {
+						"method": "PUT",
+						"header": [{"key": "Content-Type","value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"installmentNumber\": 1,\n  \"paymentDate\": \"2026-05-20\",\n  \"paymentMethod\": \"CASH\",\n  \"value\": 300.00,\n  \"installments\": 1,\n  \"status\": \"PAID\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments/{{payment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "payments", "{{payment_id}}"]
+						},
+						"description": "Atualiza parcela. Bloqueado após FINALIZED."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Payment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments/{{payment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts", "{{contract_id}}", "payments", "{{payment_id}}"]
+						},
+						"description": "Cancela parcela. Bloqueado após FINALIZED."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Contract - Invalid (Date Order)",
+					"request": {
+						"method": "POST",
+						"header": [{"key": "Content-Type","value": "application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"contractType\": 0,\n  \"pickupDate\": \"2026-06-10\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"items\": [{\"description\": \"Vestido\",\"value\": 500}]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts",
+							"host": ["{{base_url}}"],
+							"path": ["api", "v1", "rental", "contracts"]
+						},
+						"description": "Deve retornar 422 — pickupDate > eventDate viola a regra de ordem das datas."
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Health Check",
 			"item": [
 				{
@@ -561,6 +885,21 @@
 		},
 		{
 			"key": "employee_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "contract_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "payment_id",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "item_id",
 			"value": "",
 			"type": "string"
 		}

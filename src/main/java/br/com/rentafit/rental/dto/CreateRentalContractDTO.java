@@ -11,6 +11,9 @@ import java.util.UUID;
 /**
  * DTO de entrada para criação de um contrato (proposta).
  * Validações de ordem de datas são executadas no RentalContractValidator.
+ * Regras de pagamento:
+ * - Ao menos uma parcela é obrigatória.
+ * - A soma das parcelas (PENDING + PAID) deve ser igual ao valor total dos itens.
  */
 public record CreateRentalContractDTO(
 
@@ -35,6 +38,11 @@ public record CreateRentalContractDTO(
         @NotNull(message = "Lista de itens não pode ser nula")
         @NotEmpty(message = "O contrato deve ter ao menos um item")
         @Valid
-        List<ContractItemInputDTO> items
+        List<ContractItemInputDTO> items,
+
+        @NotNull(message = "Lista de parcelas não pode ser nula")
+        @NotEmpty(message = "O contrato deve ter ao menos uma parcela de pagamento")
+        @Valid
+        List<RentalPaymentInputDTO> payments
 ) {}
 

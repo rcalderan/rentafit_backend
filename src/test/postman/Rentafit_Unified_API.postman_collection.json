@@ -1124,6 +1124,329 @@
 			"description": "Endpoints para gerenciamento de produtos para venda (RetailProduct)"
 		},
 		{
+			"name": "Rental Contracts",
+			"description": "Ciclo de vida dos contratos de locação. Fluxo: DRAFT → SIGNED → FINALIZED → returned=true. Bearer token herdado da coleção.",
+			"item": [
+				{
+					"name": "List All Contracts",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts?page=0&size=10&sort=createdAt,desc",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts"],
+							"query": [{"key":"page","value":"0"},{"key":"size","value":"10"},{"key":"sort","value":"createdAt,desc"}]
+						},
+						"description": "Lista paginada de contratos."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contract by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}"]
+						},
+						"description": "Retorna contrato completo com totalValue, paidValue e remainingValue calculados."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Contracts by Customer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/byCustomer/{{customer_id}}?page=0&size=10",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","byCustomer","{{customer_id}}"],
+							"query": [{"key":"page","value":"0"},{"key":"size","value":"10"}]
+						},
+						"description": "Lista contratos de um cliente."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Contract — DRAFT",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('contract_id', body.id);",
+									"    if (body.items && body.items.length > 0) {",
+									"        pm.collectionVariables.set('item_id', body.items[0].id);",
+									"    }",
+									"    pm.test('Status é DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+									"    pm.test('Snapshot do cliente presente', () => pm.expect(body.customerName).to.not.be.empty);",
+									"    pm.test('Sem warnings no DRAFT', () => pm.expect(body.warnings).to.be.undefined);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Casamento - Vestido de noiva\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco M\",\n      \"value\": 500.00,\n      \"metadata\": [\n        {\n          \"type\": \"ACESSORIO\",\n          \"description\": \"Véu branco com flores\",\n          \"accessoryId\": null\n        },\n        {\n          \"type\": \"OBSERVACAO\",\n          \"description\": \"Ajuste na cintura 2cm\",\n          \"accessoryId\": null\n        }\n      ]\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts"]
+						},
+						"description": "Cria proposta (DRAFT). Snapshot do cliente capturado automaticamente. Sem reserva de itens."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Contract — DRAFT only",
+					"request": {
+						"method": "PUT",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Atualizado\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco G\",\n      \"value\": 550.00,\n      \"metadata\": []\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}"]
+						},
+						"description": "Atualiza contrato. Retorna 422 se status != DRAFT."
+					},
+					"response": []
+				},
+				{
+					"name": "Sign Contract — DRAFT → SIGNED",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Status é SIGNED', () => pm.expect(body.status).to.eql('SIGNED'));",
+									"    if (body.warnings && body.warnings.length > 0) {",
+									"        console.warn('⚠️  Conflito de proximidade:', body.warnings);",
+									"    } else {",
+									"        pm.test('Sem conflitos de reserva', () => pm.expect(body.warnings).to.be.undefined);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/sign",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","sign"]
+						},
+						"description": "DRAFT → SIGNED. Verifica conflitos de reserva:\n• Mesmo eventDate que outro SIGNED/FINALIZED → 422 BLOCKING\n• eventDate a ±3 dias → 200 com `warnings[]`\n• Sem conflito → 200 sem `warnings`"
+					},
+					"response": []
+				},
+				{
+					"name": "Finalize Contract — SIGNED → FINALIZED",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Status é FINALIZED', () => pm.expect(body.status).to.eql('FINALIZED'));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/finalize",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","finalize"]
+						},
+						"description": "SIGNED → FINALIZED. RentalItem → RESERVED. Acessórios catalogados → Stock.reserve(1). Após FINALIZED: só addPayment permitido."
+					},
+					"response": []
+				},
+				{
+					"name": "Deliver Item",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/items/{{item_id}}/deliver?attendantEmployeeId={{employee_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","items","{{item_id}}","deliver"],
+							"query": [{"key":"attendantEmployeeId","value":"{{employee_id}}"}]
+						},
+						"description": "Confirma retirada de item. RentalItem → RENTED. Apenas contratos FINALIZED."
+					},
+					"response": []
+				},
+				{
+					"name": "Process Return",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('returned = true', () => pm.expect(body.returned).to.be.true);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"actualReturnDate\": \"2026-06-09\",\n  \"returnedByEmployeeId\": \"{{employee_id}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/return",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","return"]
+						},
+						"description": "Devolução. RentalItems → MAINTENANCE. Acessórios catalogados → Stock.release(1)."
+					},
+					"response": []
+				},
+				{
+					"name": "Duplicate Contract",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('contract_id', body.id);",
+									"    pm.test('Duplicata é DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+									"    pm.test('Notas referenciam original', () => pm.expect(body.notes).to.include('Duplicado'));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/duplicate",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","duplicate"]
+						},
+						"description": "Clona como novo DRAFT. Snapshot do cliente atualizado. Itens copiados. Pagamentos zerados."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Payment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('payment_id', body.id);",
+									"    pm.test('Status PENDING', () => pm.expect(body.status).to.eql('PENDING'));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"installmentNumber\": 1,\n  \"paymentDate\": \"2026-05-15\",\n  \"paymentMethod\": \"PIX\",\n  \"value\": 250.00,\n  \"installments\": 1,\n  \"processedByEmployeeId\": \"{{employee_id}}\",\n  \"status\": \"PENDING\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","payments"]
+						},
+						"description": "Adiciona parcela. Permitido mesmo após FINALIZED. Max 24 parcelas. paymentDate ≤ eventDate."
+					},
+					"response": []
+				},
+				{
+					"name": "List Payments",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","payments"]
+						},
+						"description": "Lista parcelas ordenadas por número."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Payment",
+					"request": {
+						"method": "PUT",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"installmentNumber\": 1,\n  \"paymentDate\": \"2026-05-20\",\n  \"paymentMethod\": \"CASH\",\n  \"value\": 250.00,\n  \"installments\": 1,\n  \"processedByEmployeeId\": \"{{employee_id}}\",\n  \"status\": \"PAID\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments/{{payment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","payments","{{payment_id}}"]
+						},
+						"description": "Atualiza parcela. 422 após FINALIZED."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Payment",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/payments/{{payment_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","payments","{{payment_id}}"]
+						},
+						"description": "Cancela parcela. 422 após FINALIZED."
+					},
+					"response": []
+				}
+			]
+		},
+		{
 			"name": "Product - Stock",
 			"item": [
 				{

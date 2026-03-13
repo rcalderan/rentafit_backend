@@ -4,7 +4,10 @@ import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalContractItem;
+import br.com.rentafit.rental.domain.RentalPayment;
 import br.com.rentafit.rental.domain.enums.ContractStatus;
+import br.com.rentafit.rental.domain.enums.PaymentMethod;
+import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
@@ -113,7 +116,9 @@ class RentalContractServiceTest {
                 LocalDate.now().plusDays(9),
                 "Observação",
                 List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido de Noiva",
-                        new BigDecimal("500.00"), List.of()))
+                        new BigDecimal("500.00"), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
         );
     }
 
@@ -183,7 +188,9 @@ class RentalContractServiceTest {
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),
-                "", List.of()
+                "", List.of(),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
         );
 
         assertThatThrownBy(() -> contractService.update(contractId, updateDTO))
@@ -246,6 +253,13 @@ class RentalContractServiceTest {
                 .description("Vestido").value(BigDecimal.valueOf(500)).delivered(false)
                 .metadata(new ArrayList<>()).build());
 
+        signedContract.getPayments().add(RentalPayment.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .installmentNumber(1).paymentDate(LocalDate.now().plusDays(5))
+                .paymentMethod(PaymentMethod.PIX).value(BigDecimal.valueOf(500))
+                .status(PaymentStatus.PAID).installments(1)
+                .build());
+
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
         when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(null);
         when(contractRepository.save(any())).thenReturn(signedContract);
@@ -255,6 +269,29 @@ class RentalContractServiceTest {
 
         assertThat(signedContract.getStatus()).isEqualTo(ContractStatus.FINALIZED);
         verify(workflowService).onFinalize(signedContract);
+    }
+
+    @Test
+    @DisplayName("finalize deve lançar ValidationException se nenhuma parcela está paga")
+    void testFinalize_noPaidPayment() {
+        signedContract.getItems().add(RentalContractItem.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .description("Vestido").value(BigDecimal.valueOf(500)).delivered(false)
+                .metadata(new ArrayList<>()).build());
+
+        // Apenas parcela PENDING — nenhuma PAID
+        signedContract.getPayments().add(RentalPayment.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .installmentNumber(1).paymentDate(LocalDate.now().plusDays(5))
+                .paymentMethod(PaymentMethod.PIX).value(BigDecimal.valueOf(500))
+                .status(PaymentStatus.PENDING).installments(1)
+                .build());
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+
+        assertThatThrownBy(() -> contractService.finalize(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("parcela paga");
     }
 
     @Test

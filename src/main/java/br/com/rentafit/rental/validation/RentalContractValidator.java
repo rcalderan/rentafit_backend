@@ -1,6 +1,9 @@
 package br.com.rentafit.rental.validation;
 
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.rental.domain.enums.PaymentStatus;
+import br.com.rentafit.rental.dto.ContractItemInputDTO;
+import br.com.rentafit.rental.dto.RentalPaymentInputDTO;
 import br.com.rentafit.rental.port.AccessoryPort;
 import br.com.rentafit.rental.port.CustomerPort;
 import br.com.rentafit.rental.port.RentalItemPort;
@@ -8,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -128,6 +132,39 @@ public class RentalContractValidator {
         }
 
         return warningMessages.isEmpty() ? null : warningMessages;
+    }
+
+    // ── Validações de pagamento ───────────────────────────────────────────────
+
+    /**
+     * Valida que as parcelas informadas somam exatamente o valor total dos itens.
+     * Parcelas com status CANCELLED são ignoradas na soma.
+     *
+     * @param payments Parcelas informadas no DTO (nunca null/vazio — já garantido pela anotação @NotEmpty)
+     * @param items    Itens do contrato informados no DTO
+     */
+    public void validatePaymentsMatchTotal(List<RentalPaymentInputDTO> payments, List<ContractItemInputDTO> items) {
+        BigDecimal totalItems = items == null ? BigDecimal.ZERO : items.stream()
+                .map(i -> i.value() != null ? i.value() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalPayments = payments.stream()
+                .filter(p -> {
+                    if (p.status() == null) return true; // default PENDING → conta
+                    try {
+                        return !PaymentStatus.CANCELLED.equals(PaymentStatus.valueOf(p.status().toUpperCase()));
+                    } catch (IllegalArgumentException e) {
+                        return true;
+                    }
+                })
+                .map(p -> p.value() != null ? p.value() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (totalPayments.compareTo(totalItems) != 0) {
+            throw new ValidationException(
+                    "A soma das parcelas (" + totalPayments
+                            + ") deve ser igual ao valor total do contrato (" + totalItems + ")");
+        }
     }
 }
 

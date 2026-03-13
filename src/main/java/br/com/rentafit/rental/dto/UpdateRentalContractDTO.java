@@ -11,6 +11,9 @@ import java.util.UUID;
 /**
  * DTO de entrada para atualização de um contrato DRAFT.
  * Bloqueado pelo serviço se o contrato não estiver em status DRAFT.
+ * Regras de pagamento:
+ * - Ao menos uma parcela é obrigatória.
+ * - A soma das parcelas (PENDING + PAID) deve ser igual ao valor total dos itens.
  */
 public record UpdateRentalContractDTO(
 
@@ -32,6 +35,11 @@ public record UpdateRentalContractDTO(
         @NotNull(message = "Lista de itens não pode ser nula")
         @NotEmpty(message = "O contrato deve ter ao menos um item")
         @Valid
-        List<ContractItemInputDTO> items
+        List<ContractItemInputDTO> items,
+
+        @NotNull(message = "Lista de parcelas não pode ser nula")
+        @NotEmpty(message = "O contrato deve ter ao menos uma parcela de pagamento")
+        @Valid
+        List<RentalPaymentInputDTO> payments
 ) {}
 
