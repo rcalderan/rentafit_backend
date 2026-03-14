@@ -110,7 +110,7 @@ class RentalPaymentServiceTest {
     @DisplayName("addPayment deve ser permitido mesmo em contrato FINALIZED")
     void testAddPayment_allowedAfterFinalized() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
-        when(paymentRepository.countByContractId(contractId)).thenReturn(0L);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(0L);
         when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(BigDecimal.ZERO);
         when(mapper.toPaymentEntity(validPaymentDTO, finalizedContract)).thenReturn(existingPayment);
         when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
@@ -144,7 +144,7 @@ class RentalPaymentServiceTest {
     @DisplayName("addPayment deve lançar ValidationException ao atingir 24 parcelas")
     void testAddPayment_exceeds24Installments() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
-        when(paymentRepository.countByContractId(contractId)).thenReturn(24L);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(24L);
 
         assertThatThrownBy(() -> paymentService.addPayment(contractId, validPaymentDTO))
                 .isInstanceOf(ValidationException.class)
@@ -155,7 +155,7 @@ class RentalPaymentServiceTest {
     @DisplayName("addPayment deve lançar ValidationException se soma ultrapassa totalValue")
     void testAddPayment_exceedsTotalValue() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
-        when(paymentRepository.countByContractId(contractId)).thenReturn(1L);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
         // Committed = 400, new = 200, total items = 500 → 600 > 500
         when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
                 .thenReturn(new BigDecimal("400.00"));

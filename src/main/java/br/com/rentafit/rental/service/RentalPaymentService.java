@@ -72,7 +72,7 @@ public class RentalPaymentService {
 
         RentalPayment payment = requirePayment(paymentId, contractId);
         validatePaymentDate(dto, contract);
-        validateTotalValueNotExceeded(contractId, dto.value(), paymentId, contract);
+        validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
 
         payment.setInstallmentNumber(dto.installmentNumber());
         payment.setPaymentDate(dto.paymentDate());
@@ -111,13 +111,13 @@ public class RentalPaymentService {
     }
 
     private void validateInstallmentLimit(UUID contractId) {
-        long count = paymentRepository.countByContractId(contractId);
+        long count = paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED);
         if (count >= MAX_INSTALLMENTS) {
             throw new ValidationException("Limite máximo de " + MAX_INSTALLMENTS + " parcelas atingido");
         }
     }
 
-    private void validateTotalValueNotExceeded(UUID contractId, BigDecimal newValue, UUID excludePaymentId, RentalContract contract) {
+    private void validateTotalValueNotExceeded(UUID contractId, BigDecimal newValue, RentalPayment existingPayment, RentalContract contract) {
         BigDecimal totalItems = contract.getItems().stream()
                 .map(i -> i.getValue() != null ? i.getValue() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -125,12 +125,13 @@ public class RentalPaymentService {
         BigDecimal currentCommitted = paymentRepository.sumValueByContractIdAndStatusIn(
                 contractId, List.of(PaymentStatus.PENDING, PaymentStatus.PAID));
 
-        if (excludePaymentId != null) {
-            BigDecimal existingValue = paymentRepository.findById(excludePaymentId)
-                    .filter(p -> p.getValue() != null)
-                    .map(RentalPayment::getValue)
-                    .orElse(BigDecimal.ZERO);
-            currentCommitted = currentCommitted.subtract(existingValue);
+        // When updating an existing payment, subtract its current value to avoid double-counting.
+        // Only subtract if the payment was PENDING or PAID (i.e., it was included in the sum above).
+        if (existingPayment != null
+                && existingPayment.getValue() != null
+                && (PaymentStatus.PENDING.equals(existingPayment.getStatus())
+                    || PaymentStatus.PAID.equals(existingPayment.getStatus()))) {
+            currentCommitted = currentCommitted.subtract(existingPayment.getValue());
         }
 
         BigDecimal projected = currentCommitted.add(newValue != null ? newValue : BigDecimal.ZERO);

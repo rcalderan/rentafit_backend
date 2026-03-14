@@ -21,6 +21,8 @@ public interface RentalPaymentRepository extends JpaRepository<RentalPayment, UU
 
     long countByContractId(UUID contractId);
 
+    long countByContractIdAndStatusNot(UUID contractId, PaymentStatus status);
+
     @Query("SELECT COALESCE(SUM(p.value), 0) FROM RentalPayment p " +
            "WHERE p.contract.id = :contractId AND p.status IN :statuses")
     BigDecimal sumValueByContractIdAndStatusIn(

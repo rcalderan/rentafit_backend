@@ -90,6 +90,8 @@ public class RentalContractService {
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
 
         RentalContract contract = mapper.toEntity(dto, snapshot);
+        // saveAndFlush forces an immediate INSERT so @CreationTimestamp is populated
+        // by Hibernate before the mapper reads the createdAt field
         RentalContract saved = contractRepository.saveAndFlush(contract);
         log.info("Created rental contract {} for customer {}", saved.getId(), snapshot.id());
         return mapper.toDetailsDTO(saved, null);
