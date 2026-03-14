@@ -1677,6 +1677,456 @@
 				}
 			],
 			"description": "Endpoints para gerenciamento de estoque e movimentações"
+		},
+		{
+			"name": "People - Addresses",
+			"item": [
+				{
+					"name": "Find Address by ZIP Code",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/addresses/find/01001000",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"addresses",
+								"find",
+								"01001000"
+							]
+						},
+						"description": "Busca endereço por CEP. Se não encontrado localmente, consulta a API ViaCEP e armazena o resultado."
+					},
+					"response": []
+				}
+			],
+			"description": "Endpoints para busca de endereços por CEP (integração ViaCEP)"
+		},
+		{
+			"name": "Billing - NFS-e Portal Nacional",
+			"item": [
+				{
+					"name": "Emit NFS-e",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('invoice_id', body.id);",
+									"    pm.collectionVariables.set('invoice_access_key', body.accessKey);",
+									"    pm.test('NFS-e emitida com sucesso', () => pm.expect(pm.response.code).to.equal(201));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"serviceValue\": 1500.00,\n  \"nbsCode\": \"1.0501.00.00\",\n  \"serviceDescription\": \"Serviços de locação de equipamentos de fitness\",\n  \"cityCode\": \"3548708\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/billing/invoices/emit",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"invoices",
+								"emit"
+							]
+						},
+						"description": "Emite uma NFS-e via Portal Nacional. Requer roles ADMIN ou EMPLOYEE. Retorna 201 com chave de acesso."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invoice by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/invoices/{{invoice_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"invoices",
+								"{{invoice_id}}"
+							]
+						},
+						"description": "Consulta NFS-e pelo ID interno no banco de dados local."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invoice by Access Key",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/invoices/chave/{{invoice_access_key}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"invoices",
+								"chave",
+								"{{invoice_access_key}}"
+							]
+						},
+						"description": "Consulta NFS-e no Portal Nacional pela chave de acesso (50 caracteres)."
+					},
+					"response": []
+				},
+				{
+					"name": "Download Invoice PDF (DANFSe)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/invoices/chave/{{invoice_access_key}}/pdf",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"invoices",
+								"chave",
+								"{{invoice_access_key}}",
+								"pdf"
+							]
+						},
+						"description": "Baixa o Documento Auxiliar da NFS-e (DANFSe) em PDF diretamente do Portal Nacional."
+					},
+					"response": []
+				},
+				{
+					"name": "Download Invoice XML",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/invoices/chave/{{invoice_access_key}}/xml",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"invoices",
+								"chave",
+								"{{invoice_access_key}}",
+								"xml"
+							]
+						},
+						"description": "Baixa o arquivo XML legal da NFS-e diretamente do Portal Nacional."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Invoice by Number",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/invoices/numero/1",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"invoices",
+								"numero",
+								"1"
+							]
+						},
+						"description": "Busca NFS-e pelo número da nota fiscal no banco de dados local."
+					},
+					"response": []
+				}
+			],
+			"description": "Emissão e consulta de Notas Fiscais de Serviço Eletrônicas via Portal Nacional da NFS-e (SEFIN)"
+		},
+		{
+			"name": "Billing - NFS-e São Carlos",
+			"item": [
+				{
+					"name": "Emit São Carlos NFS-e",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"rps\": [\n    {\n      \"numero\": 123456,\n      \"serie\": \"A1\",\n      \"tipo\": 1,\n      \"dataEmissao\": \"2026-06-01T10:00:00\",\n      \"naturezaOperacao\": 1,\n      \"regimeEspecialTributacao\": 6,\n      \"simplesNacional\": 1,\n      \"incentivadorCultural\": 2,\n      \"valorServicos\": 1500.00,\n      \"aliquota\": 0.05,\n      \"itemListaServico\": \"01.07\",\n      \"codigoCnae\": \"6201500\",\n      \"discriminacao\": \"Serviços de locação de equipamentos fitness\",\n      \"codigoTributacaoMunicipio\": \"1406\",\n      \"codigoMunicipio\": 3548708\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/billing/saocarlos/emit",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"saocarlos",
+								"emit"
+							]
+						},
+						"description": "Envia lote de RPS para o webservice GINFES de São Carlos. Retorna o protocolo para consulta posterior. Resposta: 202 Accepted."
+					},
+					"response": []
+				},
+				{
+					"name": "Check Lot Status by Protocol",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/saocarlos/situacao/{{sc_protocolo}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"saocarlos",
+								"situacao",
+								"{{sc_protocolo}}"
+							]
+						},
+						"description": "Consulta situação de processamento do lote. Situações: 1-Não processado, 2-Processado com sucesso, 3-Processado com erro, 4-Cancelado."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Processed Lot",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/saocarlos/lote/{{sc_protocolo}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"saocarlos",
+								"lote",
+								"{{sc_protocolo}}"
+							]
+						},
+						"description": "Consulta resultado completo do lote processado, incluindo as NFS-e geradas."
+					},
+					"response": []
+				}
+			],
+			"description": "Emissão de NFS-e no município de São Carlos via sistema GINFES v3.01"
+		},
+		{
+			"name": "Billing - NFS-e Via (Serpro)",
+			"item": [
+				{
+					"name": "Receive / Validate NFS-e",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/billing/via/nfsev",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"via",
+								"nfsev"
+							]
+						},
+						"description": "Recebe e valida NFS-e Via Serpro. Requer roles ADMIN, MANAGER ou EMPLOYEE."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel NFS-e",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/billing/via/cancelamento",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"via",
+								"cancelamento"
+							]
+						},
+						"description": "Recebe e valida Evento de Cancelamento de NFS-e Via."
+					},
+					"response": []
+				},
+				{
+					"name": "Substitute NFS-e",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/billing/via/substituicao",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"via",
+								"substituicao"
+							]
+						},
+						"description": "Recebe NFS-e substituta e Evento de Cancelamento por Substituição."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Effective Aliquot",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/via/aliquota-efetiva/cnpj/12345678000195/trecho/1/data/2026-01-01",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"via",
+								"aliquota-efetiva",
+								"cnpj",
+								"12345678000195",
+								"trecho",
+								"1",
+								"data",
+								"2026-01-01"
+							]
+						},
+						"description": "Recupera alíquota efetiva por CNPJ, código de trecho e data de referência."
+					},
+					"response": []
+				},
+				{
+					"name": "Query by Protocol",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/via/consulta/protocolo?protocolo={{via_protocolo}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"via",
+								"consulta",
+								"protocolo"
+							],
+							"query": [
+								{
+									"key": "protocolo",
+									"value": "{{via_protocolo}}"
+								}
+							]
+						},
+						"description": "Consulta resultado de processamento por número de protocolo."
+					},
+					"response": []
+				},
+				{
+					"name": "Query by Access Key",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/billing/via/consulta/chaveacesso?chaveAcesso={{invoice_access_key}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"billing",
+								"via",
+								"consulta",
+								"chaveacesso"
+							],
+							"query": [
+								{
+									"key": "chaveAcesso",
+									"value": "{{invoice_access_key}}"
+								}
+							]
+						},
+						"description": "Consulta resultado de processamento por chave de acesso da NFS-e."
+					},
+					"response": []
+				}
+			],
+			"description": "Integração com a API NFS-e Via (Serpro) para recepção, cancelamento e substituição de NFS-e"
 		}
 	],
 	"event": [
@@ -1752,6 +2202,48 @@
 			"value": "",
 			"type": "string",
 			"description": "UUID do produto de venda para testes"
+		},
+		{
+			"key": "contract_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do contrato de locação para testes"
+		},
+		{
+			"key": "payment_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID da parcela de pagamento para testes"
+		},
+		{
+			"key": "item_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do item do contrato para testes"
+		},
+		{
+			"key": "invoice_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID da nota fiscal (NFS-e) para testes"
+		},
+		{
+			"key": "invoice_access_key",
+			"value": "",
+			"type": "string",
+			"description": "Chave de acesso da NFS-e (50 caracteres)"
+		},
+		{
+			"key": "sc_protocolo",
+			"value": "",
+			"type": "string",
+			"description": "Protocolo de processamento retornado pelo GINFES (NFS-e São Carlos)"
+		},
+		{
+			"key": "via_protocolo",
+			"value": "",
+			"type": "string",
+			"description": "Protocolo de processamento retornado pela API NFS-e Via (Serpro)"
 		}
 	]
 }
