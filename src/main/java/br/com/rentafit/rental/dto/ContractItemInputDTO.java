@@ -1,6 +1,7 @@
 package br.com.rentafit.rental.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -26,7 +27,11 @@ public record ContractItemInputDTO(
 
         @NotNull(message = "Valor do item é obrigatório")
         @DecimalMin(value = "0.01", message = "Valor do item deve ser maior que zero")
+        @DecimalMax(value = "99999999.99", message = "Valor do item não pode exceder 99.999.999,99")
         BigDecimal value,
+
+        @NotNull(message = "Id do atendente é obrigatório para o item")
+        UUID attendantEmployeeId,
 
         @Valid
         List<ContractItemMetaInputDTO> metadata

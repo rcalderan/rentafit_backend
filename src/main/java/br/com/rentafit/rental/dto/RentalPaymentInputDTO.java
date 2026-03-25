@@ -1,9 +1,6 @@
 package br.com.rentafit.rental.dto;
 
-import jakarta.validation.constraints.DecimalMin;
-import jakarta.validation.constraints.Max;
-import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -27,6 +24,7 @@ public record RentalPaymentInputDTO(
 
         @NotNull(message = "Valor é obrigatório")
         @DecimalMin(value = "0.01", message = "Valor deve ser maior que zero")
+        @DecimalMax(value = "99999999.99", message = "Valor não pode exceder 99.999.999,99")
         BigDecimal value,
 
         @Min(value = 1, message = "Número de vezes deve ser no mínimo 1")

@@ -80,7 +80,7 @@ class RentalContractControllerTest {
                 LocalDate.now().plusDays(9),
                 "Observação teste",
                 List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
-                        BigDecimal.valueOf(500), List.of())),
+                        BigDecimal.valueOf(500), UUID.randomUUID(), List.of())),
                 List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
                         "PIX", BigDecimal.valueOf(500), 1, null, "PENDING"))
         );
@@ -92,7 +92,7 @@ class RentalContractControllerTest {
                 LocalDate.now().plusDays(9),
                 "Observação atualizada",
                 List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
-                        BigDecimal.valueOf(500), List.of())),
+                        BigDecimal.valueOf(500), UUID.randomUUID(), List.of())),
                 List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
                         "PIX", BigDecimal.valueOf(500), 1, null, "PENDING"))
         );

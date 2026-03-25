@@ -10,4 +10,5 @@ import java.util.UUID;
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, UUID> {
     Optional<Employee> findByLegacyId(Integer legacyId);
+    Optional<Employee> findByInitials(String initials);
 }

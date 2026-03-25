@@ -116,7 +116,7 @@ class RentalContractServiceTest {
                 LocalDate.now().plusDays(9),
                 "Observação",
                 List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido de Noiva",
-                        new BigDecimal("500.00"), List.of())),
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
                 List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
                         "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
         );
@@ -165,7 +165,7 @@ class RentalContractServiceTest {
     void testCreate_success() {
         when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
         when(mapper.toEntity(createDTO, customerSnapshot)).thenReturn(draftContract);
-        when(contractRepository.save(draftContract)).thenReturn(draftContract);
+        when(contractRepository.saveAndFlush(draftContract)).thenReturn(draftContract);
         when(mapper.toDetailsDTO(draftContract, null)).thenReturn(detailsDTO);
 
         RentalContractDetailsDTO result = contractService.create(createDTO);
@@ -173,7 +173,37 @@ class RentalContractServiceTest {
         assertThat(result).isNotNull();
         verify(validator).validateDateOrder(any(), any(), any());
         verify(validator).validateAndGetCustomer(customerId);
-        verify(contractRepository).save(draftContract);
+        verify(validator).validateItemsHaveAttendant(createDTO.items());
+        verify(contractRepository).saveAndFlush(draftContract);
+    }
+
+    @Test
+    @DisplayName("create deve lançar ValidationException quando item não tiver attendantEmployeeId")
+    void testCreate_itemWithoutAttendantId_throwsValidationException() {
+        ContractItemInputDTO itemSemAttendant = new ContractItemInputDTO(
+                UUID.randomUUID(), "001", "Vestido de Noiva",
+                new BigDecimal("500.00"),
+                null,
+                List.of()
+        );
+        CreateRentalContractDTO dtoComItemSemAttendant = new CreateRentalContractDTO(
+                customerId, 0, null,
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(7),
+                LocalDate.now().plusDays(9),
+                "Obs",
+                List.of(itemSemAttendant),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
+        );
+
+        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        doThrow(new ValidationException("attendantEmployeeId é obrigatório"))
+                .when(validator).validateItemsHaveAttendant(dtoComItemSemAttendant.items());
+
+        assertThatThrownBy(() -> contractService.create(dtoComItemSemAttendant))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("attendantEmployeeId");
     }
 
     // ── update ────────────────────────────────────────────────────────────────

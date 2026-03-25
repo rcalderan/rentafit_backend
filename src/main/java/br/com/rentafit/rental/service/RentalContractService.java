@@ -74,6 +74,9 @@ public class RentalContractService {
         // Valida e obtém snapshot do cliente
         CustomerSnapshot snapshot = validator.validateAndGetCustomer(dto.customerId());
 
+
+        validator.validateItemsHaveAttendant(dto.items());
+
         // Valida disponibilidade dos itens e acessórios
         List<UUID> rentalItemIds = dto.items().stream()
                 .map(ContractItemInputDTO::rentalItemId).collect(Collectors.toList());
@@ -85,6 +88,9 @@ public class RentalContractService {
                 .map(ContractItemMetaInputDTO::accessoryId)
                 .collect(Collectors.toList());
         validator.validateAccessoriesAvailability(accessoryIds);
+
+        // Valida que parcelas PAID possuem funcionário responsável
+        validator.validatePaidPaymentsHaveEmployee(dto.payments());
 
         // Valida que as parcelas somam o valor total dos itens
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
@@ -106,6 +112,8 @@ public class RentalContractService {
 
         validator.validateDateOrder(dto.pickupDate(), dto.eventDate(), dto.returnDate());
 
+        validator.validateItemsHaveAttendant(dto.items());
+
         List<UUID> rentalItemIds = dto.items().stream()
                 .map(ContractItemInputDTO::rentalItemId).collect(Collectors.toList());
         validator.validateItemsAvailability(rentalItemIds);
@@ -116,6 +124,9 @@ public class RentalContractService {
                 .map(ContractItemMetaInputDTO::accessoryId)
                 .collect(Collectors.toList());
         validator.validateAccessoriesAvailability(accessoryIds);
+
+        // Valida que parcelas PAID possuem funcionário responsável
+        validator.validatePaidPaymentsHaveEmployee(dto.payments());
 
         // Valida que as parcelas somam o valor total dos itens
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());

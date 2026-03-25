@@ -144,6 +144,7 @@ public class RentalMapper {
                 .legacyProductCode(dto.legacyProductCode())
                 .description(dto.description())
                 .value(dto.value())
+                .attendantEmployeeId(dto.attendantEmployeeId())
                 .delivered(false)
                 .build();
 

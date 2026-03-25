@@ -10,6 +10,8 @@ import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.RentalPaymentDetailsDTO;
 import br.com.rentafit.rental.dto.RentalPaymentInputDTO;
 import br.com.rentafit.rental.mapper.RentalMapper;
+import br.com.rentafit.rental.validation.RentalContractValidator;
+import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
 import lombok.RequiredArgsConstructor;
@@ -45,6 +47,7 @@ public class RentalPaymentService {
 
     private final RentalPaymentRepository paymentRepository;
     private final RentalContractRepository contractRepository;
+    private final RentalContractValidator validator;
     private final RentalMapper mapper;
 
     public List<RentalPaymentDetailsDTO> listByContract(UUID contractId) {
@@ -59,6 +62,7 @@ public class RentalPaymentService {
         validatePaymentDate(dto, contract);
         validateInstallmentLimit(contractId);
         validateTotalValueNotExceeded(contractId, dto.value(), null, contract);
+        validator.validateSinglePaidPaymentHasEmployee(dto);
 
         RentalPayment payment = mapper.toPaymentEntity(dto, contract);
         RentalPayment saved = paymentRepository.save(payment);
@@ -73,6 +77,7 @@ public class RentalPaymentService {
         RentalPayment payment = requirePayment(paymentId, contractId);
         validatePaymentDate(dto, contract);
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
+        validator.validateSinglePaidPaymentHasEmployee(dto);
 
         payment.setInstallmentNumber(dto.installmentNumber());
         payment.setPaymentDate(dto.paymentDate());

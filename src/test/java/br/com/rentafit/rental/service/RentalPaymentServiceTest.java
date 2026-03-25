@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
+import br.com.rentafit.rental.validation.RentalContractValidator;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -38,6 +39,7 @@ class RentalPaymentServiceTest {
 
     @Mock private RentalPaymentRepository paymentRepository;
     @Mock private RentalContractRepository contractRepository;
+    @Mock private RentalContractValidator validator;
     @Mock private RentalMapper mapper;
 
     @InjectMocks
@@ -215,6 +217,120 @@ class RentalPaymentServiceTest {
 
         assertThat(existingPayment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         verify(paymentRepository).save(existingPayment);
+    }
+
+    // ── validateSinglePaidPaymentHasEmployee ──────────────────────────────────
+
+    @Test
+    @DisplayName("addPayment deve lançar ValidationException quando status=PAID e employeeId ausente")
+    void testAddPayment_paidWithoutEmployee_throwsValidationException() {
+        RentalPaymentInputDTO paidWithoutEmployee = new RentalPaymentInputDTO(
+                1,
+                LocalDate.now().plusDays(5),
+                "PIX",
+                new BigDecimal("200.00"),
+                1,
+                null,   // processedByEmployeeId ausente
+                "PAID"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(0L);
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(BigDecimal.ZERO);
+        doThrow(new ValidationException("processedByEmployeeId"))
+                .when(validator).validateSinglePaidPaymentHasEmployee(paidWithoutEmployee);
+
+        assertThatThrownBy(() -> paymentService.addPayment(contractId, paidWithoutEmployee))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("processedByEmployeeId");
+    }
+
+    @Test
+    @DisplayName("addPayment deve ser permitido quando status=PAID e employeeId informado")
+    void testAddPayment_paidWithEmployee_success() {
+        UUID employeeId = UUID.randomUUID();
+        RentalPaymentInputDTO paidWithEmployee = new RentalPaymentInputDTO(
+                1,
+                LocalDate.now().plusDays(5),
+                "PIX",
+                new BigDecimal("200.00"),
+                1,
+                employeeId,
+                "PAID"
+        );
+
+        RentalPayment savedPayment = RentalPayment.builder()
+                .id(paymentId).contract(draftContract).installmentNumber(1)
+                .paymentDate(LocalDate.now().plusDays(5)).paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("200.00")).installments(1)
+                .processedByEmployeeId(employeeId).status(PaymentStatus.PAID).build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(0L);
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(BigDecimal.ZERO);
+        doNothing().when(validator).validateSinglePaidPaymentHasEmployee(paidWithEmployee);
+        when(mapper.toPaymentEntity(paidWithEmployee, draftContract)).thenReturn(savedPayment);
+        when(paymentRepository.save(savedPayment)).thenReturn(savedPayment);
+        when(mapper.toPaymentDetailsDTO(savedPayment)).thenReturn(detailsDTO);
+
+        RentalPaymentDetailsDTO result = paymentService.addPayment(contractId, paidWithEmployee);
+
+        assertThat(result).isNotNull();
+        verify(validator).validateSinglePaidPaymentHasEmployee(paidWithEmployee);
+        verify(paymentRepository).save(savedPayment);
+    }
+
+    @Test
+    @DisplayName("updatePayment deve lançar ValidationException quando status=PAID e employeeId ausente")
+    void testUpdatePayment_paidWithoutEmployee_throwsValidationException() {
+        RentalPaymentInputDTO paidWithoutEmployee = new RentalPaymentInputDTO(
+                1,
+                LocalDate.now().plusDays(5),
+                "PIX",
+                new BigDecimal("200.00"),
+                1,
+                null,   // processedByEmployeeId ausente
+                "PAID"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"));
+        doThrow(new ValidationException("processedByEmployeeId"))
+                .when(validator).validateSinglePaidPaymentHasEmployee(paidWithoutEmployee);
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, paidWithoutEmployee))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("processedByEmployeeId");
+    }
+
+    @Test
+    @DisplayName("updatePayment deve ser permitido quando status=PAID e employeeId informado")
+    void testUpdatePayment_paidWithEmployee_success() {
+        UUID employeeId = UUID.randomUUID();
+        RentalPaymentInputDTO paidWithEmployee = new RentalPaymentInputDTO(
+                1,
+                LocalDate.now().plusDays(5),
+                "PIX",
+                new BigDecimal("200.00"),
+                1,
+                employeeId,
+                "PAID"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
+        doNothing().when(validator).validateSinglePaidPaymentHasEmployee(paidWithEmployee);
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        RentalPaymentDetailsDTO result = paymentService.updatePayment(contractId, paymentId, paidWithEmployee);
+
+        assertThat(result).isNotNull();
+        verify(validator).validateSinglePaidPaymentHasEmployee(paidWithEmployee);
     }
 }
 

@@ -134,7 +134,86 @@ public class RentalContractValidator {
         return warningMessages.isEmpty() ? null : warningMessages;
     }
 
+    // ── Validações de item ────────────────────────────────────────────────────
+
+    /**
+     * Valida que todo item possui {@code customerId} informado.
+     * Deve ser chamado antes de persistir itens (create/update de contrato).
+     *
+     * @param items lista de itens a validar (null/vazia é ignorada)
+     * @throws ValidationException se algum item não tiver cliente associado
+     */
+    public void validateItemsHaveAttendant(List<ContractItemInputDTO> items) {
+        if (items == null || items.isEmpty()) return;
+
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            ContractItemInputDTO item = items.get(i);
+            if (item.attendantEmployeeId() == null) {
+                String label = item.description() != null
+                        ? "\"" + item.description() + "\""
+                        : "(índice " + (i + 1) + ")";
+                errors.add("Item " + label + ": O atendente é obrigatório para cada item do contrato");
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(String.join("; ", errors));
+        }
+    }
+
     // ── Validações de pagamento ───────────────────────────────────────────────
+
+    /**
+     * Valida que toda parcela com status PAID possui {@code processedByEmployeeId} informado.
+     * Deve ser chamado antes de persistir parcelas (create/update de contrato e add/update de parcela isolada).
+     *
+     * @param payments lista de parcelas a validar (null/vazia é ignorada)
+     * @throws ValidationException se alguma parcela PAID não tiver funcionário responsável
+     */
+    public void validatePaidPaymentsHaveEmployee(List<RentalPaymentInputDTO> payments) {
+        if (payments == null || payments.isEmpty()) return;
+
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < payments.size(); i++) {
+            RentalPaymentInputDTO p = payments.get(i);
+            if (isPaid(p.status()) && p.processedByEmployeeId() == null) {
+                errors.add("Parcela " + (p.installmentNumber() != null ? "#" + p.installmentNumber() : "(índice " + (i + 1) + ")")
+                        + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(String.join("; ", errors));
+        }
+    }
+
+    /**
+     * Valida uma única parcela: se status for PAID, {@code processedByEmployeeId} é obrigatório.
+     * Conveniente para validação em add/update de parcela individual.
+     *
+     * @param payment parcela a validar
+     * @throws ValidationException se a parcela for PAID sem funcionário informado
+     */
+    public void validateSinglePaidPaymentHasEmployee(RentalPaymentInputDTO payment) {
+        if (payment == null) return;
+        if (isPaid(payment.status()) && payment.processedByEmployeeId() == null) {
+            throw new ValidationException(
+                    "Parcela" + (payment.installmentNumber() != null ? " #" + payment.installmentNumber() : "")
+                            + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
+        }
+    }
+
+    // ── helpers privados ──────────────────────────────────────────────────────
+
+    private boolean isPaid(String status) {
+        if (status == null) return false;
+        try {
+            return PaymentStatus.PAID.equals(PaymentStatus.valueOf(status.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
+    }
 
     /**
      * Valida que as parcelas informadas somam exatamente o valor total dos itens.
