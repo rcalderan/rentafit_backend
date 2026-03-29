@@ -39,6 +39,7 @@ class RentalContractControllerTest {
 
     private UUID contractId;
     private UUID customerId;
+    private String legacyId;
     private RentalContractDetailsDTO detailsDTO;
     private RentalContractDetailsDTO detailsDTOWithWarnings;
     private RentalContractSummaryDTO summaryDTO;
@@ -49,9 +50,10 @@ class RentalContractControllerTest {
     void setUp() {
         contractId = UUID.randomUUID();
         customerId = UUID.randomUUID();
+        legacyId = "CTR001";
 
         detailsDTO = RentalContractDetailsDTO.builder()
-                .id(contractId).status("DRAFT").statusDescription("Proposta")
+                .id(contractId).status(0).statusDescription("Proposta")
                 .customerId(customerId).customerName("Ana Lima")
                 .totalValue(BigDecimal.valueOf(500)).paidValue(BigDecimal.ZERO)
                 .remainingValue(BigDecimal.valueOf(500))
@@ -59,7 +61,7 @@ class RentalContractControllerTest {
                 .build();
 
         detailsDTOWithWarnings = RentalContractDetailsDTO.builder()
-                .id(contractId).status("SIGNED").statusDescription("Assinado")
+                .id(contractId).status(1).statusDescription("Assinado")
                 .customerId(customerId).customerName("Ana Lima")
                 .totalValue(BigDecimal.valueOf(500)).paidValue(BigDecimal.ZERO)
                 .remainingValue(BigDecimal.valueOf(500))
@@ -137,6 +139,18 @@ class RentalContractControllerTest {
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
+    @Test
+    @DisplayName("GET /byLegacy/{id} deve retornar 200 com contrato")
+    void testFindByLegacyId_returns200() {
+        when(contractService.findByLegacyId(legacyId)).thenReturn(detailsDTO);
+
+        ResponseEntity<RentalContractDetailsDTO> response = controller.findByLegacyId(legacyId);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(contractId);
+    }
+
     // ── create ────────────────────────────────────────────────────────────────
 
     @Test
@@ -148,7 +162,7 @@ class RentalContractControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().status()).isEqualTo("DRAFT");
+        assertThat(response.getBody().status()).isEqualTo(0);
     }
 
     @Test

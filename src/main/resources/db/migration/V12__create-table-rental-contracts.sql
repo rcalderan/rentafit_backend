@@ -4,7 +4,7 @@
 CREATE TABLE rental_contracts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 
-    legacy_id INTEGER UNIQUE,
+    legacy_id VARCHAR(7) UNIQUE,
 
     contract_type INTEGER NOT NULL DEFAULT 0,
 

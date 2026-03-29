@@ -14,7 +14,7 @@ import java.util.UUID;
 @Repository
 public interface RentalContractRepository extends JpaRepository<RentalContract, UUID> {
 
-    Optional<RentalContract> findByLegacyId(Integer legacyId);
+    Optional<RentalContract> findByLegacyId(String legacyId);
 
     Page<RentalContract> findByCustomerId(UUID customerId, Pageable pageable);
 

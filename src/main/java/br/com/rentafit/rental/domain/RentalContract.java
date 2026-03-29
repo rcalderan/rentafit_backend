@@ -35,7 +35,7 @@ public class RentalContract {
     private UUID id;
 
     @Column(name = "legacy_id", unique = true)
-    private Integer legacyId;
+    private String legacyId;
 
     @Column(name = "contract_type", nullable = false)
     @Builder.Default
@@ -77,7 +77,7 @@ public class RentalContract {
     private Boolean returned = false;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "status", nullable = false)
     @Builder.Default
     private ContractStatus status = ContractStatus.DRAFT;
 

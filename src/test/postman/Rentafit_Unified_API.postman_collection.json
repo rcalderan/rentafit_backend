@@ -1230,6 +1230,20 @@
 					"response": []
 				},
 				{
+					"name": "Get Contract by Legacy ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/legacyId/{{contract_legacy_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","legacyId","{{contract_legacy_id}}"]
+						},
+						"description": "Busca contrato pelo legacyId textual (ex.: CTR001)."
+					},
+					"response": []
+				},
+				{
 					"name": "Get Contracts by Customer",
 					"request": {
 						"method": "GET",
@@ -2287,6 +2301,12 @@
 			"value": "",
 			"type": "string",
 			"description": "UUID do contrato de locação para testes"
+		},
+		{
+			"key": "contract_legacy_id",
+			"value": "CTR001",
+			"type": "string",
+			"description": "Legacy ID textual do contrato de locação para testes"
 		},
 		{
 			"key": "payment_id",

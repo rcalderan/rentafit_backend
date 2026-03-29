@@ -18,9 +18,9 @@ import java.util.UUID;
 @Builder
 public record RentalContractDetailsDTO(
         UUID id,
-        Integer legacyId,
+        String legacyId,
         Integer contractType,
-        String status,
+        Integer status,
         String statusDescription,
 
         // Snapshot do cliente (imutável após criação)

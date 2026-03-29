@@ -90,7 +90,7 @@ public class RentalMapper {
                 .id(contract.getId())
                 .legacyId(contract.getLegacyId())
                 .contractType(contract.getContractType())
-                .status(contract.getStatus().name())
+                .status(contract.getStatus().getLegacyCode())
                 .statusDescription(contract.getStatus().getDescription())
                 .customerId(contract.getCustomerId())
                 .customerName(contract.getCustomerName())

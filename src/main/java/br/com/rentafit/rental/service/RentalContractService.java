@@ -63,6 +63,12 @@ public class RentalContractService {
     }
 
     @Transactional(readOnly = true)
+    public RentalContractDetailsDTO findByLegacyId(String leg) {
+        RentalContract contract = requireContractByLegacyId(leg);
+        return mapper.toDetailsDTO(contract, null);
+    }
+
+    @Transactional(readOnly = true)
     public Page<RentalContractSummaryDTO> findByCustomer(UUID customerId, Pageable pageable) {
         return contractRepository.findByCustomerId(customerId, pageable).map(mapper::toSummaryDTO);
     }
@@ -290,6 +296,10 @@ public class RentalContractService {
     private RentalContract requireContract(UUID id) {
         return contractRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("RentalContract", "id", id.toString()));
+    }
+    private RentalContract requireContractByLegacyId(String legacy) {
+        return contractRepository.findByLegacyId(legacy)
+                .orElseThrow(() -> new ResourceNotFoundException("RentalContract", "legacyId", legacy));
     }
 
     private void requireStatus(RentalContract contract, ContractStatus expected, String action) {

@@ -13,7 +13,7 @@ import java.util.UUID;
 @Builder
 public record RentalContractSummaryDTO(
         UUID id,
-        Integer legacyId,
+        String legacyId,
         Integer contractType,
         String status,
         String statusDescription,
