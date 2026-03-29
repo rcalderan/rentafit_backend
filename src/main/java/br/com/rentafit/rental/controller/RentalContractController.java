@@ -43,13 +43,17 @@ public class RentalContractController {
     }
 
     @GetMapping({"/legacyId/{legacyId}", "/byLegacy/{legacyId}"})
-    @Operation(summary = "Buscar contrato por legacyId")
+    @Operation(summary = "Buscar contrato por legacyId",
+            description = "Retorna o contrato. Use o parâmetro installmentNumber para filtrar apenas uma parcela específica.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Contrato encontrado"),
             @ApiResponse(responseCode = "404", description = "Contrato não encontrado")
     })
-    public ResponseEntity<RentalContractDetailsDTO> findByLegacyId(@PathVariable String legacyId) {
-        return ResponseEntity.ok(contractService.findByLegacyId(legacyId));
+    public ResponseEntity<RentalContractDetailsDTO> findByLegacyId(
+            @PathVariable String legacyId,
+            @Parameter(description = "Filtrar pagamentos por número da parcela")
+            @RequestParam(required = false) Integer installmentNumber) {
+        return ResponseEntity.ok(contractService.findByLegacyId(legacyId, installmentNumber));
     }
 
     @GetMapping("/byCustomer/{customerId}")

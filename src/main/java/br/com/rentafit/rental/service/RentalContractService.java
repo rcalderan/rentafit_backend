@@ -5,6 +5,7 @@ import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalContractItem;
 import br.com.rentafit.rental.domain.RentalContractItemMeta;
+import br.com.rentafit.rental.domain.RentalPayment;
 import br.com.rentafit.rental.domain.enums.ContractStatus;
 import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.*;
@@ -63,9 +64,14 @@ public class RentalContractService {
     }
 
     @Transactional(readOnly = true)
-    public RentalContractDetailsDTO findByLegacyId(String leg) {
+    public RentalContractDetailsDTO findByLegacyId(String leg, Integer installmentNumber) {
         RentalContract contract = requireContractByLegacyId(leg);
-        return mapper.toDetailsDTO(contract, null);
+        List<RentalPayment> payments = installmentNumber == null
+                ? contract.getPayments()
+                : contract.getPayments().stream()
+                        .filter(p -> installmentNumber.equals(p.getInstallmentNumber()))
+                        .collect(Collectors.toList());
+        return mapper.toDetailsDTO(contract, payments, null);
     }
 
     @Transactional(readOnly = true)

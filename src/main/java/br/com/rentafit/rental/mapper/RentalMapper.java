@@ -14,6 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -83,6 +84,10 @@ public class RentalMapper {
     }
 
     public RentalContractDetailsDTO toDetailsDTO(RentalContract contract, List<String> warnings) {
+        return toDetailsDTO(contract, contract.getPayments(), warnings);
+    }
+
+    public RentalContractDetailsDTO toDetailsDTO(RentalContract contract, List<RentalPayment> payments, List<String> warnings) {
         BigDecimal totalValue = computeTotalValue(contract.getItems());
         BigDecimal paidValue  = computePaidValue(contract.getPayments());
 
@@ -108,7 +113,11 @@ public class RentalMapper {
                 .paidValue(paidValue)
                 .remainingValue(totalValue.subtract(paidValue).max(BigDecimal.ZERO))
                 .items(contract.getItems().stream().map(this::toItemDetailsDTO).collect(Collectors.toList()))
-                .payments(contract.getPayments().stream().map(this::toPaymentDetailsDTO).collect(Collectors.toList()))
+                .payments(payments.stream()
+                        .sorted(Comparator.comparing(RentalPayment::getInstallmentNumber,
+                                Comparator.nullsLast(Comparator.naturalOrder())))
+                        .map(this::toPaymentDetailsDTO)
+                        .collect(Collectors.toList()))
                 .warnings(warnings)
                 .build();
     }
