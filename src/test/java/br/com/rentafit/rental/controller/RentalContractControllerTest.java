@@ -142,9 +142,9 @@ class RentalContractControllerTest {
     @Test
     @DisplayName("GET /byLegacy/{id} deve retornar 200 com contrato")
     void testFindByLegacyId_returns200() {
-        when(contractService.findByLegacyId(legacyId)).thenReturn(detailsDTO);
+        when(contractService.findByLegacyId(legacyId, null)).thenReturn(detailsDTO);
 
-        ResponseEntity<RentalContractDetailsDTO> response = controller.findByLegacyId(legacyId);
+        ResponseEntity<RentalContractDetailsDTO> response = controller.findByLegacyId(legacyId, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();

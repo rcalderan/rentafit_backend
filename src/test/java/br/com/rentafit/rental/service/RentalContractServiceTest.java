@@ -166,9 +166,9 @@ class RentalContractServiceTest {
     @DisplayName("findByLegacyId deve retornar contrato quando existe")
     void testFindByLegacyId_success() {
         when(contractRepository.findByLegacyId(legacyId)).thenReturn(Optional.of(draftContract));
-        when(mapper.toDetailsDTO(draftContract, null)).thenReturn(detailsDTO);
+        when(mapper.toDetailsDTO(draftContract, draftContract.getPayments(), null)).thenReturn(detailsDTO);
 
-        RentalContractDetailsDTO result = contractService.findByLegacyId(legacyId);
+        RentalContractDetailsDTO result = contractService.findByLegacyId(legacyId, null);
 
         assertThat(result.id()).isEqualTo(contractId);
         verify(contractRepository).findByLegacyId(legacyId);
@@ -179,7 +179,7 @@ class RentalContractServiceTest {
     void testFindByLegacyId_notFound() {
         when(contractRepository.findByLegacyId(legacyId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> contractService.findByLegacyId(legacyId))
+        assertThatThrownBy(() -> contractService.findByLegacyId(legacyId, null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("legacyId");
     }
