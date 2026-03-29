@@ -170,13 +170,41 @@ class RentalPaymentServiceTest {
     // ── updatePayment ─────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("updatePayment deve lançar ValidationException em contrato FINALIZED")
-    void testUpdatePayment_blockedWhenFinalized() {
+    @DisplayName("updatePayment deve permitir alterar parcela não paga em contrato FINALIZED")
+    void testUpdatePayment_allowsPendingWhenFinalized() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        RentalPaymentDetailsDTO result = paymentService.updatePayment(contractId, paymentId, validPaymentDTO);
+
+        assertThat(result).isNotNull();
+        verify(paymentRepository).save(existingPayment);
+    }
+
+    @Test
+    @DisplayName("updatePayment deve bloquear alteração de parcela PAID após FINALIZED")
+    void testUpdatePayment_paidBlockedWhenFinalized() {
+        RentalPayment paidPayment = RentalPayment.builder()
+                .id(paymentId)
+                .contract(finalizedContract)
+                .installmentNumber(1)
+                .paymentDate(LocalDate.now().plusDays(10))
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("200.00"))
+                .installments(1)
+                .status(PaymentStatus.PAID)
+                .processedByEmployeeId(UUID.randomUUID())
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(paidPayment));
 
         assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
                 .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("FINALIZADO");
+                .hasMessageContaining("parcela PAGA");
     }
 
     @Test
@@ -197,13 +225,47 @@ class RentalPaymentServiceTest {
     // ── cancelPayment ─────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("cancelPayment deve lançar ValidationException em contrato FINALIZED")
-    void testCancelPayment_blockedWhenFinalized() {
+    @DisplayName("cancelPayment deve permitir cancelar parcela não paga em contrato FINALIZED")
+    void testCancelPayment_allowsPendingWhenFinalized() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+
+        paymentService.cancelPayment(contractId, paymentId);
+
+        assertThat(existingPayment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
+        verify(paymentRepository).save(existingPayment);
+    }
+
+    @Test
+    @DisplayName("cancelPayment deve bloquear cancelamento de parcela PAID após SIGNED")
+    void testCancelPayment_paidBlockedWhenSigned() {
+        RentalContract signedContract = RentalContract.builder()
+                .id(contractId)
+                .status(ContractStatus.SIGNED)
+                .eventDate(LocalDate.now().plusDays(30))
+                .items(finalizedContract.getItems())
+                .payments(new ArrayList<>())
+                .build();
+
+        RentalPayment paidPayment = RentalPayment.builder()
+                .id(paymentId)
+                .contract(signedContract)
+                .installmentNumber(1)
+                .paymentDate(LocalDate.now().plusDays(10))
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("200.00"))
+                .installments(1)
+                .status(PaymentStatus.PAID)
+                .processedByEmployeeId(UUID.randomUUID())
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(paidPayment));
 
         assertThatThrownBy(() -> paymentService.cancelPayment(contractId, paymentId))
                 .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("FINALIZADO");
+                .hasMessageContaining("parcela PAGA");
     }
 
     @Test

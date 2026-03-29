@@ -154,6 +154,7 @@ public class RentalContractService {
         requireStatus(contract, ContractStatus.DRAFT, "assinar");
 
         validator.validateDateOrder(contract.getPickupDate(), contract.getEventDate(), contract.getReturnDate());
+        validator.validatePersistedPaidPaymentsHaveEmployee(contract.getPayments());
 
         List<String> warnings = validator.checkConflictsForTransition(
                 contract.getItems(), contract.getEventDate(), contract.getId());

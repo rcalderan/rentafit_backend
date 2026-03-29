@@ -11,7 +11,6 @@ import br.com.rentafit.rental.dto.RentalPaymentDetailsDTO;
 import br.com.rentafit.rental.dto.RentalPaymentInputDTO;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.validation.RentalContractValidator;
-import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +29,8 @@ import java.util.stream.Collectors;
  * <p>Regras de negócio:
  * <ul>
  *   <li>addPayment: sempre permitido, mesmo após FINALIZED.</li>
- *   <li>updatePayment/cancelPayment: bloqueados após FINALIZED.</li>
+ *   <li>Parcelas PAID não podem ser alteradas/canceladas após contrato assinado (SIGNED/FINALIZED).</li>
+ *   <li>Parcelas não pagas podem ser alteradas mesmo após SIGNED/FINALIZED.</li>
  *   <li>paymentDate não pode ser posterior ao eventDate do contrato.</li>
  *   <li>Soma PENDING+PAID não pode ultrapassar totalValue dos itens.</li>
  *   <li>Máximo 24 parcelas por contrato.</li>
@@ -72,9 +72,9 @@ public class RentalPaymentService {
 
     public RentalPaymentDetailsDTO updatePayment(UUID contractId, UUID paymentId, RentalPaymentInputDTO dto) {
         RentalContract contract = requireContract(contractId);
-        requireNotFinalized(contract, "atualizar pagamento");
 
         RentalPayment payment = requirePayment(paymentId, contractId);
+        validatePaidInstallmentMutationAllowed(contract, payment, "atualizar");
         validatePaymentDate(dto, contract);
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
@@ -96,9 +96,9 @@ public class RentalPaymentService {
 
     public void cancelPayment(UUID contractId, UUID paymentId) {
         RentalContract contract = requireContract(contractId);
-        requireNotFinalized(contract, "cancelar pagamento");
 
         RentalPayment payment = requirePayment(paymentId, contractId);
+        validatePaidInstallmentMutationAllowed(contract, payment, "cancelar");
         payment.setStatus(PaymentStatus.CANCELLED);
         paymentRepository.save(payment);
         log.info("Payment {} cancelled in contract {}", paymentId, contractId);
@@ -146,9 +146,13 @@ public class RentalPaymentService {
         }
     }
 
-    private void requireNotFinalized(RentalContract contract, String action) {
-        if (ContractStatus.FINALIZED.equals(contract.getStatus())) {
-            throw new ValidationException("Não é possível " + action + " em um contrato FINALIZADO");
+    private void validatePaidInstallmentMutationAllowed(RentalContract contract, RentalPayment payment, String action) {
+        boolean contractSignedOrFinalized = ContractStatus.SIGNED.equals(contract.getStatus())
+                || ContractStatus.FINALIZED.equals(contract.getStatus());
+
+        if (contractSignedOrFinalized && PaymentStatus.PAID.equals(payment.getStatus())) {
+            throw new ValidationException(
+                    "Não é possível " + action + " parcela PAGA após contrato assinado/finalizado");
         }
     }
 

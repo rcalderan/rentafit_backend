@@ -1,6 +1,7 @@
 package br.com.rentafit.rental.validation;
 
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.rental.domain.RentalPayment;
 import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.ContractItemInputDTO;
 import br.com.rentafit.rental.dto.RentalPaymentInputDTO;
@@ -179,6 +180,26 @@ public class RentalContractValidator {
             RentalPaymentInputDTO p = payments.get(i);
             if (isPaid(p.status()) && p.processedByEmployeeId() == null) {
                 errors.add("Parcela " + (p.installmentNumber() != null ? "#" + p.installmentNumber() : "(índice " + (i + 1) + ")")
+                        + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(String.join("; ", errors));
+        }
+    }
+
+    /**
+     * Valida parcelas já persistidas no contrato: toda PAID deve ter funcionário responsável.
+     * Usado em transições de estado (ex.: sign) para proteger dados legados/inconsistentes.
+     */
+    public void validatePersistedPaidPaymentsHaveEmployee(List<RentalPayment> payments) {
+        if (payments == null || payments.isEmpty()) return;
+
+        List<String> errors = new ArrayList<>();
+        for (RentalPayment p : payments) {
+            if (PaymentStatus.PAID.equals(p.getStatus()) && p.getProcessedByEmployeeId() == null) {
+                errors.add("Parcela " + (p.getInstallmentNumber() != null ? "#" + p.getInstallmentNumber() : "")
                         + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
             }
         }
