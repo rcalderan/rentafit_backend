@@ -316,8 +316,8 @@ class RentalContractServiceTest {
     // ── update ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("update deve lançar ValidationException se status != DRAFT")
-    void testUpdate_blockedWhenNotDraft() {
+    @DisplayName("update deve lançar ValidationException se status != DRAFT e != REVISION")
+    void testUpdate_blockedWhenNotDraftOrRevision() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
 
         UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
@@ -352,9 +352,16 @@ class RentalContractServiceTest {
     }
 
     @Test
-    @DisplayName("sign deve lançar ValidationException se status != DRAFT")
+    @DisplayName("sign deve lançar ValidationException se status != DRAFT e != REVISION")
     void testSign_wrongStatus() {
-        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+        RentalContract finalizedContract = RentalContract.builder()
+                .id(contractId).status(ContractStatus.FINALIZED)
+                .returned(false).items(new ArrayList<>()).payments(new ArrayList<>())
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .build();
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
 
         assertThatThrownBy(() -> contractService.sign(contractId))
                 .isInstanceOf(ValidationException.class)
@@ -505,5 +512,109 @@ class RentalContractServiceTest {
                 && (todayPrefix + "6").equals(c.getLegacyId())
         ));
     }
-}
 
+    // ── revise ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("revise deve criar REVISION com itens e pagamentos copiados")
+    void testRevise_success() {
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+
+        // Adiciona item e pagamento ao contrato assinado
+        signedContract.getItems().add(RentalContractItem.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .description("Vestido").value(BigDecimal.valueOf(500)).delivered(false)
+                .metadata(new ArrayList<>()).build());
+        signedContract.getPayments().add(RentalPayment.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .installmentNumber(1).paymentDate(LocalDate.now().plusDays(5))
+                .paymentMethod(PaymentMethod.PIX).value(BigDecimal.valueOf(500))
+                .status(PaymentStatus.PAID).installments(1)
+                .build());
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+        when(contractRepository.findByParentContractIdAndStatusNot(contractId, ContractStatus.SUPERSEDED))
+                .thenReturn(Optional.empty());
+        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        when(contractRepository.findMaxLegacyIdByPrefix(todayPrefix)).thenReturn(Optional.empty());
+        when(contractRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        contractService.revise(contractId);
+
+        verify(contractRepository).saveAndFlush(argThat(c ->
+                ContractStatus.REVISION.equals(c.getStatus())
+                && contractId.equals(c.getParentContractId())
+                && c.getItems().size() == 1
+                && c.getPayments().size() == 1
+                && PaymentStatus.PAID.equals(c.getPayments().get(0).getStatus())
+                && (todayPrefix + "1").equals(c.getLegacyId())
+        ));
+    }
+
+    @Test
+    @DisplayName("revise deve lançar ValidationException se contrato não está SIGNED")
+    void testRevise_wrongStatus() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+
+        assertThatThrownBy(() -> contractService.revise(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("SIGNED");
+    }
+
+    @Test
+    @DisplayName("revise deve lançar ValidationException se já existe revisão ativa")
+    void testRevise_duplicateRevision() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+        RentalContract existingRevision = RentalContract.builder()
+                .id(UUID.randomUUID()).status(ContractStatus.REVISION)
+                .parentContractId(contractId).build();
+        when(contractRepository.findByParentContractIdAndStatusNot(contractId, ContractStatus.SUPERSEDED))
+                .thenReturn(Optional.of(existingRevision));
+
+        assertThatThrownBy(() -> contractService.revise(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("revisão ativa");
+    }
+
+    // ── sign (REVISION → SIGNED + parent SUPERSEDED) ─────────────────────────
+
+    @Test
+    @DisplayName("sign de REVISION deve assinar e marcar contrato-pai como SUPERSEDED")
+    void testSign_revision_supersedesParent() {
+        UUID parentId = UUID.randomUUID();
+
+        RentalContract revisionContract = RentalContract.builder()
+                .id(contractId)
+                .status(ContractStatus.REVISION)
+                .parentContractId(parentId)
+                .customerId(customerId)
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .returned(false)
+                .items(new ArrayList<>())
+                .payments(new ArrayList<>())
+                .build();
+
+        RentalContract parentContract = RentalContract.builder()
+                .id(parentId)
+                .status(ContractStatus.SIGNED)
+                .items(new ArrayList<>())
+                .payments(new ArrayList<>())
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(revisionContract));
+        when(contractRepository.findById(parentId)).thenReturn(Optional.of(parentContract));
+        when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(null);
+        when(contractRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        contractService.sign(contractId);
+
+        assertThat(revisionContract.getStatus()).isEqualTo(ContractStatus.SIGNED);
+        assertThat(parentContract.getStatus()).isEqualTo(ContractStatus.SUPERSEDED);
+        assertThat(parentContract.getReplacedByContractId()).isEqualTo(contractId);
+        verify(contractRepository, times(2)).save(any());
+    }
+}

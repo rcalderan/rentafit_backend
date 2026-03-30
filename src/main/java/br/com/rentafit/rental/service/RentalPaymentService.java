@@ -147,12 +147,13 @@ public class RentalPaymentService {
     }
 
     private void validatePaidInstallmentMutationAllowed(RentalContract contract, RentalPayment payment, String action) {
-        boolean contractSignedOrFinalized = ContractStatus.SIGNED.equals(contract.getStatus())
-                || ContractStatus.FINALIZED.equals(contract.getStatus());
+        boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
+                || ContractStatus.FINALIZED.equals(contract.getStatus())
+                || ContractStatus.REVISION.equals(contract.getStatus());
 
-        if (contractSignedOrFinalized && PaymentStatus.PAID.equals(payment.getStatus())) {
+        if (contractLocked && PaymentStatus.PAID.equals(payment.getStatus())) {
             throw new ValidationException(
-                    "Não é possível " + action + " parcela PAGA após contrato assinado/finalizado");
+                    "Não é possível " + action + " parcela PAGA após contrato assinado/finalizado/em revisão");
         }
     }
 

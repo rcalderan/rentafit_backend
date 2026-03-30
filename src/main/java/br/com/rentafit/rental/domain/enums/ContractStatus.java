@@ -7,7 +7,9 @@ package br.com.rentafit.rental.domain.enums;
 public enum ContractStatus {
     DRAFT(0, "Proposta"),
     SIGNED(1, "Assinado"),
-    FINALIZED(2, "Contrato fechado");
+    FINALIZED(2, "Contrato fechado"),
+    REVISION(3, "Revisão"),
+    SUPERSEDED(4, "Substituído");
 
     private final int legacyCode;
     private final String description;

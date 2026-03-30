@@ -19,6 +19,8 @@ public record RentalContractSummaryDTO(
         String statusDescription,
         UUID customerId,
         String customerName,
+        UUID parentContractId,
+        UUID replacedByContractId,
         LocalDate eventDate,
         LocalDate pickupDate,
         LocalDate returnDate,
@@ -27,4 +29,3 @@ public record RentalContractSummaryDTO(
         BigDecimal paidValue,
         OffsetDateTime createdAt
 ) {}
-

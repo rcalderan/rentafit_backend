@@ -32,6 +32,12 @@ public record RentalContractDetailsDTO(
         UUID createdByEmployeeId,
         UUID returnedByEmployeeId,
 
+        // Vínculo com contrato-pai (revisão)
+        UUID parentContractId,
+
+        // Vínculo com contrato vigente que substituiu este (quando SUPERSEDED)
+        UUID replacedByContractId,
+
         // Datas
         LocalDate pickupDate,
         LocalDate eventDate,
@@ -56,4 +62,3 @@ public record RentalContractDetailsDTO(
         @JsonInclude(JsonInclude.Include.NON_NULL)
         List<String> warnings
 ) {}
-

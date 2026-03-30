@@ -148,6 +148,20 @@ public class RentalContractController {
         return ResponseEntity.ok(contractService.deliverItem(id, itemId, attendantEmployeeId));
     }
 
+    @PostMapping("/{id}/revise")
+    @Operation(summary = "Criar revisão de contrato assinado (SIGNED → REVISION)",
+            description = "Cria uma cópia editável do contrato com mesmos itens e pagamentos. "
+                    + "Parcelas PAID são preservadas e não podem ser alteradas na revisão. "
+                    + "Ao assinar a revisão, o contrato original é marcado como SUPERSEDED.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Revisão criada com sucesso"),
+            @ApiResponse(responseCode = "404", description = "Contrato original não encontrado"),
+            @ApiResponse(responseCode = "422", description = "Contrato não está SIGNED ou já possui revisão ativa")
+    })
+    public ResponseEntity<RentalContractDetailsDTO> revise(@PathVariable UUID id) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(contractService.revise(id));
+    }
+
     @PostMapping("/{id}/duplicate")
     @Operation(summary = "Duplicar contrato como novo DRAFT",
             description = "Clona o contrato com snapshot atualizado do cliente, mesmos itens e sem pagamentos.")

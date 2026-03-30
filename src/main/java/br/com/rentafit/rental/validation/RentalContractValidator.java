@@ -227,6 +227,39 @@ public class RentalContractValidator {
 
     // ── helpers privados ──────────────────────────────────────────────────────
 
+    /**
+     * Valida que parcelas PAID existentes não foram removidas nem alteradas na revisão.
+     * <p>Parcelas PENDING/CANCELLED podem ser livremente modificadas.</p>
+     *
+     * @param incoming lista de parcelas vindas do DTO de update
+     * @param existing lista de parcelas já persistidas no contrato em REVISION
+     */
+    public void validateRevisionPaymentIntegrity(List<RentalPaymentInputDTO> incoming, List<RentalPayment> existing) {
+        List<RentalPayment> paidPayments = existing.stream()
+                .filter(p -> PaymentStatus.PAID.equals(p.getStatus()))
+                .toList();
+
+        if (paidPayments.isEmpty()) return;
+
+        List<String> errors = new ArrayList<>();
+        for (RentalPayment paid : paidPayments) {
+            boolean found = incoming.stream().anyMatch(dto ->
+                    paid.getInstallmentNumber().equals(dto.installmentNumber())
+                    && paid.getValue().compareTo(dto.value()) == 0
+                    && paid.getPaymentMethod().name().equalsIgnoreCase(dto.paymentMethod())
+                    && "PAID".equalsIgnoreCase(dto.status())
+            );
+            if (!found) {
+                errors.add("Parcela PAGA #" + paid.getInstallmentNumber()
+                        + " (R$ " + paid.getValue() + ") não pode ser removida ou alterada em uma revisão");
+            }
+        }
+
+        if (!errors.isEmpty()) {
+            throw new ValidationException(String.join("; ", errors));
+        }
+    }
+
     private boolean isPaid(String status) {
         if (status == null) return false;
         try {

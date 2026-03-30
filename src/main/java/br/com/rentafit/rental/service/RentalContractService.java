@@ -129,8 +129,10 @@ public class RentalContractService {
     public RentalContractDetailsDTO update(UUID id, UpdateRentalContractDTO dto) {
         RentalContract contract = requireContract(id);
 
-        if (!ContractStatus.DRAFT.equals(contract.getStatus())) {
-            throw new ValidationException("Apenas contratos em DRAFT podem ser atualizados. Status atual: " + contract.getStatus());
+        if (!ContractStatus.DRAFT.equals(contract.getStatus())
+                && !ContractStatus.REVISION.equals(contract.getStatus())) {
+            throw new ValidationException(
+                    "Apenas contratos em DRAFT ou REVISION podem ser atualizados. Status atual: " + contract.getStatus());
         }
 
         validator.validateDateOrder(dto.pickupDate(), dto.eventDate(), dto.returnDate());
@@ -151,6 +153,11 @@ public class RentalContractService {
         // Valida que parcelas PAID possuem funcionário responsável
         validator.validatePaidPaymentsHaveEmployee(dto.payments());
 
+        // Em REVISION, parcelas PAID do contrato original não podem ser alteradas/removidas
+        if (ContractStatus.REVISION.equals(contract.getStatus())) {
+            validator.validateRevisionPaymentIntegrity(dto.payments(), contract.getPayments());
+        }
+
         // Valida que as parcelas somam o valor total dos itens
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
 
@@ -163,12 +170,14 @@ public class RentalContractService {
     // ── Transições de Estado ──────────────────────────────────────────────────
 
     /**
-     * DRAFT → SIGNED.
+     * DRAFT|REVISION → SIGNED.
      * Executa checagem de conflitos. BLOCKING → 422; WARNING → retornado no DTO.
+     * Se o contrato for uma REVISION (parentContractId != null),
+     * o contrato-pai é automaticamente marcado como SUPERSEDED.
      */
     public RentalContractDetailsDTO sign(UUID id) {
         RentalContract contract = requireContract(id);
-        requireStatus(contract, ContractStatus.DRAFT, "assinar");
+        requireStatusOneOf(contract, "assinar", ContractStatus.DRAFT, ContractStatus.REVISION);
 
         validator.validateDateOrder(contract.getPickupDate(), contract.getEventDate(), contract.getReturnDate());
         validator.validatePersistedPaidPaymentsHaveEmployee(contract.getPayments());
@@ -178,6 +187,16 @@ public class RentalContractService {
 
         contract.setStatus(ContractStatus.SIGNED);
         RentalContract saved = contractRepository.save(contract);
+
+        // Supersede the parent contract if this is a revision
+        if (saved.getParentContractId() != null) {
+            RentalContract parent = requireContract(saved.getParentContractId());
+            parent.setStatus(ContractStatus.SUPERSEDED);
+            parent.setReplacedByContractId(saved.getId());
+            contractRepository.save(parent);
+            log.info("Parent contract {} superseded by revision {}", parent.getId(), saved.getId());
+        }
+
         log.info("Contract {} signed. Warnings: {}", id, warnings != null ? warnings.size() : 0);
         return mapper.toDetailsDTO(saved, warnings);
     }
@@ -253,6 +272,88 @@ public class RentalContractService {
 
         workflowService.onReturn(saved);
         log.info("Contract {} return processed", id);
+        return mapper.toDetailsDTO(saved, null);
+    }
+
+    // ── Revisão ───────────────────────────────────────────────────────────────
+
+    /**
+     * Cria uma revisão de um contrato SIGNED.
+     * <p>Copia itens e pagamentos; o novo contrato nasce em REVISION.
+     * Ao ser assinado, o contrato-pai será marcado como SUPERSEDED.</p>
+     */
+    public RentalContractDetailsDTO revise(UUID id) {
+        RentalContract original = requireContract(id);
+        requireStatus(original, ContractStatus.SIGNED, "criar revisão de");
+
+        // Impede criação de revisão duplicada (se já existe uma ativa para este pai)
+        contractRepository.findByParentContractIdAndStatusNot(id, ContractStatus.SUPERSEDED)
+                .ifPresent(existing -> {
+                    throw new ValidationException(
+                            "Já existe uma revisão ativa (" + existing.getId() + ") para este contrato");
+                });
+
+        CustomerSnapshot freshSnapshot = validator.validateAndGetCustomer(original.getCustomerId());
+
+        RentalContract revision = RentalContract.builder()
+                .contractType(original.getContractType())
+                .customerId(freshSnapshot.id())
+                .customerName(freshSnapshot.name())
+                .customerDocument(freshSnapshot.document())
+                .createdByEmployeeId(original.getCreatedByEmployeeId())
+                .pickupDate(original.getPickupDate())
+                .eventDate(original.getEventDate())
+                .returnDate(original.getReturnDate())
+                .notes("Revisão do contrato " + original.getLegacyId() + ". " + original.getNotes())
+                .status(ContractStatus.REVISION)
+                .returned(false)
+                .parentContractId(original.getId())
+                .build();
+
+        // Deep-copy items + metadata
+        List<RentalContractItem> copiedItems = original.getItems().stream().map(origItem -> {
+            RentalContractItem newItem = RentalContractItem.builder()
+                    .contract(revision)
+                    .rentalItemId(origItem.getRentalItemId())
+                    .legacyProductCode(origItem.getLegacyProductCode())
+                    .description(origItem.getDescription())
+                    .value(origItem.getValue())
+                    .attendantEmployeeId(origItem.getAttendantEmployeeId())
+                    .delivered(false)
+                    .build();
+
+            List<RentalContractItemMeta> copiedMeta = origItem.getMetadata().stream().map(origMeta ->
+                    RentalContractItemMeta.builder()
+                            .contractItem(newItem)
+                            .type(origMeta.getType())
+                            .description(origMeta.getDescription())
+                            .accessoryId(origMeta.getAccessoryId())
+                            .build()
+            ).collect(Collectors.toList());
+            newItem.setMetadata(copiedMeta);
+            return newItem;
+        }).collect(Collectors.toList());
+        revision.setItems(copiedItems);
+
+        // Deep-copy payments (preserving status — PAID payments stay PAID)
+        List<RentalPayment> copiedPayments = original.getPayments().stream().map(origPay ->
+                RentalPayment.builder()
+                        .contract(revision)
+                        .installmentNumber(origPay.getInstallmentNumber())
+                        .paymentDate(origPay.getPaymentDate())
+                        .paymentMethod(origPay.getPaymentMethod())
+                        .value(origPay.getValue())
+                        .installments(origPay.getInstallments())
+                        .processedByEmployeeId(origPay.getProcessedByEmployeeId())
+                        .status(origPay.getStatus())
+                        .build()
+        ).collect(Collectors.toList());
+        revision.setPayments(copiedPayments);
+
+        revision.setLegacyId(generateLegacyId());
+
+        RentalContract saved = contractRepository.saveAndFlush(revision);
+        log.info("Contract {} revised as {} (legacyId={})", id, saved.getId(), saved.getLegacyId());
         return mapper.toDetailsDTO(saved, null);
     }
 
@@ -342,6 +443,16 @@ public class RentalContractService {
                     "Não é possível " + action + " um contrato em status " + contract.getStatus()
                             + ". Status esperado: " + expected);
         }
+    }
+
+    private void requireStatusOneOf(RentalContract contract, String action, ContractStatus... allowed) {
+        for (ContractStatus s : allowed) {
+            if (s.equals(contract.getStatus())) return;
+        }
+        throw new ValidationException(
+                "Não é possível " + action + " um contrato em status " + contract.getStatus()
+                        + ". Status esperado: " + java.util.Arrays.stream(allowed)
+                        .map(Enum::name).collect(Collectors.joining(" ou ")));
     }
 }
 

@@ -260,6 +260,38 @@ class RentalContractControllerTest {
         assertThat(response.getBody()).isNotNull();
     }
 
+    // ── revise ───────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("POST /{id}/revise deve retornar 201 com revisão criada")
+    void testRevise_returns201() {
+        RentalContractDetailsDTO revisionDTO = RentalContractDetailsDTO.builder()
+                .id(UUID.randomUUID()).status(3).statusDescription("Revisão")
+                .customerId(customerId).customerName("Ana Lima")
+                .parentContractId(contractId)
+                .totalValue(BigDecimal.valueOf(500)).paidValue(BigDecimal.ZERO)
+                .remainingValue(BigDecimal.valueOf(500))
+                .items(List.of()).payments(List.of()).build();
+        when(contractService.revise(contractId)).thenReturn(revisionDTO);
+
+        ResponseEntity<RentalContractDetailsDTO> response = controller.revise(contractId);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().parentContractId()).isEqualTo(contractId);
+    }
+
+    @Test
+    @DisplayName("POST /{id}/revise deve propagar ValidationException se não está SIGNED")
+    void testRevise_wrongStatus() {
+        when(contractService.revise(contractId))
+                .thenThrow(new ValidationException("Status esperado: SIGNED"));
+
+        assertThatThrownBy(() -> controller.revise(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("SIGNED");
+    }
+
     // ── deliverItem ───────────────────────────────────────────────────────────
 
     @Test

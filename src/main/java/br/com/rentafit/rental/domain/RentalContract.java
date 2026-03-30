@@ -58,6 +58,14 @@ public class RentalContract {
     @Column(name = "returned_by_employee_id")
     private UUID returnedByEmployeeId;
 
+    /** ID do contrato que esta revisão substitui (null se for contrato original). */
+    @Column(name = "parent_contract_id")
+    private UUID parentContractId;
+
+    /** ID do contrato vigente que substituiu este (preenchido quando status = SUPERSEDED). */
+    @Column(name = "replaced_by_contract_id")
+    private UUID replacedByContractId;
+
     // ── Datas do contrato ──────────────────────────────────────────────────────
     @Column(name = "pickup_date", nullable = false)
     private LocalDate pickupDate;
@@ -98,4 +106,3 @@ public class RentalContract {
     @Builder.Default
     private List<RentalPayment> payments = new ArrayList<>();
 }
-

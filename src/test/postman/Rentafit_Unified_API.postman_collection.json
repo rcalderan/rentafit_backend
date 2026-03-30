@@ -1297,13 +1297,13 @@
 					"response": []
 				},
 				{
-					"name": "Update Contract — DRAFT only",
+					"name": "Update Contract — DRAFT|REVISION",
 					"request": {
 						"method": "PUT",
 						"header": [{"key":"Content-Type","value":"application/json"}],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Atualizado\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco G\",\n      \"value\": 550.00,\n      \"metadata\": []\n    }\n  ],\n  \"payments\": [\n    {\n      \"installmentNumber\": 1,\n      \"paymentDate\": \"2026-06-07\",\n      \"paymentMethod\": \"CREDIT_CARD\",\n      \"value\": 550.00,\n      \"installments\": 2,\n      \"processedByEmployeeId\": \"{{employee_id}}\",\n      \"status\": \"PENDING\"\n    }\n  ]\n}"
+							"raw": "{\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Atualizado\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco G\",\n      \"value\": 550.00,\n      \"attendantEmployeeId\": \"{{employee_id}}\",\n      \"metadata\": []\n    }\n  ],\n  \"payments\": [\n    {\n      \"installmentNumber\": 1,\n      \"paymentDate\": \"2026-06-07\",\n      \"paymentMethod\": \"CREDIT_CARD\",\n      \"value\": 550.00,\n      \"installments\": 2,\n      \"processedByEmployeeId\": \"{{employee_id}}\",\n      \"status\": \"PENDING\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
@@ -1423,6 +1423,104 @@
 					"response": []
 				},
 				{
+					"name": "Revise Contract — SIGNED → REVISION",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('revision_contract_id', body.id);",
+									"    pm.test('Status é REVISION (3)', () => pm.expect(body.status).to.eql(3));",
+									"    pm.test('parentContractId aponta para original', () => {",
+									"        pm.expect(body.parentContractId).to.eql(pm.collectionVariables.get('contract_id'));",
+									"    });",
+									"    pm.test('legacyId gerado automaticamente', () => pm.expect(body.legacyId).to.be.a('string'));",
+									"    pm.test('Pagamentos copiados do original', () => pm.expect(body.payments.length).to.be.greaterThan(0));",
+									"    pm.test('Itens copiados do original', () => pm.expect(body.items.length).to.be.greaterThan(0));",
+									"    pm.test('Notas referenciam revisão', () => pm.expect(body.notes).to.include('Revisão'));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/revise",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}","revise"]
+						},
+						"description": "Cria uma revisão de um contrato SIGNED.\n\n• Copia todos os itens e pagamentos (incluindo PAID)\n• Novo status: REVISION (editável, mas parcelas PAID são protegidas)\n• parentContractId vincula ao contrato original\n• legacyId gerado automaticamente\n\nAo assinar a revisão (POST sign), o contrato-pai é automaticamente marcado como SUPERSEDED.\n\n⚠️ Não é possível criar uma segunda revisão se já existe uma ativa."
+					},
+					"response": []
+				},
+				{
+					"name": "Sign Revision — REVISION → SIGNED (pai vira SUPERSEDED)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Revisão agora é SIGNED (1)', () => pm.expect(body.status).to.eql(1));",
+									"    // O contrato-pai agora é SUPERSEDED — consulte via GET para confirmar",
+									"    console.log('Revisão assinada. Contrato-pai deve estar SUPERSEDED (4).');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{revision_contract_id}}/sign",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{revision_contract_id}}","sign"]
+						},
+						"description": "Assina a revisão. O contrato-pai (parentContractId) é automaticamente marcado como SUPERSEDED (4)."
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Parent is SUPERSEDED",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Contrato-pai é SUPERSEDED (4)', () => pm.expect(body.status).to.eql(4));",
+									"    pm.test('statusDescription é Substituído', () => pm.expect(body.statusDescription).to.eql('Substituído'));",
+									"    pm.test('replacedByContractId aponta para revisão', () => {",
+									"        pm.expect(body.replacedByContractId).to.eql(pm.collectionVariables.get('revision_contract_id'));",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}"]
+						},
+						"description": "Verifica que o contrato original foi marcado como SUPERSEDED após a revisão ser assinada."
+					},
+					"response": []
+				},
+				{
 					"name": "Duplicate Contract",
 					"event": [
 						{
@@ -1432,8 +1530,10 @@
 									"if (pm.response.code === 201) {",
 									"    var body = pm.response.json();",
 									"    pm.collectionVariables.set('contract_id', body.id);",
-									"    pm.test('Duplicata é DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+									"    pm.test('Duplicata é DRAFT (0)', () => pm.expect(body.status).to.eql(0));",
+									"    pm.test('legacyId gerado automaticamente', () => pm.expect(body.legacyId).to.be.a('string'));",
 									"    pm.test('Notas referenciam original', () => pm.expect(body.notes).to.include('Duplicado'));",
+									"    pm.test('Pagamentos zerados', () => pm.expect(body.payments.length).to.eql(0));",
 									"}"
 								],
 								"type": "text/javascript"
@@ -2304,9 +2404,15 @@
 		},
 		{
 			"key": "contract_legacy_id",
-			"value": "CTR001",
+			"value": "",
 			"type": "string",
-			"description": "Legacy ID textual do contrato de locação para testes"
+			"description": "Legacy ID textual do contrato (formato YYYYMMDD-N ou sequencial legado)"
+		},
+		{
+			"key": "revision_contract_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID da revisão de contrato (gerada pelo endpoint /revise)"
 		},
 		{
 			"key": "payment_id",

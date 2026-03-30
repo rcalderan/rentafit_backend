@@ -24,5 +24,7 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
 
     @Query("SELECT MAX(r.legacyId) FROM RentalContract r WHERE r.legacyId LIKE CONCAT(:prefix, '%')")
     Optional<String> findMaxLegacyIdByPrefix(@Param("prefix") String prefix);
+
+    Optional<RentalContract> findByParentContractIdAndStatusNot(UUID parentContractId, ContractStatus excludeStatus);
 }
 
