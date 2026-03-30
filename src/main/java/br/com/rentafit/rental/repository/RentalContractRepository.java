@@ -5,6 +5,8 @@ import br.com.rentafit.rental.domain.enums.ContractStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -19,5 +21,8 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
     Page<RentalContract> findByCustomerId(UUID customerId, Pageable pageable);
 
     List<RentalContract> findByCustomerIdAndStatus(UUID customerId, ContractStatus status);
+
+    @Query("SELECT MAX(r.legacyId) FROM RentalContract r WHERE r.legacyId LIKE CONCAT(:prefix, '%')")
+    Optional<String> findMaxLegacyIdByPrefix(@Param("prefix") String prefix);
 }
 

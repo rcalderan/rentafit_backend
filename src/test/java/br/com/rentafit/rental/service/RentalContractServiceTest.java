@@ -26,6 +26,7 @@ import org.springframework.data.domain.PageRequest;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -114,7 +115,7 @@ class RentalContractServiceTest {
                 .build();
 
         createDTO = new CreateRentalContractDTO(
-                customerId, 0, null,
+                customerId, 0, null, null,
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),
@@ -187,20 +188,37 @@ class RentalContractServiceTest {
     // ── create ────────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("create deve salvar contrato com snapshot do cliente")
+    @DisplayName("create deve salvar contrato com snapshot do cliente e gerar legacyId automaticamente")
     void testCreate_success() {
+        RentalContract contractWithoutLegacyId = RentalContract.builder()
+                .id(contractId)
+                .customerId(customerId)
+                .customerName("Ana Lima")
+                .customerDocument("12345678901")
+                .status(ContractStatus.DRAFT)
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .returned(false)
+                .items(new ArrayList<>())
+                .payments(new ArrayList<>())
+                .build();
+
         when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
-        when(mapper.toEntity(createDTO, customerSnapshot)).thenReturn(draftContract);
-        when(contractRepository.saveAndFlush(draftContract)).thenReturn(draftContract);
-        when(mapper.toDetailsDTO(draftContract, null)).thenReturn(detailsDTO);
+        when(mapper.toEntity(createDTO, customerSnapshot)).thenReturn(contractWithoutLegacyId);
+        when(contractRepository.findMaxLegacyIdByPrefix(any())).thenReturn(Optional.empty());
+        when(contractRepository.saveAndFlush(contractWithoutLegacyId)).thenReturn(contractWithoutLegacyId);
+        when(mapper.toDetailsDTO(contractWithoutLegacyId, null)).thenReturn(detailsDTO);
 
         RentalContractDetailsDTO result = contractService.create(createDTO);
 
         assertThat(result).isNotNull();
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+        assertThat(contractWithoutLegacyId.getLegacyId()).isEqualTo(todayPrefix + "1");
         verify(validator).validateDateOrder(any(), any(), any());
         verify(validator).validateAndGetCustomer(customerId);
         verify(validator).validateItemsHaveAttendant(createDTO.items());
-        verify(contractRepository).saveAndFlush(draftContract);
+        verify(contractRepository).saveAndFlush(contractWithoutLegacyId);
     }
 
     @Test
@@ -213,7 +231,7 @@ class RentalContractServiceTest {
                 List.of()
         );
         CreateRentalContractDTO dtoComItemSemAttendant = new CreateRentalContractDTO(
-                customerId, 0, null,
+                customerId, 0, null, null,
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),
@@ -230,6 +248,69 @@ class RentalContractServiceTest {
         assertThatThrownBy(() -> contractService.create(dtoComItemSemAttendant))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("attendantEmployeeId");
+    }
+
+    @Test
+    @DisplayName("create deve gerar legacyId sequencial quando já existem contratos no dia")
+    void testCreate_autoGenerateLegacyId_increment() {
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+
+        RentalContract contractNoLegacy = RentalContract.builder()
+                .id(contractId).customerId(customerId)
+                .customerName("Ana Lima").customerDocument("12345678901")
+                .status(ContractStatus.DRAFT)
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .returned(false).items(new ArrayList<>()).payments(new ArrayList<>())
+                .build();
+
+        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        when(mapper.toEntity(createDTO, customerSnapshot)).thenReturn(contractNoLegacy);
+        when(contractRepository.findMaxLegacyIdByPrefix(todayPrefix))
+                .thenReturn(Optional.of(todayPrefix + "3"));
+        when(contractRepository.saveAndFlush(contractNoLegacy)).thenReturn(contractNoLegacy);
+        when(mapper.toDetailsDTO(contractNoLegacy, null)).thenReturn(detailsDTO);
+
+        contractService.create(createDTO);
+
+        assertThat(contractNoLegacy.getLegacyId()).isEqualTo(todayPrefix + "4");
+    }
+
+    @Test
+    @DisplayName("create deve preservar legacyId fornecido no DTO (importação legado)")
+    void testCreate_preserveProvidedLegacyId() {
+        CreateRentalContractDTO dtoWithLegacy = new CreateRentalContractDTO(
+                customerId, 0, null, "12345",
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(7),
+                LocalDate.now().plusDays(9),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
+        );
+
+        RentalContract contractWithLegacy = RentalContract.builder()
+                .id(contractId).legacyId("12345").customerId(customerId)
+                .customerName("Ana Lima").customerDocument("12345678901")
+                .status(ContractStatus.DRAFT)
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .returned(false).items(new ArrayList<>()).payments(new ArrayList<>())
+                .build();
+
+        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        when(mapper.toEntity(dtoWithLegacy, customerSnapshot)).thenReturn(contractWithLegacy);
+        when(contractRepository.saveAndFlush(contractWithLegacy)).thenReturn(contractWithLegacy);
+        when(mapper.toDetailsDTO(contractWithLegacy, null)).thenReturn(detailsDTO);
+
+        contractService.create(dtoWithLegacy);
+
+        assertThat(contractWithLegacy.getLegacyId()).isEqualTo("12345");
+        verify(contractRepository, never()).findMaxLegacyIdByPrefix(any());
     }
 
     // ── update ────────────────────────────────────────────────────────────────
@@ -402,10 +483,14 @@ class RentalContractServiceTest {
     // ── duplicate ─────────────────────────────────────────────────────────────
 
     @Test
-    @DisplayName("duplicate deve criar novo DRAFT com snapshot atualizado e sem pagamentos")
+    @DisplayName("duplicate deve criar novo DRAFT com snapshot atualizado, sem pagamentos e legacyId gerado")
     void testDuplicate_success() {
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
         when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        when(contractRepository.findMaxLegacyIdByPrefix(todayPrefix))
+                .thenReturn(Optional.of(todayPrefix + "5"));
         when(contractRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
 
@@ -417,6 +502,7 @@ class RentalContractServiceTest {
                 && "Ana Lima".equals(c.getCustomerName())
                 && "12345678901".equals(c.getCustomerDocument())
                 && c.getPayments().isEmpty()
+                && (todayPrefix + "6").equals(c.getLegacyId())
         ));
     }
 }

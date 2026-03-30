@@ -28,6 +28,7 @@ public class RentalMapper {
 
     public RentalContract toEntity(CreateRentalContractDTO dto, CustomerSnapshot snapshot) {
         RentalContract contract = RentalContract.builder()
+                .legacyId(dto.legacyId())
                 .contractType(dto.contractType() != null ? dto.contractType() : 0)
                 .customerId(snapshot.id())
                 .customerName(snapshot.name())

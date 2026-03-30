@@ -24,6 +24,9 @@ public record CreateRentalContractDTO(
 
         UUID createdByEmployeeId,
 
+        /** Opcional — quando nulo, o sistema gera automaticamente no formato YYYYMMDD-N. */
+        String legacyId,
+
         @NotNull(message = "Data de retirada é obrigatória")
         LocalDate pickupDate,
 

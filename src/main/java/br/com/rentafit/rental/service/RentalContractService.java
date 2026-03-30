@@ -20,6 +20,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -49,6 +51,8 @@ public class RentalContractService {
     private final RentalContractValidator validator;
     private final RentalWorkflowService workflowService;
     private final RentalMapper mapper;
+
+    private static final DateTimeFormatter LEGACY_ID_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -108,10 +112,17 @@ public class RentalContractService {
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
 
         RentalContract contract = mapper.toEntity(dto, snapshot);
+
+        // Auto-generate legacyId when not provided in the request
+        if (contract.getLegacyId() == null || contract.getLegacyId().isBlank()) {
+            contract.setLegacyId(generateLegacyId());
+        }
+
         // saveAndFlush forces an immediate INSERT so @CreationTimestamp is populated
         // by Hibernate before the mapper reads the createdAt field
         RentalContract saved = contractRepository.saveAndFlush(contract);
-        log.info("Created rental contract {} for customer {}", saved.getId(), snapshot.id());
+        log.info("Created rental contract {} (legacyId={}) for customer {}",
+                saved.getId(), saved.getLegacyId(), snapshot.id());
         return mapper.toDetailsDTO(saved, null);
     }
 
@@ -292,13 +303,29 @@ public class RentalContractService {
         }).collect(Collectors.toList());
 
         duplicate.setItems(copiedItems);
+        duplicate.setLegacyId(generateLegacyId());
 
         RentalContract saved = contractRepository.save(duplicate);
-        log.info("Contract {} duplicated as {}", id, saved.getId());
+        log.info("Contract {} duplicated as {} (legacyId={})", id, saved.getId(), saved.getLegacyId());
         return mapper.toDetailsDTO(saved, null);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Gera legacyId no formato YYYYMMDD-N, onde N é sequencial no dia.
+     * <p>IDs legados importados futuramente serão inteiros simples (ex: "1", "2"),
+     * sem conflito com este formato.</p>
+     */
+    String generateLegacyId() {
+        String prefix = LocalDate.now().format(LEGACY_ID_DATE_FMT) + "-";
+        return contractRepository.findMaxLegacyIdByPrefix(prefix)
+                .map(max -> {
+                    int lastN = Integer.parseInt(max.substring(prefix.length()));
+                    return prefix + (lastN + 1);
+                })
+                .orElse(prefix + "1");
+    }
 
     private RentalContract requireContract(UUID id) {
         return contractRepository.findById(id)
