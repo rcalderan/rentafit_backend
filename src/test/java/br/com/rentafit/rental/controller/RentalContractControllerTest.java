@@ -234,6 +234,30 @@ class RentalContractControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    @Test
+    @DisplayName("PATCH /{id}/finalize deve retornar 200 com warnings quando há conflito de proximidade")
+    void testFinalize_returns200WithWarnings() {
+        when(contractService.finalize(contractId)).thenReturn(detailsDTOWithWarnings);
+
+        ResponseEntity<RentalContractDetailsDTO> response = controller.finalize(contractId);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().warnings()).isNotEmpty();
+        assertThat(response.getBody().warnings().get(0)).contains("Vestido");
+    }
+
+    @Test
+    @DisplayName("PATCH /{id}/finalize deve propagar ValidationException em conflito bloqueante")
+    void testFinalize_blockingConflict() {
+        when(contractService.finalize(contractId))
+                .thenThrow(new ValidationException("Conflito de reserva: Item 'Vestido' — BLOQUEIO"));
+
+        assertThatThrownBy(() -> controller.finalize(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("BLOQUEIO");
+    }
+
     // ── processReturn ─────────────────────────────────────────────────────────
 
     @Test

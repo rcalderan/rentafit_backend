@@ -117,6 +117,12 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 | `category_id` | UUID da categoria para testes | (salvo ao criar categoria) |
 | `rental_product_id` | UUID do produto de aluguel | (salvo ao criar rental product) |
 | `retail_product_id` | UUID do produto de venda | (salvo ao criar retail product) |
+| `contract_id` | UUID do contrato de locação | (salvo ao criar contrato) |
+| `item_id` | UUID do item do contrato | (salvo ao criar contrato) |
+| `revision_contract_id` | UUID da revisão de contrato | (salvo ao criar revisão) |
+| `payment_id` | UUID da parcela de pagamento | (salvo ao criar parcela) |
+| `conflict_contract_id` | UUID do contrato de teste BLOCKING | (salvo no teste de conflito) |
+| `warning_contract_id` | UUID do contrato de teste WARNING | (salvo no teste de conflito) |
 
 ## 🔄 Fluxo de Teste Recomendado
 
@@ -176,7 +182,50 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 6. Remove Stock
 ```
 
-### 4. Renovar Token (se expirar)
+### 4. Testar Módulo Rental Contracts
+
+```
+# Ciclo de vida básico
+1. Create Contract (DRAFT) → salva contract_id e item_id
+2. Get Contract by ID
+3. Update Contract (DRAFT)
+4. Sign Contract (DRAFT → SIGNED)
+5. Finalize Contract (SIGNED → FINALIZED)
+6. Deliver Item
+7. Process Return
+
+# Revisão de contrato
+1. Revise Contract (SIGNED → REVISION) → salva revision_contract_id
+2. Sign Revision (REVISION → SIGNED) — pai vira SUPERSEDED
+3. Verify Parent is SUPERSEDED
+
+# Duplicação
+1. Duplicate Contract → salva novo contract_id (DRAFT sem pagamentos)
+
+# Pagamentos
+1. Add Payment → salva payment_id
+2. List Payments
+3. Update Payment
+4. Cancel Payment
+
+# Teste de conflitos de reserva (⚡)
+1. Assinar/Finalizar o 1º contrato (contract_id deve estar SIGNED ou FINALIZED)
+2. ⚡ Create 2nd Contract (mesmo item, mesma data) → salva conflict_contract_id
+3. ⚡ Sign 2nd Contract → espera 422 BLOCKING
+4. ⚡ Create 3rd Contract (mesmo item, +2 dias) → salva warning_contract_id
+5. ⚡ Sign 3rd Contract → espera 200 com warnings[]
+```
+
+#### Conflitos de reserva — regras
+
+| Cenário | Resultado |
+|---------|-----------|
+| Mesmo item + **mesmo eventDate** que contrato SIGNED/FINALIZED | **422 BLOCKING** — transição impedida |
+| Mesmo item + eventDate a **±1~3 dias** de contrato SIGNED/FINALIZED | **200 + warnings[]** — alerta de proximidade |
+| Mesmo item + eventDate a **±4+ dias** | Sem conflito |
+| Itens sem `rentalItemId` (legados) | Ignorados na verificação |
+
+### 5. Renovar Token (se expirar)
 
 ```
 Auth → Refresh Token

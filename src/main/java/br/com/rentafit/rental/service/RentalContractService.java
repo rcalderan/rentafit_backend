@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -286,12 +287,13 @@ public class RentalContractService {
         RentalContract original = requireContract(id);
         requireStatus(original, ContractStatus.SIGNED, "criar revisão de");
 
-        // Impede criação de revisão duplicada (se já existe uma ativa para este pai)
-        contractRepository.findByParentContractIdAndStatusNot(id, ContractStatus.SUPERSEDED)
-                .ifPresent(existing -> {
-                    throw new ValidationException(
-                            "Já existe uma revisão ativa (" + existing.getId() + ") para este contrato");
-                });
+        // Se já existe uma revisão ativa para este contrato, retorna ela
+        Optional<RentalContract> activeRevision =
+                contractRepository.findByParentContractIdAndStatusNot(id, ContractStatus.SUPERSEDED);
+        if (activeRevision.isPresent()) {
+            log.info("Active revision {} already exists for contract {}", activeRevision.get().getId(), id);
+            return mapper.toDetailsDTO(activeRevision.get(), null);
+        }
 
         CustomerSnapshot freshSnapshot = validator.validateAndGetCustomer(original.getCustomerId());
 
@@ -354,6 +356,10 @@ public class RentalContractService {
 
         RentalContract saved = contractRepository.saveAndFlush(revision);
         log.info("Contract {} revised as {} (legacyId={})", id, saved.getId(), saved.getLegacyId());
+        original.setReplacedByContractId(saved.getId());
+        contractRepository.saveAndFlush(original);
+        log.info("Contract Original {} child replaced by {}", original.getId(), saved.getId());
+
         return mapper.toDetailsDTO(saved, null);
     }
 

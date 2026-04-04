@@ -387,6 +387,21 @@ class RentalContractServiceTest {
         assertThat(result.warnings()).containsExactlyElementsOf(warnings);
     }
 
+    @Test
+    @DisplayName("sign deve lançar ValidationException quando há conflito BLOCKING")
+    void testSign_blockingConflict() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(validator.checkConflictsForTransition(any(), any(), any()))
+                .thenThrow(new ValidationException("Conflito de reserva: Item 'Vestido' — BLOQUEIO — mesma data"));
+
+        assertThatThrownBy(() -> contractService.sign(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("BLOQUEIO");
+
+        // Status NÃO deve mudar
+        assertThat(draftContract.getStatus()).isEqualTo(ContractStatus.DRAFT);
+    }
+
     // ── finalize ──────────────────────────────────────────────────────────────
 
     @Test
@@ -447,6 +462,67 @@ class RentalContractServiceTest {
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("item");
     }
+
+    @Test
+    @DisplayName("finalize deve incluir warnings no DTO quando há conflitos de proximidade")
+    void testFinalize_withWarnings() {
+        signedContract.getItems().add(RentalContractItem.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .description("Vestido").value(BigDecimal.valueOf(500)).delivered(false)
+                .metadata(new ArrayList<>()).build());
+
+        signedContract.getPayments().add(RentalPayment.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .installmentNumber(1).paymentDate(LocalDate.now().plusDays(5))
+                .paymentMethod(PaymentMethod.PIX).value(BigDecimal.valueOf(500))
+                .status(PaymentStatus.PAID).installments(1)
+                .build());
+
+        List<String> warnings = List.of("Item 'Vestido' — ALERTA: evento próximo");
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+        when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(warnings);
+        when(contractRepository.save(any())).thenReturn(signedContract);
+
+        RentalContractDetailsDTO dtoWithWarnings = RentalContractDetailsDTO.builder()
+                .id(contractId).status(2).statusDescription("Fechado")
+                .totalValue(BigDecimal.valueOf(500)).paidValue(BigDecimal.valueOf(500))
+                .remainingValue(BigDecimal.ZERO)
+                .items(List.of()).payments(List.of()).warnings(warnings).build();
+        when(mapper.toDetailsDTO(any(), eq(warnings))).thenReturn(dtoWithWarnings);
+
+        RentalContractDetailsDTO result = contractService.finalize(contractId);
+
+        assertThat(result.warnings()).containsExactlyElementsOf(warnings);
+        verify(workflowService).onFinalize(signedContract);
+    }
+
+    @Test
+    @DisplayName("finalize deve lançar ValidationException quando há conflito BLOCKING")
+    void testFinalize_blockingConflict() {
+        signedContract.getItems().add(RentalContractItem.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .description("Vestido").value(BigDecimal.valueOf(500)).delivered(false)
+                .metadata(new ArrayList<>()).build());
+
+        signedContract.getPayments().add(RentalPayment.builder()
+                .id(UUID.randomUUID()).contract(signedContract)
+                .installmentNumber(1).paymentDate(LocalDate.now().plusDays(5))
+                .paymentMethod(PaymentMethod.PIX).value(BigDecimal.valueOf(500))
+                .status(PaymentStatus.PAID).installments(1)
+                .build());
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+        when(validator.checkConflictsForTransition(any(), any(), any()))
+                .thenThrow(new ValidationException("Conflito de reserva: Item 'Vestido' — BLOQUEIO — mesma data"));
+
+        assertThatThrownBy(() -> contractService.finalize(contractId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("BLOQUEIO");
+
+        assertThat(signedContract.getStatus()).isEqualTo(ContractStatus.SIGNED);
+        verify(workflowService, never()).onFinalize(any());
+    }
+
 
     // ── processReturn ─────────────────────────────────────────────────────────
 
@@ -563,18 +639,31 @@ class RentalContractServiceTest {
     }
 
     @Test
-    @DisplayName("revise deve lançar ValidationException se já existe revisão ativa")
-    void testRevise_duplicateRevision() {
-        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+    @DisplayName("revise deve retornar revisão existente se já houver uma ativa")
+    void testRevise_returnsExistingRevision() {
+        UUID existingRevisionId = UUID.randomUUID();
         RentalContract existingRevision = RentalContract.builder()
-                .id(UUID.randomUUID()).status(ContractStatus.REVISION)
-                .parentContractId(contractId).build();
+                .id(existingRevisionId).status(ContractStatus.REVISION)
+                .parentContractId(contractId)
+                .items(new ArrayList<>()).payments(new ArrayList<>())
+                .build();
+
+        RentalContractDetailsDTO existingRevisionDTO = RentalContractDetailsDTO.builder()
+                .id(existingRevisionId).status(3).statusDescription("Revisão")
+                .parentContractId(contractId)
+                .totalValue(BigDecimal.ZERO).paidValue(BigDecimal.ZERO).remainingValue(BigDecimal.ZERO)
+                .items(List.of()).payments(List.of()).build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
         when(contractRepository.findByParentContractIdAndStatusNot(contractId, ContractStatus.SUPERSEDED))
                 .thenReturn(Optional.of(existingRevision));
+        when(mapper.toDetailsDTO(existingRevision, null)).thenReturn(existingRevisionDTO);
 
-        assertThatThrownBy(() -> contractService.revise(contractId))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("revisão ativa");
+        RentalContractDetailsDTO result = contractService.revise(contractId);
+
+        assertThat(result.id()).isEqualTo(existingRevisionId);
+        assertThat(result.parentContractId()).isEqualTo(contractId);
+        verify(contractRepository, never()).saveAndFlush(any());
     }
 
     // ── sign (REVISION → SIGNED + parent SUPERSEDED) ─────────────────────────

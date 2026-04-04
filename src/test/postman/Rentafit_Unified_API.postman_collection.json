@@ -1314,27 +1314,34 @@
 					},
 					"response": []
 				},
-				{
-					"name": "Sign Contract — DRAFT → SIGNED",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    var body = pm.response.json();",
-									"    pm.test('Status é SIGNED', () => pm.expect(body.status).to.eql('SIGNED'));",
-									"    if (body.warnings && body.warnings.length > 0) {",
-									"        console.warn('⚠️  Conflito de proximidade:', body.warnings);",
-									"    } else {",
-									"        pm.test('Sem conflitos de reserva', () => pm.expect(body.warnings).to.be.undefined);",
-									"    }",
-									"}"
-								],
-								"type": "text/javascript"
-							}
+			{
+				"name": "Sign Contract — DRAFT → SIGNED",
+				"event": [
+					{
+						"listen": "test",
+						"script": {
+							"exec": [
+								"if (pm.response.code === 200) {",
+								"    var body = pm.response.json();",
+								"    pm.test('Status é SIGNED', () => pm.expect(body.status).to.eql('SIGNED'));",
+								"    if (body.warnings && body.warnings.length > 0) {",
+								"        console.warn('⚠️  Conflito de proximidade:', body.warnings);",
+								"    } else {",
+								"        pm.test('Sem conflitos de reserva', () => pm.expect(body.warnings).to.be.undefined);",
+								"    }",
+								"}",
+								"if (pm.response.code === 422) {",
+								"    var body = pm.response.json();",
+								"    pm.test('422 contém mensagem de conflito BLOCKING', () => {",
+								"        pm.expect(body.message || body.error || JSON.stringify(body)).to.include('Conflito');",
+								"    });",
+								"    console.error('🚫 Conflito bloqueante detectado no sign:', JSON.stringify(body));",
+								"}"
+							],
+							"type": "text/javascript"
 						}
-					],
+					}
+				],
 					"request": {
 						"method": "PATCH",
 						"header": [],
@@ -1347,34 +1354,46 @@
 					},
 					"response": []
 				},
-				{
-					"name": "Finalize Contract — SIGNED → FINALIZED",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"if (pm.response.code === 200) {",
-									"    var body = pm.response.json();",
-									"    pm.test('Status é FINALIZED', () => pm.expect(body.status).to.eql('FINALIZED'));",
-									"}"
-								],
-								"type": "text/javascript"
-							}
+			{
+				"name": "Finalize Contract — SIGNED → FINALIZED",
+				"event": [
+					{
+						"listen": "test",
+						"script": {
+							"exec": [
+								"if (pm.response.code === 200) {",
+								"    var body = pm.response.json();",
+								"    pm.test('Status é FINALIZED', () => pm.expect(body.status).to.eql('FINALIZED'));",
+								"    if (body.warnings && body.warnings.length > 0) {",
+								"        console.warn('⚠️  Conflito de proximidade (finalize):', body.warnings);",
+								"    } else {",
+								"        pm.test('Sem conflitos de reserva', () => pm.expect(body.warnings).to.be.undefined);",
+								"    }",
+								"}",
+								"if (pm.response.code === 422) {",
+								"    var body = pm.response.json();",
+								"    pm.test('422 contém mensagem de conflito BLOCKING', () => {",
+								"        pm.expect(body.message || body.error || JSON.stringify(body)).to.include('Conflito');",
+								"    });",
+								"    console.error('🚫 Conflito bloqueante detectado no finalize:', JSON.stringify(body));",
+								"}"
+							],
+							"type": "text/javascript"
 						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/finalize",
-							"host": ["{{base_url}}"],
-							"path": ["api","v1","rental","contracts","{{contract_id}}","finalize"]
-						},
-						"description": "SIGNED → FINALIZED. RentalItem → RESERVED. Acessórios catalogados → Stock.reserve(1). Após FINALIZED: só addPayment permitido."
+					}
+				],
+				"request": {
+					"method": "PATCH",
+					"header": [],
+					"url": {
+						"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/finalize",
+						"host": ["{{base_url}}"],
+						"path": ["api","v1","rental","contracts","{{contract_id}}","finalize"]
 					},
-					"response": []
+					"description": "SIGNED → FINALIZED. Verifica conflitos de reserva (mesma lógica do sign):\n• Mesmo eventDate que outro SIGNED/FINALIZED → 422 BLOCKING\n• eventDate a ±3 dias → 200 com `warnings[]`\n• Sem conflito → 200 sem `warnings`\n\nPré-requisitos:\n• Contrato deve ter ao menos 1 item\n• Ao menos 1 parcela com status PAID\n\nEfeitos colaterais:\n• RentalItem → RESERVED\n• Acessórios catalogados → Stock.reserve(1)"
 				},
+				"response": []
+			},
 				{
 					"name": "Deliver Item",
 					"request": {
@@ -1628,6 +1647,150 @@
 							"path": ["api","v1","rental","contracts","{{contract_id}}","payments","{{payment_id}}"]
 						},
 						"description": "Cancela parcela. 422 após FINALIZED."
+					},
+					"response": []
+				},
+				{
+					"name": "⚡ Conflict Test — Create 2nd Contract (same item, same date)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('conflict_contract_id', body.id);",
+									"    pm.test('2º contrato criado como DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+									"    console.log('Conflict contract DRAFT criado: ' + body.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Contrato para teste de conflito — mesmo item e mesma data\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"002\",\n      \"description\": \"Vestido de Noiva Branco M (conflito)\",\n      \"value\": 500.00,\n      \"attendantEmployeeId\": \"{{employee_id}}\",\n      \"metadata\": []\n    }\n  ],\n  \"payments\": [\n    {\n      \"installmentNumber\": 1,\n      \"paymentDate\": \"2026-06-07\",\n      \"paymentMethod\": \"PIX\",\n      \"value\": 500.00,\n      \"installments\": 1,\n      \"processedByEmployeeId\": \"{{employee_id}}\",\n      \"status\": \"PENDING\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts"]
+						},
+						"description": "Cria um segundo contrato DRAFT com o MESMO rental_product_id e MESMO eventDate de um contrato já SIGNED/FINALIZED.\n\nDRAFT é criado normalmente — conflitos só são verificados no sign/finalize."
+					},
+					"response": []
+				},
+				{
+					"name": "⚡ Conflict Test — Sign 2nd Contract (expect 422 BLOCKING)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Deve retornar 422 por conflito BLOCKING', () => {",
+									"    pm.expect(pm.response.code).to.eql(422);",
+									"});",
+									"if (pm.response.code === 422) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Mensagem contém BLOQUEIO ou Conflito', () => {",
+									"        var msg = body.message || body.error || JSON.stringify(body);",
+									"        pm.expect(msg).to.match(/Conflito|BLOQUEIO/i);",
+									"    });",
+									"    console.log('✅ Conflito BLOCKING detectado corretamente:', JSON.stringify(body));",
+									"}",
+									"if (pm.response.code === 200) {",
+									"    console.warn('⚠️ Contrato assinado sem conflito — verifique se o 1º contrato está SIGNED/FINALIZED.');",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{conflict_contract_id}}/sign",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{conflict_contract_id}}","sign"]
+						},
+						"description": "Tenta assinar o 2º contrato que usa o mesmo item e mesma data de um SIGNED/FINALIZED.\n\n• Resultado esperado: **422** com mensagem de Conflito de reserva (BLOCKING)\n\n**Pré-requisito:** O 1º contrato (contract_id) deve estar SIGNED ou FINALIZED antes de executar este teste."
+					},
+					"response": []
+				},
+				{
+					"name": "⚡ Conflict Test — Create 3rd Contract (same item, +2 days)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('warning_contract_id', body.id);",
+									"    pm.test('3º contrato criado como DRAFT', () => pm.expect(body.status).to.eql('DRAFT'));",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-07\",\n  \"eventDate\": \"2026-06-09\",\n  \"returnDate\": \"2026-06-11\",\n  \"notes\": \"Contrato para teste de WARNING — mesma peça, +2 dias\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"003\",\n      \"description\": \"Vestido de Noiva Branco M (warning)\",\n      \"value\": 500.00,\n      \"attendantEmployeeId\": \"{{employee_id}}\",\n      \"metadata\": []\n    }\n  ],\n  \"payments\": [\n    {\n      \"installmentNumber\": 1,\n      \"paymentDate\": \"2026-06-09\",\n      \"paymentMethod\": \"PIX\",\n      \"value\": 500.00,\n      \"installments\": 1,\n      \"processedByEmployeeId\": \"{{employee_id}}\",\n      \"status\": \"PENDING\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts"]
+						},
+						"description": "Cria um 3º contrato com o mesmo item mas eventDate a +2 dias do contrato SIGNED.\n\nEspera-se que ao assinar, o contrato seja aprovado (200) mas com warnings[]."
+					},
+					"response": []
+				},
+				{
+					"name": "⚡ Conflict Test — Sign 3rd Contract (expect 200 + warnings)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test('Deve retornar 200 (sign com warning)', () => {",
+									"    pm.expect(pm.response.code).to.eql(200);",
+									"});",
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Status é SIGNED', () => pm.expect(body.status).to.eql('SIGNED'));",
+									"    if (body.warnings && body.warnings.length > 0) {",
+									"        pm.test('warnings[] contém alerta de proximidade', () => {",
+									"            pm.expect(body.warnings[0]).to.match(/ALERTA|conflito/i);",
+									"        });",
+									"        console.log('✅ Warning detectado corretamente:', JSON.stringify(body.warnings));",
+									"    } else {",
+									"        console.warn('⚠️ Nenhum warning retornado — verifique se o 1º contrato está SIGNED/FINALIZED com eventDate a ±3 dias.');",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{warning_contract_id}}/sign",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{warning_contract_id}}","sign"]
+						},
+						"description": "Assina o 3º contrato cujo eventDate está a +2 dias de um SIGNED/FINALIZED.\n\n• Resultado esperado: **200** com `warnings[]` contendo alerta de proximidade (WARNING)\n\n**Pré-requisito:** O 1º contrato (contract_id) deve estar SIGNED ou FINALIZED."
 					},
 					"response": []
 				}
@@ -2425,6 +2588,18 @@
 			"value": "",
 			"type": "string",
 			"description": "UUID do item do contrato para testes"
+		},
+		{
+			"key": "conflict_contract_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do contrato criado para teste de conflito BLOCKING (mesmo item e mesma data)"
+		},
+		{
+			"key": "warning_contract_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do contrato criado para teste de conflito WARNING (mesmo item, eventDate a ±3 dias)"
 		},
 		{
 			"key": "invoice_id",
