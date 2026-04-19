@@ -29,7 +29,7 @@ public class RentalMapper {
     public RentalContract toEntity(CreateRentalContractDTO dto, CustomerSnapshot snapshot) {
         RentalContract contract = RentalContract.builder()
                 .legacyId(dto.legacyId())
-                .contractType(dto.contractType() != null ? dto.contractType() : 0)
+                .contractType(0) // RENTAL — forçado pelo módulo rental
                 .customerId(snapshot.id())
                 .customerName(snapshot.name())
                 .customerDocument(snapshot.document())
@@ -65,7 +65,7 @@ public class RentalMapper {
 
     public void updateEntityFromDTO(RentalContract contract, UpdateRentalContractDTO dto,
                                      List<RentalPaymentInputDTO> payments) {
-        contract.setContractType(dto.contractType() != null ? dto.contractType() : contract.getContractType());
+        // contractType não é alterável — definido na criação
         contract.setCreatedByEmployeeId(dto.createdByEmployeeId() != null ? dto.createdByEmployeeId() : contract.getCreatedByEmployeeId());
         contract.setPickupDate(dto.pickupDate());
         contract.setEventDate(dto.eventDate());

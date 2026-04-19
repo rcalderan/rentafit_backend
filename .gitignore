@@ -9,6 +9,7 @@ receita/
 .legado
 .prompt
 .docs
+.copilot/*
 
 ### STS ###
 .apt_generated

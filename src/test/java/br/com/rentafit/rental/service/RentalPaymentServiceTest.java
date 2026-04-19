@@ -143,6 +143,26 @@ class RentalPaymentServiceTest {
     }
 
     @Test
+    @DisplayName("addPayment deve lançar ValidationException se paymentDate < hoje")
+    void testAddPayment_dateBeforeToday() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+
+        RentalPaymentInputDTO pastDTO = new RentalPaymentInputDTO(
+                1,
+                LocalDate.now().minusDays(1),
+                "PIX",
+                new BigDecimal("100.00"),
+                1, null, null
+        );
+
+        assertThatThrownBy(() -> paymentService.addPayment(contractId, pastDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("anterior à data atual");
+
+        verify(paymentRepository, never()).save(any(RentalPayment.class));
+    }
+
+    @Test
     @DisplayName("addPayment deve lançar ValidationException ao atingir 24 parcelas")
     void testAddPayment_exceeds24Installments() {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
@@ -224,6 +244,29 @@ class RentalPaymentServiceTest {
 
         assertThat(result).isNotNull().hasSize(1);
         verify(paymentRepository).save(existingPayment);
+    }
+
+    @Test
+    @DisplayName("updatePayment deve lançar ValidationException se paymentDate < hoje")
+    void testUpdatePayment_dateBeforeToday() {
+        RentalPaymentInputDTO pastDTO = new RentalPaymentInputDTO(
+                1,
+                LocalDate.now().minusDays(1),
+                "PIX",
+                new BigDecimal("200.00"),
+                1,
+                null,
+                "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, pastDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("anterior à data atual");
+
+        verify(paymentRepository, never()).save(any(RentalPayment.class));
     }
 
     // ── cancelPayment ─────────────────────────────────────────────────────────
@@ -520,6 +563,9 @@ class RentalPaymentServiceTest {
     @Test
     @DisplayName("BUG REGRESSION: cenário exato do HAR - legacyId=1 - parcela PENDING reduzida e marcada PAID deve gerar gap")
     void testUpdatePayment_harBugRegression_contract1() {
+        LocalDate existingPaymentDate = LocalDate.now().plusDays(1);
+        LocalDate eventDate = LocalDate.now().plusDays(30);
+
         // Setup: contract total = 590, payments: #1=290/PAID, #2=200/PENDING, #3=100/PENDING
         // Action: PUT #3 with value=50, status=PAID
         // Expected: gap payment #4=50/PENDING is auto-created
@@ -537,7 +583,7 @@ class RentalPaymentServiceTest {
         RentalContract harContract = RentalContract.builder()
                 .id(harContractId)
                 .status(ContractStatus.FINALIZED)
-                .eventDate(LocalDate.of(2026, 4, 4))
+                .eventDate(eventDate)
                 .items(List.of(smokingSlim))
                 .payments(new ArrayList<>())
                 .build();
@@ -546,7 +592,7 @@ class RentalPaymentServiceTest {
                 .id(harPaymentId)
                 .contract(harContract)
                 .installmentNumber(3)
-                .paymentDate(LocalDate.of(2026, 4, 1))
+                .paymentDate(existingPaymentDate)
                 .paymentMethod(PaymentMethod.PIX)
                 .value(new BigDecimal("100.00"))
                 .installments(1)
@@ -555,7 +601,7 @@ class RentalPaymentServiceTest {
 
         RentalPaymentInputDTO putDTO = new RentalPaymentInputDTO(
                 3,
-                LocalDate.of(2026, 4, 1),
+                existingPaymentDate,
                 "PIX",
                 new BigDecimal("50.00"),
                 1,
@@ -572,11 +618,11 @@ class RentalPaymentServiceTest {
         when(paymentRepository.save(any(RentalPayment.class))).thenAnswer(i -> i.getArgument(0));
 
         RentalPaymentDetailsDTO updatedDetail = new RentalPaymentDetailsDTO(
-                harPaymentId, 3, LocalDate.of(2026, 4, 1),
+                harPaymentId, 3, existingPaymentDate,
                 "PIX", "PIX", new BigDecimal("50.00"), 1, employeeId, "PAID", "Pago"
         );
         RentalPaymentDetailsDTO gapDetail = new RentalPaymentDetailsDTO(
-                UUID.randomUUID(), 4, LocalDate.of(2026, 4, 4),
+                UUID.randomUUID(), 4, eventDate,
                 "PIX", "PIX", new BigDecimal("50.00"), 1, null, "PENDING", "Pendente"
         );
         when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(updatedDetail, gapDetail);
@@ -586,7 +632,7 @@ class RentalPaymentServiceTest {
         when(paymentRepository.findMaxInstallmentNumberByContractId(harContractId)).thenReturn(3);
         // maxPaymentDate among existing: 2026-04-27 (payment #2 in original) — but here we simplify
         when(paymentRepository.findMaxPaymentDateByContractId(harContractId))
-                .thenReturn(Optional.of(LocalDate.of(2026, 4, 1)));
+                .thenReturn(Optional.of(existingPaymentDate));
 
         List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(harContractId, harPaymentId, putDTO);
 

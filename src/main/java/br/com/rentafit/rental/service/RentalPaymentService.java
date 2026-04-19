@@ -192,6 +192,14 @@ public class RentalPaymentService {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private void validatePaymentDate(RentalPaymentInputDTO dto, RentalContract contract) {
+        LocalDate today = LocalDate.now();
+
+        if (dto.paymentDate() != null && dto.paymentDate().isBefore(today)) {
+            throw new ValidationException(
+                    "Data do pagamento (" + dto.paymentDate() + ") não pode ser anterior à data atual ("
+                            + today + ")");
+        }
+
         if (dto.paymentDate() != null && contract.getEventDate() != null
                 && dto.paymentDate().isAfter(contract.getEventDate())) {
             throw new ValidationException(
