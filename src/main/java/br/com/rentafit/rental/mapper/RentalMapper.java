@@ -60,6 +60,11 @@ public class RentalMapper {
     }
 
     public void updateEntityFromDTO(RentalContract contract, UpdateRentalContractDTO dto) {
+        updateEntityFromDTO(contract, dto, dto.payments());
+    }
+
+    public void updateEntityFromDTO(RentalContract contract, UpdateRentalContractDTO dto,
+                                     List<RentalPaymentInputDTO> payments) {
         contract.setContractType(dto.contractType() != null ? dto.contractType() : contract.getContractType());
         contract.setCreatedByEmployeeId(dto.createdByEmployeeId() != null ? dto.createdByEmployeeId() : contract.getCreatedByEmployeeId());
         contract.setPickupDate(dto.pickupDate());
@@ -75,10 +80,10 @@ public class RentalMapper {
                     .forEach(contract.getItems()::add);
         }
 
-        // Replace payments
+        // Replace payments (using the provided list, which may include auto-generated entries)
         contract.getPayments().clear();
-        if (dto.payments() != null) {
-            dto.payments().stream()
+        if (payments != null) {
+            payments.stream()
                     .map(paymentDto -> toPaymentEntity(paymentDto, contract))
                     .forEach(contract.getPayments()::add);
         }

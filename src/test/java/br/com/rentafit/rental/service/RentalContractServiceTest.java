@@ -335,6 +335,156 @@ class RentalContractServiceTest {
                 .hasMessageContaining("DRAFT");
     }
 
+    @Test
+    @DisplayName("update deve criar parcela PENDING automática quando parcelas somam menos que itens")
+    void testUpdate_autoCreatesDeficitPayment() {
+        LocalDate eventDate = LocalDate.now().plusDays(60);
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        // Retorna déficit de 200 (itens=500, parcelas=300)
+        when(validator.calculatePaymentDeficit(any(), any())).thenReturn(new BigDecimal("200.00"));
+        when(contractRepository.save(any())).thenReturn(draftContract);
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(5),
+                eventDate,
+                eventDate.plusDays(2),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("300.00"), 1, null, "PENDING"))
+        );
+
+        contractService.update(contractId, updateDTO);
+
+        // Verifica que o mapper recebeu a lista com a parcela extra
+        verify(mapper).updateEntityFromDTO(any(), eq(updateDTO), argThat(payments ->
+                payments.size() == 2
+                && payments.get(1).installmentNumber() == 2
+                && payments.get(1).value().compareTo(new BigDecimal("200.00")) == 0
+                && "PIX".equals(payments.get(1).paymentMethod())
+                && "PENDING".equals(payments.get(1).status())
+        ));
+    }
+
+    @Test
+    @DisplayName("update deve usar eventDate quando última parcela + 30 dias ultrapassa eventDate")
+    void testUpdate_autoPaymentDateCappedAtEventDate() {
+        LocalDate eventDate = LocalDate.now().plusDays(10);
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(validator.calculatePaymentDeficit(any(), any())).thenReturn(new BigDecimal("100.00"));
+        when(contractRepository.save(any())).thenReturn(draftContract);
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        // Parcela existente com data = hoje+5, eventDate = hoje+10
+        // hoje+5 + 30 = hoje+35 > eventDate → deve usar eventDate
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(3),
+                eventDate,
+                eventDate.plusDays(2),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("400.00"), 1, null, "PENDING"))
+        );
+
+        contractService.update(contractId, updateDTO);
+
+        verify(mapper).updateEntityFromDTO(any(), eq(updateDTO), argThat(payments ->
+                payments.size() == 2
+                && payments.get(1).paymentDate().equals(eventDate) // capped at eventDate
+        ));
+    }
+
+    @Test
+    @DisplayName("update deve usar última data + 30 quando resultado cabe antes do eventDate")
+    void testUpdate_autoPaymentDatePlus30Days() {
+        LocalDate eventDate = LocalDate.now().plusDays(60);
+        LocalDate lastPaymentDate = LocalDate.now().plusDays(5);
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(validator.calculatePaymentDeficit(any(), any())).thenReturn(new BigDecimal("100.00"));
+        when(contractRepository.save(any())).thenReturn(draftContract);
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(3),
+                eventDate,
+                eventDate.plusDays(2),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, lastPaymentDate,
+                        "PIX", new BigDecimal("400.00"), 1, null, "PENDING"))
+        );
+
+        contractService.update(contractId, updateDTO);
+
+        verify(mapper).updateEntityFromDTO(any(), eq(updateDTO), argThat(payments ->
+                payments.size() == 2
+                && payments.get(1).paymentDate().equals(lastPaymentDate.plusDays(30))
+        ));
+    }
+
+    @Test
+    @DisplayName("update não deve criar parcela automática quando parcelas batem com total")
+    void testUpdate_noAutoPaymentWhenExact() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(validator.calculatePaymentDeficit(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(contractRepository.save(any())).thenReturn(draftContract);
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(7),
+                LocalDate.now().plusDays(9),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
+        );
+
+        contractService.update(contractId, updateDTO);
+
+        // Verifica que o mapper recebeu exatamente 1 parcela (a original)
+        verify(mapper).updateEntityFromDTO(any(), eq(updateDTO), argThat(payments ->
+                payments.size() == 1
+        ));
+    }
+
+    @Test
+    @DisplayName("update deve lançar ValidationException se parcelas excedem o total dos itens")
+    void testUpdate_rejectsOverpayment() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        doThrow(new ValidationException("A soma das parcelas (600.00) ultrapassa o valor total do contrato (500.00)"))
+                .when(validator).validatePaymentsNotExceedTotal(any(), any());
+
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(7),
+                LocalDate.now().plusDays(9),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("600.00"), 1, null, "PENDING"))
+        );
+
+        assertThatThrownBy(() -> contractService.update(contractId, updateDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("ultrapassa");
+    }
+
     // ── sign ──────────────────────────────────────────────────────────────────
 
     @Test

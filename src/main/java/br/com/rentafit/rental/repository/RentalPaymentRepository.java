@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +24,14 @@ public interface RentalPaymentRepository extends JpaRepository<RentalPayment, UU
 
     long countByContractIdAndStatusNot(UUID contractId, PaymentStatus status);
 
+    @Query("SELECT COALESCE(MAX(p.installmentNumber), 0) FROM RentalPayment p " +
+           "WHERE p.contract.id = :contractId AND p.status <> 'CANCELLED'")
+    int findMaxInstallmentNumberByContractId(@Param("contractId") UUID contractId);
+
+    @Query("SELECT MAX(p.paymentDate) FROM RentalPayment p " +
+           "WHERE p.contract.id = :contractId AND p.status <> 'CANCELLED'")
+    Optional<LocalDate> findMaxPaymentDateByContractId(@Param("contractId") UUID contractId);
+
     @Query("SELECT COALESCE(SUM(p.value), 0) FROM RentalPayment p " +
            "WHERE p.contract.id = :contractId AND p.status IN :statuses")
     BigDecimal sumValueByContractIdAndStatusIn(
@@ -30,4 +39,3 @@ public interface RentalPaymentRepository extends JpaRepository<RentalPayment, UU
             @Param("statuses") List<PaymentStatus> statuses
     );
 }
-

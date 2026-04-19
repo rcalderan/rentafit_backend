@@ -102,9 +102,25 @@ pickupDate ≤ eventDate ≤ returnDate
 |------------------------------------------------|------------------|
 | `paymentDate > eventDate`                      | ValidationException |
 | Soma PENDING+PAID > totalValue dos itens       | ValidationException |
+| Soma PENDING+PAID < totalValue (no `update`)   | ✅ Parcela PENDING/PIX criada automaticamente |
+| Soma PENDING+PAID ≠ totalValue (no `create`)   | ValidationException |
 | Mais de 24 parcelas                            | ValidationException |
 | `addPayment` após FINALIZED                    | ✅ Permitido      |
 | `updatePayment`/`cancelPayment` após FINALIZED | ❌ Bloqueado      |
+
+#### Auto-criação de parcela no `update()`
+
+Quando o contrato é atualizado e a soma das parcelas informadas é **menor** que o valor total dos itens, o sistema cria automaticamente uma nova parcela:
+
+| Campo               | Valor                                                  |
+|---------------------|--------------------------------------------------------|
+| `installmentNumber` | Próximo número sequencial (max existente + 1)          |
+| `paymentDate`       | Última data + 30 dias, limitado ao `eventDate`         |
+| `paymentMethod`     | `PIX`                                                  |
+| `value`             | Diferença (totalItems − totalPayments)                  |
+| `status`            | `PENDING`                                              |
+
+> Essa regra **não se aplica ao `create()`**, onde a soma das parcelas deve ser exata.
 
 ### Snapshot do Cliente
 

@@ -177,10 +177,12 @@ class RentalPaymentServiceTest {
         when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
         when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
         when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        // After save, sum matches total (500) → no deficit → no gap payment
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
 
-        RentalPaymentDetailsDTO result = paymentService.updatePayment(contractId, paymentId, validPaymentDTO);
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, validPaymentDTO);
 
-        assertThat(result).isNotNull();
+        assertThat(result).isNotNull().hasSize(1);
         verify(paymentRepository).save(existingPayment);
     }
 
@@ -215,10 +217,12 @@ class RentalPaymentServiceTest {
         when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
         when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
         when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        // After save, sum matches total (500) → no deficit
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
 
-        RentalPaymentDetailsDTO result = paymentService.updatePayment(contractId, paymentId, validPaymentDTO);
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, validPaymentDTO);
 
-        assertThat(result).isNotNull();
+        assertThat(result).isNotNull().hasSize(1);
         verify(paymentRepository).save(existingPayment);
     }
 
@@ -388,11 +392,219 @@ class RentalPaymentServiceTest {
         doNothing().when(validator).validateSinglePaidPaymentHasEmployee(paidWithEmployee);
         when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
         when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        // After save, sum matches total (500) → no deficit
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
 
-        RentalPaymentDetailsDTO result = paymentService.updatePayment(contractId, paymentId, paidWithEmployee);
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, paidWithEmployee);
 
-        assertThat(result).isNotNull();
+        assertThat(result).isNotNull().hasSize(1);
         verify(validator).validateSinglePaidPaymentHasEmployee(paidWithEmployee);
+    }
+
+    // ── auto-gap payment on updatePayment ─────────────────────────────────────
+
+    @Test
+    @DisplayName("updatePayment deve criar parcela-gap quando redução de valor gera déficit")
+    void testUpdatePayment_createsGapPayment_whenValueReduced() {
+        // Contract total = 500. Existing payment = 200 PENDING.
+        // Reduce to 100 → committed = 100, deficit = 400 → gap payment of 400 created.
+        RentalPaymentInputDTO reducedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX",
+                new BigDecimal("100.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        // validateTotalValueNotExceeded: sum before = 200, subtract existing 200, add new 100 = 100 < 500 → OK
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))   // first call: validateTotalValueNotExceeded
+                .thenReturn(new BigDecimal("100.00"));  // second call: autoCreateGapPaymentIfNeeded (after save, sum is 100)
+
+        // Auto-gap: deficit = 500 - 100 = 400
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(1);
+        when(paymentRepository.findMaxPaymentDateByContractId(contractId))
+                .thenReturn(Optional.of(LocalDate.now().plusDays(10)));
+
+        RentalPayment gapPayment = RentalPayment.builder()
+                .id(UUID.randomUUID())
+                .contract(draftContract)
+                .installmentNumber(2)
+                .paymentDate(LocalDate.now().plusDays(30))
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("400.00"))
+                .installments(1)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        RentalPaymentDetailsDTO gapDetailsDTO = new RentalPaymentDetailsDTO(
+                gapPayment.getId(), 2, gapPayment.getPaymentDate(),
+                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente"
+        );
+
+        when(paymentRepository.save(any(RentalPayment.class))).thenReturn(existingPayment, gapPayment);
+        when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(detailsDTO, gapDetailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, reducedDTO);
+
+        assertThat(result).hasSize(2);
+        // save called twice: once for the updated payment, once for the gap
+        verify(paymentRepository, times(2)).save(any(RentalPayment.class));
+    }
+
+    @Test
+    @DisplayName("updatePayment NÃO deve criar parcela-gap quando valor não gera déficit")
+    void testUpdatePayment_noGapPayment_whenNoDeficit() {
+        // Contract total = 500. Existing payment = 200. Update to 500 → no deficit.
+        RentalPaymentInputDTO fullDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX",
+                new BigDecimal("500.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))   // validateTotalValueNotExceeded
+                .thenReturn(new BigDecimal("500.00"));  // autoCreateGapPaymentIfNeeded: 500 == 500 → no deficit
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, fullDTO);
+
+        assertThat(result).hasSize(1);
+        // save called only once: for the updated payment
+        verify(paymentRepository, times(1)).save(any(RentalPayment.class));
+    }
+
+    @Test
+    @DisplayName("updatePayment deve criar parcela-gap ao marcar PENDING como PAID com valor menor")
+    void testUpdatePayment_createsGapPayment_whenMarkedPaidWithLowerValue() {
+        // Contract total = 500. Existing payment = 200 PENDING.
+        // Mark as PAID with value = 50 → committed = 50, deficit = 450 → gap of 450 created.
+        UUID employeeId = UUID.randomUUID();
+        RentalPaymentInputDTO paidReducedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX",
+                new BigDecimal("50.00"), 1, employeeId, "PAID"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))  // validateTotalValueNotExceeded
+                .thenReturn(new BigDecimal("50.00"));  // autoCreateGapPaymentIfNeeded: deficit = 500-50 = 450
+        when(paymentRepository.save(any(RentalPayment.class))).thenAnswer(i -> i.getArgument(0));
+
+        RentalPaymentDetailsDTO updatedDTO = new RentalPaymentDetailsDTO(
+                paymentId, 1, LocalDate.now().plusDays(10),
+                "PIX", "PIX", new BigDecimal("50.00"), 1, employeeId, "PAID", "Pago"
+        );
+        RentalPaymentDetailsDTO gapDTO = new RentalPaymentDetailsDTO(
+                UUID.randomUUID(), 2, LocalDate.now().plusDays(30),
+                "PIX", "PIX", new BigDecimal("450.00"), 1, null, "PENDING", "Pendente"
+        );
+        when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(updatedDTO, gapDTO);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(1);
+        when(paymentRepository.findMaxPaymentDateByContractId(contractId))
+                .thenReturn(Optional.of(LocalDate.now().plusDays(10)));
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, paidReducedDTO);
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).status()).isEqualTo("PAID");
+        assertThat(result.get(1).status()).isEqualTo("PENDING");
+        assertThat(result.get(1).value()).isEqualByComparingTo("450.00");
+        verify(paymentRepository, times(2)).save(any(RentalPayment.class));
+    }
+
+    @Test
+    @DisplayName("BUG REGRESSION: cenário exato do HAR - legacyId=1 - parcela PENDING reduzida e marcada PAID deve gerar gap")
+    void testUpdatePayment_harBugRegression_contract1() {
+        // Setup: contract total = 590, payments: #1=290/PAID, #2=200/PENDING, #3=100/PENDING
+        // Action: PUT #3 with value=50, status=PAID
+        // Expected: gap payment #4=50/PENDING is auto-created
+        UUID harContractId = UUID.randomUUID();
+        UUID harPaymentId = UUID.randomUUID();
+        UUID employeeId = UUID.randomUUID();
+
+        RentalContractItem smokingSlim = RentalContractItem.builder()
+                .id(UUID.randomUUID())
+                .description("Smoking Slim")
+                .value(new BigDecimal("590.00"))
+                .metadata(new ArrayList<>())
+                .build();
+
+        RentalContract harContract = RentalContract.builder()
+                .id(harContractId)
+                .status(ContractStatus.FINALIZED)
+                .eventDate(LocalDate.of(2026, 4, 4))
+                .items(List.of(smokingSlim))
+                .payments(new ArrayList<>())
+                .build();
+
+        RentalPayment pendingPayment3 = RentalPayment.builder()
+                .id(harPaymentId)
+                .contract(harContract)
+                .installmentNumber(3)
+                .paymentDate(LocalDate.of(2026, 4, 1))
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("100.00"))
+                .installments(1)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        RentalPaymentInputDTO putDTO = new RentalPaymentInputDTO(
+                3,
+                LocalDate.of(2026, 4, 1),
+                "PIX",
+                new BigDecimal("50.00"),
+                1,
+                employeeId,
+                "PAID"
+        );
+
+        when(contractRepository.findById(harContractId)).thenReturn(Optional.of(harContract));
+        when(paymentRepository.findByIdAndContractId(harPaymentId, harContractId)).thenReturn(Optional.of(pendingPayment3));
+        // validateTotalValueNotExceeded: sum before = 290+200+100=590, subtract existing 100, add new 50 = 540 < 590 → OK
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(harContractId), any()))
+                .thenReturn(new BigDecimal("590.00"))  // validateTotalValueNotExceeded (before update)
+                .thenReturn(new BigDecimal("540.00")); // autoCreateGapPaymentIfNeeded: 590-540 = 50 deficit
+        when(paymentRepository.save(any(RentalPayment.class))).thenAnswer(i -> i.getArgument(0));
+
+        RentalPaymentDetailsDTO updatedDetail = new RentalPaymentDetailsDTO(
+                harPaymentId, 3, LocalDate.of(2026, 4, 1),
+                "PIX", "PIX", new BigDecimal("50.00"), 1, employeeId, "PAID", "Pago"
+        );
+        RentalPaymentDetailsDTO gapDetail = new RentalPaymentDetailsDTO(
+                UUID.randomUUID(), 4, LocalDate.of(2026, 4, 4),
+                "PIX", "PIX", new BigDecimal("50.00"), 1, null, "PENDING", "Pendente"
+        );
+        when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(updatedDetail, gapDetail);
+
+        // Auto-gap checks
+        when(paymentRepository.countByContractIdAndStatusNot(harContractId, PaymentStatus.CANCELLED)).thenReturn(3L);
+        when(paymentRepository.findMaxInstallmentNumberByContractId(harContractId)).thenReturn(3);
+        // maxPaymentDate among existing: 2026-04-27 (payment #2 in original) — but here we simplify
+        when(paymentRepository.findMaxPaymentDateByContractId(harContractId))
+                .thenReturn(Optional.of(LocalDate.of(2026, 4, 1)));
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(harContractId, harPaymentId, putDTO);
+
+        // Must return 2 entries: the updated payment + the auto-gap
+        assertThat(result).hasSize(2);
+
+        // First element: the updated payment #3 → 50/PAID
+        assertThat(result.get(0).installmentNumber()).isEqualTo(3);
+        assertThat(result.get(0).value()).isEqualByComparingTo("50.00");
+        assertThat(result.get(0).status()).isEqualTo("PAID");
+
+        // Second element: the auto-gap payment #4 → 50/PENDING
+        assertThat(result.get(1).installmentNumber()).isEqualTo(4);
+        assertThat(result.get(1).value()).isEqualByComparingTo("50.00");
+        assertThat(result.get(1).status()).isEqualTo("PENDING");
+
+        // Two saves: updated payment + gap payment
+        verify(paymentRepository, times(2)).save(any(RentalPayment.class));
     }
 }
 

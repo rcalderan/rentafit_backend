@@ -189,10 +189,11 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 1. Create Contract (DRAFT) → salva contract_id e item_id
 2. Get Contract by ID
 3. Update Contract (DRAFT)
-4. Sign Contract (DRAFT → SIGNED)
-5. Finalize Contract (SIGNED → FINALIZED)
-6. Deliver Item
-7. Process Return
+4. ⚡ Update with Deficit — parcela automática criada (parcelas < total)
+5. Sign Contract (DRAFT → SIGNED)
+6. Finalize Contract (SIGNED → FINALIZED)
+7. Deliver Item
+8. Process Return
 
 # Revisão de contrato
 1. Revise Contract (SIGNED → REVISION) → salva revision_contract_id

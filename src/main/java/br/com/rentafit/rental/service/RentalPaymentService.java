@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -70,7 +72,15 @@ public class RentalPaymentService {
         return mapper.toPaymentDetailsDTO(saved);
     }
 
-    public RentalPaymentDetailsDTO updatePayment(UUID contractId, UUID paymentId, RentalPaymentInputDTO dto) {
+    /**
+     * Atualiza uma parcela existente.
+     *
+     * <p>Se a alteração reduzir o valor comprometido (PENDING+PAID) abaixo do totalValue
+     * do contrato, uma nova parcela PENDING é criada automaticamente para cobrir o déficit.</p>
+     *
+     * @return lista contendo a parcela atualizada e, se houver, a parcela-gap criada automaticamente
+     */
+    public List<RentalPaymentDetailsDTO> updatePayment(UUID contractId, UUID paymentId, RentalPaymentInputDTO dto) {
         RentalContract contract = requireContract(contractId);
 
         RentalPayment payment = requirePayment(paymentId, contractId);
@@ -91,7 +101,17 @@ public class RentalPaymentService {
 
         RentalPayment saved = paymentRepository.save(payment);
         log.info("Payment {} updated in contract {}", paymentId, contractId);
-        return mapper.toPaymentDetailsDTO(saved);
+
+        List<RentalPaymentDetailsDTO> result = new ArrayList<>();
+        result.add(mapper.toPaymentDetailsDTO(saved));
+
+        // Auto-create gap payment if the update created a deficit
+        RentalPayment gapPayment = autoCreateGapPaymentIfNeeded(contract);
+        if (gapPayment != null) {
+            result.add(mapper.toPaymentDetailsDTO(gapPayment));
+        }
+
+        return result;
     }
 
     public void cancelPayment(UUID contractId, UUID paymentId) {
@@ -102,6 +122,71 @@ public class RentalPaymentService {
         payment.setStatus(PaymentStatus.CANCELLED);
         paymentRepository.save(payment);
         log.info("Payment {} cancelled in contract {}", paymentId, contractId);
+    }
+
+    // ── Auto-gap ───────────────────────────────────────────────────────────────
+
+    /**
+     * Verifica se existe déficit entre o totalValue do contrato e a soma PENDING+PAID.
+     * Se existir, cria automaticamente uma parcela PENDING para cobrir a diferença.
+     *
+     * @return a parcela-gap criada, ou null se não houver déficit
+     */
+    RentalPayment autoCreateGapPaymentIfNeeded(RentalContract contract) {
+        UUID contractId = contract.getId();
+
+        BigDecimal totalItems = contract.getItems().stream()
+                .map(i -> i.getValue() != null ? i.getValue() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal currentCommitted = paymentRepository.sumValueByContractIdAndStatusIn(
+                contractId, List.of(PaymentStatus.PENDING, PaymentStatus.PAID));
+
+        BigDecimal deficit = totalItems.subtract(currentCommitted);
+        if (deficit.compareTo(BigDecimal.ZERO) <= 0) {
+            return null; // sem déficit
+        }
+
+        // Validate installment limit before auto-creating
+        long activeCount = paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED);
+        if (activeCount >= MAX_INSTALLMENTS) {
+            log.warn("Cannot auto-create gap payment for contract {}: limit of {} installments reached. Deficit: R$ {}",
+                    contractId, MAX_INSTALLMENTS, deficit);
+            return null;
+        }
+
+        int nextInstallmentNumber = paymentRepository.findMaxInstallmentNumberByContractId(contractId) + 1;
+        LocalDate nextPaymentDate = computeNextPaymentDate(contractId, contract.getEventDate());
+
+        RentalPayment gapPayment = RentalPayment.builder()
+                .contract(contract)
+                .installmentNumber(nextInstallmentNumber)
+                .paymentDate(nextPaymentDate)
+                .paymentMethod(PaymentMethod.PIX)
+                .value(deficit)
+                .installments(1)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        RentalPayment saved = paymentRepository.save(gapPayment);
+        log.info("Auto-created gap payment #{} (R$ {}) for contract {} to cover deficit",
+                nextInstallmentNumber, deficit, contractId);
+        return saved;
+    }
+
+    /**
+     * Calcula a próxima data de pagamento: max(paymentDate) + 30 dias, limitada ao eventDate.
+     */
+    private LocalDate computeNextPaymentDate(UUID contractId, LocalDate eventDate) {
+        LocalDate latestPaymentDate = paymentRepository.findMaxPaymentDateByContractId(contractId)
+                .orElse(null);
+
+        if (latestPaymentDate == null) {
+            return eventDate;
+        }
+
+        LocalDate candidate = latestPaymentDate.plusDays(30);
+        return (eventDate != null && candidate.isAfter(eventDate)) ? eventDate : candidate;
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

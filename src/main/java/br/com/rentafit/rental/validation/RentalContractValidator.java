@@ -272,16 +272,63 @@ public class RentalContractValidator {
     /**
      * Valida que as parcelas informadas somam exatamente o valor total dos itens.
      * Parcelas com status CANCELLED são ignoradas na soma.
+     * Usado em create() — lança exceção se houver qualquer diferença.
      *
      * @param payments Parcelas informadas no DTO (nunca null/vazio — já garantido pela anotação @NotEmpty)
      * @param items    Itens do contrato informados no DTO
      */
     public void validatePaymentsMatchTotal(List<RentalPaymentInputDTO> payments, List<ContractItemInputDTO> items) {
-        BigDecimal totalItems = items == null ? BigDecimal.ZERO : items.stream()
+        BigDecimal deficit = calculatePaymentDeficit(payments, items);
+        if (deficit.compareTo(BigDecimal.ZERO) != 0) {
+            BigDecimal totalItems = computeTotalItems(items);
+            BigDecimal totalPayments = totalItems.subtract(deficit);
+            throw new ValidationException(
+                    "A soma das parcelas (" + totalPayments
+                            + ") deve ser igual ao valor total do contrato (" + totalItems + ")");
+        }
+    }
+
+    /**
+     * Calcula o déficit entre o valor total dos itens e a soma das parcelas ativas.
+     * Retorna positivo se faltam parcelas, negativo se há excesso, zero se bate.
+     * Parcelas com status CANCELLED são ignoradas.
+     *
+     * @param payments parcelas informadas no DTO
+     * @param items    itens do contrato no DTO
+     * @return totalItems − totalActivePayments
+     */
+    public BigDecimal calculatePaymentDeficit(List<RentalPaymentInputDTO> payments, List<ContractItemInputDTO> items) {
+        BigDecimal totalItems = computeTotalItems(items);
+        BigDecimal totalPayments = computeTotalPayments(payments);
+        return totalItems.subtract(totalPayments);
+    }
+
+    /**
+     * Valida que as parcelas NÃO ultrapassam o valor total dos itens.
+     * Usado em update() — lança exceção apenas se pagamentos > total (excesso).
+     * Deficit (pagamentos < total) é tratado pelo serviço com auto-criação de parcela.
+     */
+    public void validatePaymentsNotExceedTotal(List<RentalPaymentInputDTO> payments, List<ContractItemInputDTO> items) {
+        BigDecimal deficit = calculatePaymentDeficit(payments, items);
+        if (deficit.compareTo(BigDecimal.ZERO) < 0) {
+            BigDecimal totalItems = computeTotalItems(items);
+            BigDecimal totalPayments = totalItems.subtract(deficit);
+            throw new ValidationException(
+                    "A soma das parcelas (" + totalPayments
+                            + ") ultrapassa o valor total do contrato (" + totalItems + ")");
+        }
+    }
+
+    // ── helpers de cálculo de totais ──────────────────────────────────────────
+
+    private BigDecimal computeTotalItems(List<ContractItemInputDTO> items) {
+        return items == null ? BigDecimal.ZERO : items.stream()
                 .map(i -> i.value() != null ? i.value() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
-        BigDecimal totalPayments = payments.stream()
+    private BigDecimal computeTotalPayments(List<RentalPaymentInputDTO> payments) {
+        return payments.stream()
                 .filter(p -> {
                     if (p.status() == null) return true; // default PENDING → conta
                     try {
@@ -292,12 +339,6 @@ public class RentalContractValidator {
                 })
                 .map(p -> p.value() != null ? p.value() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        if (totalPayments.compareTo(totalItems) != 0) {
-            throw new ValidationException(
-                    "A soma das parcelas (" + totalPayments
-                            + ") deve ser igual ao valor total do contrato (" + totalItems + ")");
-        }
     }
 }
 

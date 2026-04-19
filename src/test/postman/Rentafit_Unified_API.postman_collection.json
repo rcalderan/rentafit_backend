@@ -1310,7 +1310,51 @@
 							"host": ["{{base_url}}"],
 							"path": ["api","v1","rental","contracts","{{contract_id}}"]
 						},
-						"description": "Atualiza contrato. Retorna 422 se status != DRAFT."
+						"description": "Atualiza contrato. Retorna 422 se status != DRAFT.\n\n**Auto-criação de parcela:** Se a soma das parcelas for menor que o total dos itens, uma parcela PENDING/PIX é criada automaticamente com o valor restante. A data da parcela será: última data + 30 dias (ou eventDate se ultrapassar).\n\n**Excesso:** Se parcelas > total → 422."
+					},
+					"response": []
+				},
+				{
+					"name": "⚡ Update with Deficit — auto-creates payment",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var body = pm.response.json();",
+									"    pm.test('Contrato atualizado', () => pm.expect(body.id).to.not.be.undefined);",
+									"    pm.test('Parcela automática criada', () => {",
+									"        pm.expect(body.payments.length).to.be.greaterThan(1);",
+									"    });",
+									"    var lastPayment = body.payments[body.payments.length - 1];",
+									"    pm.test('Última parcela é PENDING', () => pm.expect(lastPayment.status).to.eql('PENDING'));",
+									"    pm.test('Última parcela é PIX', () => pm.expect(lastPayment.paymentMethod).to.eql('PIX'));",
+									"    var totalItems = body.items.reduce((sum, i) => sum + i.value, 0);",
+									"    var totalPayments = body.payments.filter(p => p.status !== 'CANCELLED').reduce((sum, p) => sum + p.value, 0);",
+									"    pm.test('Soma das parcelas = total dos itens', () => {",
+									"        pm.expect(Math.abs(totalPayments - totalItems)).to.be.below(0.01);",
+									"    });",
+									"    console.log('✅ Parcela automática criada com sucesso. Payments:', body.payments.length);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [{"key":"Content-Type","value":"application/json"}],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"contractType\": 0,\n  \"createdByEmployeeId\": \"{{employee_id}}\",\n  \"pickupDate\": \"2026-06-05\",\n  \"eventDate\": \"2026-06-07\",\n  \"returnDate\": \"2026-06-09\",\n  \"notes\": \"Teste de auto-criação de parcela — valor menor que total\",\n  \"items\": [\n    {\n      \"rentalItemId\": \"{{rental_product_id}}\",\n      \"legacyProductCode\": \"001\",\n      \"description\": \"Vestido de Noiva Branco M\",\n      \"value\": 500.00,\n      \"attendantEmployeeId\": \"{{employee_id}}\",\n      \"metadata\": []\n    }\n  ],\n  \"payments\": [\n    {\n      \"installmentNumber\": 1,\n      \"paymentDate\": \"2026-05-01\",\n      \"paymentMethod\": \"PIX\",\n      \"value\": 300.00,\n      \"installments\": 1,\n      \"processedByEmployeeId\": \"{{employee_id}}\",\n      \"status\": \"PENDING\"\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}",
+							"host": ["{{base_url}}"],
+							"path": ["api","v1","rental","contracts","{{contract_id}}"]
+						},
+						"description": "Atualiza o contrato com parcelas que somam MENOS que o total dos itens (R$ 300 vs R$ 500).\n\nResultado esperado:\n• **200 OK** com parcela automática criada\n• Última parcela: PENDING, PIX, R$ 200.00\n• Data: paymentDate da última parcela + 30 dias (ou eventDate se ultrapassar)\n\n**Pré-requisito:** contract_id deve existir e estar em DRAFT."
 					},
 					"response": []
 				},

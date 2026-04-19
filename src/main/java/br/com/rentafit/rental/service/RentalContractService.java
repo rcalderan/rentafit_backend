@@ -159,10 +159,13 @@ public class RentalContractService {
             validator.validateRevisionPaymentIntegrity(dto.payments(), contract.getPayments());
         }
 
-        // Valida que as parcelas somam o valor total dos itens
-        validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
+        // Valida que parcelas não ultrapassam o total dos itens (excesso → erro)
+        validator.validatePaymentsNotExceedTotal(dto.payments(), dto.items());
 
-        mapper.updateEntityFromDTO(contract, dto);
+        // Se a soma das parcelas é menor que o total, cria parcela PENDING automática com o restante
+        List<RentalPaymentInputDTO> payments = autoCompletePayments(dto.payments(), dto.items(), dto.eventDate());
+
+        mapper.updateEntityFromDTO(contract, dto, payments);
         RentalContract saved = contractRepository.save(contract);
         log.info("Updated rental contract {}", id);
         return mapper.toDetailsDTO(saved, null);
@@ -418,6 +421,84 @@ public class RentalContractService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Se a soma das parcelas é menor que o total dos itens, cria uma parcela PENDING
+     * automática com o valor restante e a próxima data compatível.
+     *
+     * <p>Regras de data da nova parcela:
+     * <ul>
+     *   <li>Toma a maior paymentDate das parcelas existentes</li>
+     *   <li>Soma 30 dias (próxima parcela mensal)</li>
+     *   <li>Se ultrapassar o eventDate, usa o eventDate como teto</li>
+     *   <li>Se não houver parcelas com data, usa o eventDate diretamente</li>
+     * </ul>
+     *
+     * @return lista original se não houver déficit; lista aumentada com a nova parcela se houver
+     */
+    List<RentalPaymentInputDTO> autoCompletePayments(
+            List<RentalPaymentInputDTO> payments,
+            List<ContractItemInputDTO> items,
+            LocalDate eventDate) {
+
+        java.math.BigDecimal deficit = validator.calculatePaymentDeficit(payments, items);
+        if (deficit.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            return payments; // sem déficit (ou zero) — nada a fazer
+        }
+
+        // Calcula o próximo installmentNumber
+        int maxInstallmentNumber = payments.stream()
+                .map(RentalPaymentInputDTO::installmentNumber)
+                .filter(java.util.Objects::nonNull)
+                .max(Integer::compareTo)
+                .orElse(0);
+        int nextInstallmentNumber = maxInstallmentNumber + 1;
+
+        if (nextInstallmentNumber > 24) {
+            throw new br.com.rentafit.common.exception.ValidationException(
+                    "Não é possível criar parcela automática: limite máximo de 24 parcelas atingido");
+        }
+
+        // Calcula a próxima data compatível
+        LocalDate nextPaymentDate = computeNextPaymentDate(payments, eventDate);
+
+        RentalPaymentInputDTO autoPayment = new RentalPaymentInputDTO(
+                nextInstallmentNumber,
+                nextPaymentDate,
+                "PIX",
+                deficit,
+                1,
+                null,
+                "PENDING"
+        );
+
+        List<RentalPaymentInputDTO> augmented = new java.util.ArrayList<>(payments);
+        augmented.add(autoPayment);
+
+        log.info("Auto-created PENDING installment #{} (R$ {}) with date {} to cover contract deficit",
+                nextInstallmentNumber, deficit, nextPaymentDate);
+
+        return augmented;
+    }
+
+    /**
+     * Calcula a próxima data de pagamento compatível:
+     * maxPaymentDate + 30 dias, limitado ao eventDate.
+     */
+    private LocalDate computeNextPaymentDate(List<RentalPaymentInputDTO> payments, LocalDate eventDate) {
+        LocalDate latestPaymentDate = payments.stream()
+                .map(RentalPaymentInputDTO::paymentDate)
+                .filter(java.util.Objects::nonNull)
+                .max(LocalDate::compareTo)
+                .orElse(null);
+
+        if (latestPaymentDate == null) {
+            return eventDate;
+        }
+
+        LocalDate candidate = latestPaymentDate.plusDays(30);
+        return candidate.isAfter(eventDate) ? eventDate : candidate;
+    }
 
     /**
      * Gera legacyId no formato YYYYMMDD-N, onde N é sequencial no dia.

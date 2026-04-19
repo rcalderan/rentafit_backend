@@ -47,14 +47,14 @@ public class RentalPaymentController {
 
     @PutMapping("/{paymentId}")
     @Operation(summary = "Atualizar parcela",
-            description = "Atualiza uma parcela. Bloqueado após FINALIZED.")
+            description = "Atualiza uma parcela. Se o valor for reduzido, cria automaticamente uma parcela PENDING para cobrir o déficit. Retorna lista com a parcela atualizada e a eventual parcela-gap.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Parcela atualizada"),
+            @ApiResponse(responseCode = "200", description = "Parcela atualizada (lista pode conter parcela-gap automática)"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
             @ApiResponse(responseCode = "404", description = "Parcela não encontrada"),
             @ApiResponse(responseCode = "422", description = "Contrato FINALIZED ou regra violada")
     })
-    public ResponseEntity<RentalPaymentDetailsDTO> updatePayment(
+    public ResponseEntity<List<RentalPaymentDetailsDTO>> updatePayment(
             @PathVariable UUID contractId,
             @PathVariable UUID paymentId,
             @Valid @RequestBody RentalPaymentInputDTO dto) {
