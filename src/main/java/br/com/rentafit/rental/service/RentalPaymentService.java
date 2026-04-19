@@ -85,6 +85,7 @@ public class RentalPaymentService {
 
         RentalPayment payment = requirePayment(paymentId, contractId);
         validatePaidInstallmentMutationAllowed(contract, payment, "atualizar");
+        validateLockedContractSettlementIntegrity(contract, payment, dto);
         validatePaymentDate(dto, contract);
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
@@ -247,6 +248,42 @@ public class RentalPaymentService {
         if (contractLocked && PaymentStatus.PAID.equals(payment.getStatus())) {
             throw new ValidationException(
                     "Não é possível " + action + " parcela PAGA após contrato assinado/finalizado/em revisão");
+        }
+    }
+
+    /**
+     * Em contratos assinados/finalizados/em revisão, marcar uma parcela como PAID
+     * não pode alterar os dados financeiros originais da parcela (número, data,
+     * forma ou valor). Isso evita mutação retroativa silenciosa durante a baixa.
+     */
+    private void validateLockedContractSettlementIntegrity(RentalContract contract, RentalPayment existingPayment,
+                                                           RentalPaymentInputDTO dto) {
+        boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
+                || ContractStatus.FINALIZED.equals(contract.getStatus())
+                || ContractStatus.REVISION.equals(contract.getStatus());
+
+        boolean existingIsPaid = PaymentStatus.PAID.equals(existingPayment.getStatus());
+        boolean incomingIsPaid = dto.status() != null && "PAID".equalsIgnoreCase(dto.status());
+        boolean settlingNow = !existingIsPaid && incomingIsPaid;
+
+        if (!contractLocked || !settlingNow) {
+            return;
+        }
+
+        boolean installmentChanged = dto.installmentNumber() != null
+                && !dto.installmentNumber().equals(existingPayment.getInstallmentNumber());
+        boolean dateChanged = dto.paymentDate() != null
+                && !dto.paymentDate().equals(existingPayment.getPaymentDate());
+        boolean methodChanged = dto.paymentMethod() != null
+                && !existingPayment.getPaymentMethod().name().equalsIgnoreCase(dto.paymentMethod());
+        boolean valueChanged = dto.value() != null
+                && existingPayment.getValue() != null
+                && dto.value().compareTo(existingPayment.getValue()) != 0;
+
+        if (installmentChanged || dateChanged || methodChanged || valueChanged) {
+            throw new ValidationException(
+                    "Ao marcar parcela como PAGA em contrato assinado/finalizado/em revisão, "
+                            + "não é permitido alterar número, data, forma ou valor da parcela");
         }
     }
 

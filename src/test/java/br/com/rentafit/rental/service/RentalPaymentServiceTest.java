@@ -561,14 +561,14 @@ class RentalPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("BUG REGRESSION: cenário exato do HAR - legacyId=1 - parcela PENDING reduzida e marcada PAID deve gerar gap")
+    @DisplayName("BUG REGRESSION: cenário do HAR deve bloquear baixa com alteração financeira em contrato FINALIZED")
     void testUpdatePayment_harBugRegression_contract1() {
         LocalDate existingPaymentDate = LocalDate.now().plusDays(1);
         LocalDate eventDate = LocalDate.now().plusDays(30);
 
         // Setup: contract total = 590, payments: #1=290/PAID, #2=200/PENDING, #3=100/PENDING
-        // Action: PUT #3 with value=50, status=PAID
-        // Expected: gap payment #4=50/PENDING is auto-created
+        // Action: PUT #3 with value=50, status=PAID (baixa + alteração financeira no mesmo request)
+        // Expected: bloqueado por regra de integridade para contratos FINALIZED
         UUID harContractId = UUID.randomUUID();
         UUID harPaymentId = UUID.randomUUID();
         UUID employeeId = UUID.randomUUID();
@@ -611,46 +611,11 @@ class RentalPaymentServiceTest {
 
         when(contractRepository.findById(harContractId)).thenReturn(Optional.of(harContract));
         when(paymentRepository.findByIdAndContractId(harPaymentId, harContractId)).thenReturn(Optional.of(pendingPayment3));
-        // validateTotalValueNotExceeded: sum before = 290+200+100=590, subtract existing 100, add new 50 = 540 < 590 → OK
-        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(harContractId), any()))
-                .thenReturn(new BigDecimal("590.00"))  // validateTotalValueNotExceeded (before update)
-                .thenReturn(new BigDecimal("540.00")); // autoCreateGapPaymentIfNeeded: 590-540 = 50 deficit
-        when(paymentRepository.save(any(RentalPayment.class))).thenAnswer(i -> i.getArgument(0));
+        assertThatThrownBy(() -> paymentService.updatePayment(harContractId, harPaymentId, putDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("não é permitido alterar número, data, forma ou valor");
 
-        RentalPaymentDetailsDTO updatedDetail = new RentalPaymentDetailsDTO(
-                harPaymentId, 3, existingPaymentDate,
-                "PIX", "PIX", new BigDecimal("50.00"), 1, employeeId, "PAID", "Pago"
-        );
-        RentalPaymentDetailsDTO gapDetail = new RentalPaymentDetailsDTO(
-                UUID.randomUUID(), 4, eventDate,
-                "PIX", "PIX", new BigDecimal("50.00"), 1, null, "PENDING", "Pendente"
-        );
-        when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(updatedDetail, gapDetail);
-
-        // Auto-gap checks
-        when(paymentRepository.countByContractIdAndStatusNot(harContractId, PaymentStatus.CANCELLED)).thenReturn(3L);
-        when(paymentRepository.findMaxInstallmentNumberByContractId(harContractId)).thenReturn(3);
-        // maxPaymentDate among existing: 2026-04-27 (payment #2 in original) — but here we simplify
-        when(paymentRepository.findMaxPaymentDateByContractId(harContractId))
-                .thenReturn(Optional.of(existingPaymentDate));
-
-        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(harContractId, harPaymentId, putDTO);
-
-        // Must return 2 entries: the updated payment + the auto-gap
-        assertThat(result).hasSize(2);
-
-        // First element: the updated payment #3 → 50/PAID
-        assertThat(result.get(0).installmentNumber()).isEqualTo(3);
-        assertThat(result.get(0).value()).isEqualByComparingTo("50.00");
-        assertThat(result.get(0).status()).isEqualTo("PAID");
-
-        // Second element: the auto-gap payment #4 → 50/PENDING
-        assertThat(result.get(1).installmentNumber()).isEqualTo(4);
-        assertThat(result.get(1).value()).isEqualByComparingTo("50.00");
-        assertThat(result.get(1).status()).isEqualTo("PENDING");
-
-        // Two saves: updated payment + gap payment
-        verify(paymentRepository, times(2)).save(any(RentalPayment.class));
+        verify(paymentRepository, never()).save(any(RentalPayment.class));
     }
 }
 
