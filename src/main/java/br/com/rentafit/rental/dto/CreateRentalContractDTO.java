@@ -20,8 +20,6 @@ public record CreateRentalContractDTO(
         @NotNull(message = "Cliente é obrigatório")
         UUID customerId,
 
-        Integer contractType,
-
         UUID createdByEmployeeId,
 
         /** Opcional — quando nulo, o sistema gera automaticamente no formato YYYYMMDD-N. */

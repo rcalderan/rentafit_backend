@@ -76,7 +76,7 @@ class RentalContractControllerTest {
                 .build();
 
         createDTO = new CreateRentalContractDTO(
-                customerId, 0, null, null,
+                customerId, null, null,
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),

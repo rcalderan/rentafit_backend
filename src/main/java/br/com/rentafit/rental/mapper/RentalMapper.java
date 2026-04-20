@@ -29,7 +29,7 @@ public class RentalMapper {
     public RentalContract toEntity(CreateRentalContractDTO dto, CustomerSnapshot snapshot) {
         RentalContract contract = RentalContract.builder()
                 .legacyId(dto.legacyId())
-                .contractType(0) // RENTAL — forçado pelo módulo rental
+                .contractType(0)
                 .customerId(snapshot.id())
                 .customerName(snapshot.name())
                 .customerDocument(snapshot.document())

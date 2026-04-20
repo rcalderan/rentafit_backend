@@ -115,7 +115,7 @@ class RentalContractServiceTest {
                 .build();
 
         createDTO = new CreateRentalContractDTO(
-                customerId, 0, null, null,
+                customerId, null, null,
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),
@@ -231,7 +231,7 @@ class RentalContractServiceTest {
                 List.of()
         );
         CreateRentalContractDTO dtoComItemSemAttendant = new CreateRentalContractDTO(
-                customerId, 0, null, null,
+                customerId, null, null,
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),
@@ -281,7 +281,7 @@ class RentalContractServiceTest {
     @DisplayName("create deve preservar legacyId fornecido no DTO (importação legado)")
     void testCreate_preserveProvidedLegacyId() {
         CreateRentalContractDTO dtoWithLegacy = new CreateRentalContractDTO(
-                customerId, 0, null, "12345",
+                customerId, null, "12345",
                 LocalDate.now().plusDays(5),
                 LocalDate.now().plusDays(7),
                 LocalDate.now().plusDays(9),
