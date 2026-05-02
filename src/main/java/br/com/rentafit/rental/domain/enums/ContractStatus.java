@@ -9,7 +9,8 @@ public enum ContractStatus {
     SIGNED(1, "Assinado"),
     FINALIZED(2, "Contrato fechado"),
     REVISION(3, "Revisão"),
-    SUPERSEDED(4, "Substituído");
+    SUPERSEDED(4, "Substituído"),
+    CLOSED(5, "Concluído");
 
     private final int legacyCode;
     private final String description;

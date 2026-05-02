@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -56,6 +57,16 @@ public class RentalContractItem {
     /** UUID do funcionário que registrou a entrega (atendente). */
     @Column(name = "attendant_employee_id")
     private UUID attendantEmployeeId;
+
+    @Column(name = "returned", nullable = false)
+    @Builder.Default
+    private Boolean returned = false;
+
+    @Column(name = "returned_at")
+    private OffsetDateTime returnedAt;
+
+    @Column(name = "returned_by_name")
+    private String returnedByName;
 
     @OneToMany(mappedBy = "contractItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Builder.Default

@@ -4,6 +4,7 @@ import br.com.rentafit.rental.domain.enums.ItemMetaType;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.OffsetDateTime;
 import java.util.UUID;
 
 /**
@@ -44,5 +45,12 @@ public class RentalContractItemMeta {
      */
     @Column(name = "accessory_id")
     private UUID accessoryId;
+
+    @Column(name = "returned", nullable = false)
+    @Builder.Default
+    private Boolean returned = false;
+
+    @Column(name = "returned_at")
+    private OffsetDateTime returnedAt;
 }
 

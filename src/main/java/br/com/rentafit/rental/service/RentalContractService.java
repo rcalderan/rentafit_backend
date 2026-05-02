@@ -258,9 +258,14 @@ public class RentalContractService {
     }
 
     /**
-     * Processa a devolução do contrato.
-     * Marca como returned e aciona workflow de manutenção.
+     * Processa a devolução do contrato (operação legada — bulk).
+     *
+     * @deprecated Substituído pelo sistema de devolução granular ({@link ReturnService}).
+     *     Mantido para compatibilidade com integrações existentes.
+     *     Usar {@code POST /api/v1/rental/contracts/{id}/return-mark} e
+     *     {@code POST /api/v1/rental/contracts/{id}/return-close} para novos fluxos.
      */
+    @Deprecated(since = "2.0", forRemoval = false)
     public RentalContractDetailsDTO processReturn(UUID id, ReturnContractDTO dto) {
         RentalContract contract = requireContract(id);
         requireStatus(contract, ContractStatus.FINALIZED, "processar devolução");

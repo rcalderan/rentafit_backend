@@ -243,7 +243,8 @@ public class RentalPaymentService {
     private void validatePaidInstallmentMutationAllowed(RentalContract contract, RentalPayment payment, String action) {
         boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
                 || ContractStatus.FINALIZED.equals(contract.getStatus())
-                || ContractStatus.REVISION.equals(contract.getStatus());
+                || ContractStatus.REVISION.equals(contract.getStatus())
+                || ContractStatus.CLOSED.equals(contract.getStatus());
 
         if (contractLocked && PaymentStatus.PAID.equals(payment.getStatus())) {
             throw new ValidationException(
@@ -260,7 +261,8 @@ public class RentalPaymentService {
                                                            RentalPaymentInputDTO dto) {
         boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
                 || ContractStatus.FINALIZED.equals(contract.getStatus())
-                || ContractStatus.REVISION.equals(contract.getStatus());
+                || ContractStatus.REVISION.equals(contract.getStatus())
+                || ContractStatus.CLOSED.equals(contract.getStatus());
 
         boolean existingIsPaid = PaymentStatus.PAID.equals(existingPayment.getStatus());
         boolean incomingIsPaid = dto.status() != null && "PAID".equalsIgnoreCase(dto.status());

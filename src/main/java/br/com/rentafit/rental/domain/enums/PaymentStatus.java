@@ -6,7 +6,8 @@ package br.com.rentafit.rental.domain.enums;
 public enum PaymentStatus {
     PENDING(0, "Pendente"),
     PAID(1, "Pago"),
-    CANCELLED(2, "Cancelado");
+    CANCELLED(2, "Cancelado"),
+    MULTA(3, "Multa por atraso");
 
     private final int legacyCode;
     private final String description;
