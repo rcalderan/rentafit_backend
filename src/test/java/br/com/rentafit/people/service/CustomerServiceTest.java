@@ -25,7 +25,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -99,6 +98,52 @@ class CustomerServiceTest {
     }
 
     // ==================== findById Tests ====================
+
+    @Test
+    @DisplayName("Deve buscar clientes por nome com LIKE e paginação")
+    void shouldFindCustomersByNameLikeWithPagination() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findByNameContainingIgnoreCase("test", pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByName("test", pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(customerRepository).findByNameContainingIgnoreCase("test", pageable);
+        verify(customerRepository, never()).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("Deve usar findAll quando nome estiver vazio")
+    void shouldFallbackToFindAllWhenNameIsBlank() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findAll(pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByName("  ", pageable);
+
+        assertThat(result).isNotNull();
+        verify(customerRepository).findAll(pageable);
+        verify(customerRepository, never()).findByNameContainingIgnoreCase(anyString(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Deve buscar clientes por prefixo de nome com paginação")
+    void shouldFindCustomersByNamePrefixWithPagination() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findByNamePrefixIgnoreCase("tes", pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByNamePrefix("tes", pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(customerRepository).findByNamePrefixIgnoreCase("tes", pageable);
+    }
 
     @Test
     @DisplayName("Deve encontrar cliente por ID")

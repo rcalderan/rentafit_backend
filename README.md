@@ -311,6 +311,9 @@ Após iniciar a aplicação, acesse:
 
 #### **Customers** (`/api/v1/customers`)
 - `GET    /api/v1/customers` - Listar todos (paginado)
+- `GET    /api/v1/customers?name={name}` - Buscar por nome (contains/LIKE, case-insensitive, paginado)
+- `GET    /api/v1/customers/byName/{name}` - Buscar por nome (contains/LIKE, case-insensitive, paginado)
+- `GET    /api/v1/customers/byNamePrefix/{namePrefix}` - Buscar por prefixo de nome (otimizada para autocomplete)
 - `GET    /api/v1/customers/byId/{id}` - Buscar por ID
 - `GET    /api/v1/customers/byDocument/{document}` - Buscar por CPF/CNPJ
 - `GET    /api/v1/customers/byLegacyId/{legacyId}` - Buscar por ID legado
@@ -318,6 +321,11 @@ Após iniciar a aplicação, acesse:
 - `POST   /api/v1/customers` - Criar novo cliente
 - `PUT    /api/v1/customers` - Atualizar cliente
 - `DELETE /api/v1/customers/{id}` - Deletar cliente
+
+**Exemplos de busca por nome:**
+- `GET /api/v1/customers?name=joao&page=0&size=10&sort=name,asc`
+- `GET /api/v1/customers/byName/joao?page=0&size=10&sort=name,asc`
+- `GET /api/v1/customers/byNamePrefix/jo?page=0&size=10&sort=name,asc`
 
 #### **Employees** (`/api/v1/employees`)
 - `GET    /api/v1/employees` - Listar todos (paginado)

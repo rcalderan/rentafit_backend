@@ -12,14 +12,13 @@ import br.com.rentafit.people.dto.CustomerDetailsDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.CustomerRepository;
 import br.com.rentafit.people.repository.PersonAddressHistoryRepository;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -38,6 +37,31 @@ public class CustomerService {
     @Transactional(readOnly = true)
     public Page<CustomerDetailsDTO> findAll(Pageable pageable) {
         return customerRepository.findAll(pageable).map(Customer::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CustomerDetailsDTO> findByName(String name, @Valid Pageable pageable) {
+        if (name == null || name.isBlank()) {
+            return findAll(pageable);
+        }
+
+        return customerRepository.findByNameContainingIgnoreCase(name.trim(), pageable)
+                .map(Customer::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CustomerDetailsDTO> findByNamePrefix(String namePrefix, @Valid Pageable pageable) {
+        if (namePrefix == null || namePrefix.isBlank()) {
+            return findAll(pageable);
+        }
+
+        return customerRepository.findByNamePrefixIgnoreCase(namePrefix.trim(), pageable)
+                .map(Customer::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<CustomerDetailsDTO> search(String name, @Valid Pageable pageable) {
+        return findByName(name, pageable);
     }
 
     @Transactional(readOnly = true)

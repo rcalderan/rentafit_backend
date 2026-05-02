@@ -341,8 +341,18 @@ GET /api/v1/customers?page=0&size=10&sort=name,asc
 ## 🔍 Filtros Específicos
 
 ### Customers
+- `GET /api/v1/customers?name={name}` - Busca por nome (contains/LIKE, case-insensitive)
+- `GET /api/v1/customers/byName/{name}` - Busca por nome (contains/LIKE, case-insensitive)
+- `GET /api/v1/customers/byNamePrefix/{namePrefix}` - Busca por prefixo (otimizada para autocomplete)
 - `GET /api/v1/customers/byDocument/{document}` - Busca por CPF/CNPJ
 - `GET /api/v1/customers/byLegacyId/{legacyId}` - Busca por ID legado
+
+**Exemplos úteis (Customers):**
+```
+GET /api/v1/customers?name=ana&page=0&size=10&sort=name,asc
+GET /api/v1/customers/byName/ana?page=0&size=10&sort=name,asc
+GET /api/v1/customers/byNamePrefix/an?page=0&size=10&sort=name,asc
+```
 
 ### Categories
 - `GET /api/v1/categories/type/{type}` - Filtra por tipo (RENTAL, RETAIL, ACCESSORY)
