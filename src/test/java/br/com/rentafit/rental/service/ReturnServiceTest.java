@@ -159,7 +159,7 @@ class ReturnServiceTest {
         void shouldMarkItemReturnedAndReturnUpdatedSummary() {
             OffsetDateTime now = OffsetDateTime.now();
             MarkReturnRequestDTO request = new MarkReturnRequestDTO(
-                    "João (amigo)", List.of(new ReturnEntryDTO(itemId, null, now)));
+                    "João (amigo)", List.of(new ReturnEntryDTO(itemId, null, now)), null, null);
 
             when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
             when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -177,7 +177,7 @@ class ReturnServiceTest {
             item.setReturned(true);
             OffsetDateTime now = OffsetDateTime.now();
             MarkReturnRequestDTO request = new MarkReturnRequestDTO(
-                    "João", List.of(new ReturnEntryDTO(itemId, null, now)));
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), null, null);
 
             when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
 
@@ -191,13 +191,81 @@ class ReturnServiceTest {
         void shouldThrowNotFoundForUnknownItemId() {
             UUID unknownId = UUID.randomUUID();
             MarkReturnRequestDTO request = new MarkReturnRequestDTO(
-                    "João", List.of(new ReturnEntryDTO(unknownId, null, OffsetDateTime.now())));
+                    "João", List.of(new ReturnEntryDTO(unknownId, null, OffsetDateTime.now())), null, null);
 
             when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
 
             assertThatThrownBy(() -> returnService.markItemsReturned(contractId, request))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining(unknownId.toString());
+        }
+
+        @Test
+        @DisplayName("BUG-6: cria parcela MULTA quando applyFine=true e fineAmount > 0")
+        void shouldCreateFinePaymentWhenApplyFineIsTrue() {
+            OffsetDateTime now = OffsetDateTime.now();
+            BigDecimal fineAmount = BigDecimal.valueOf(50.00);
+            MarkReturnRequestDTO request = new MarkReturnRequestDTO(
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), true, fineAmount);
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+            when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+            when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(1);
+
+            returnService.markItemsReturned(contractId, request);
+
+            ArgumentCaptor<RentalPayment> captor = ArgumentCaptor.forClass(RentalPayment.class);
+            verify(paymentRepository).save(captor.capture());
+            RentalPayment fine = captor.getValue();
+            assertThat(fine.getStatus()).isEqualTo(PaymentStatus.MULTA);
+            assertThat(fine.getValue()).isEqualByComparingTo(fineAmount);
+            assertThat(fine.getInstallmentNumber()).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("BUG-6: não cria parcela MULTA quando applyFine=false")
+        void shouldNotCreateFinePaymentWhenApplyFineIsFalse() {
+            OffsetDateTime now = OffsetDateTime.now();
+            MarkReturnRequestDTO request = new MarkReturnRequestDTO(
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), false, BigDecimal.valueOf(50));
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+            when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            returnService.markItemsReturned(contractId, request);
+
+            verify(paymentRepository, never()).findMaxInstallmentNumberByContractId(any());
+            verify(paymentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("BUG-6: não cria parcela MULTA quando applyFine=true mas fineAmount=null")
+        void shouldNotCreateFinePaymentWhenFineAmountIsNull() {
+            OffsetDateTime now = OffsetDateTime.now();
+            MarkReturnRequestDTO request = new MarkReturnRequestDTO(
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), true, null);
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+            when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            returnService.markItemsReturned(contractId, request);
+
+            verify(paymentRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("BUG-6: não cria parcela MULTA quando fineAmount = 0")
+        void shouldNotCreateFinePaymentWhenFineAmountIsZero() {
+            OffsetDateTime now = OffsetDateTime.now();
+            MarkReturnRequestDTO request = new MarkReturnRequestDTO(
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), true, BigDecimal.ZERO);
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+            when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            returnService.markItemsReturned(contractId, request);
+
+            verify(paymentRepository, never()).save(any());
         }
     }
 
@@ -303,8 +371,8 @@ class ReturnServiceTest {
     }
 
     @Nested
-    @DisplayName("delayDays calculation")
-    class DelayDaysCalculation {
+    @DisplayName("delayDays e suggestedFine")
+    class DelayDaysAndSuggestedFine {
 
         @Test
         @DisplayName("calcula delayDays=0 quando returnDate é hoje ou futuro")
@@ -326,6 +394,53 @@ class ReturnServiceTest {
             ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
 
             assertThat(result.delayDays()).isEqualTo(3);
+        }
+
+        @Test
+        @DisplayName("BUG-2: suggestedFine = 0 quando sem atraso")
+        void shouldReturnZeroSuggestedFineWhenNoDelay() {
+            finalizedContract.setReturnDate(LocalDate.now().plusDays(1));
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.suggestedFine()).isEqualByComparingTo(BigDecimal.ZERO);
+        }
+
+        @Test
+        @DisplayName("BUG-2: suggestedFine calculada como 1% do total por dia (item = R$1000, 5 dias = R$50)")
+        void shouldCalculateSuggestedFineAsOnePercentPerDay() {
+            // item.value = 1000, delayDays = 5 → 1000 * 0.05 = 50.00
+            finalizedContract.setReturnDate(LocalDate.now().minusDays(5));
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.suggestedFine()).isEqualByComparingTo(BigDecimal.valueOf(50.00));
+        }
+
+        @Test
+        @DisplayName("BUG-2: suggestedFine limitada a 20% do total (item = R$1000, 25 dias → cap R$200)")
+        void shouldCapSuggestedFineAtTwentyPercent() {
+            // item.value = 1000, delayDays = 25 → 25% → capped at 20% = 200.00
+            finalizedContract.setReturnDate(LocalDate.now().minusDays(25));
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.suggestedFine()).isEqualByComparingTo(BigDecimal.valueOf(200.00));
+        }
+
+        @Test
+        @DisplayName("BUG-2: suggestedFine = 0 quando contrato já devolvido (isReturned=true)")
+        void shouldReturnZeroSuggestedFineWhenContractAlreadyReturned() {
+            finalizedContract.setReturnDate(LocalDate.now().minusDays(5));
+            finalizedContract.setReturned(true);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.suggestedFine()).isEqualByComparingTo(BigDecimal.ZERO);
         }
     }
 }

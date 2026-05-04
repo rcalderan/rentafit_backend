@@ -10,6 +10,7 @@ receita/
 .prompt
 .docs
 .copilot/*
+.windsurf/*
 
 ### STS ###
 .apt_generated

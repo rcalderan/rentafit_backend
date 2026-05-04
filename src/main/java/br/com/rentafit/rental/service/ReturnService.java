@@ -74,6 +74,11 @@ public class ReturnService {
             }
         }
 
+        if (Boolean.TRUE.equals(dto.applyFine()) && dto.fineAmount() != null && dto.fineAmount().compareTo(BigDecimal.ZERO) > 0) {
+            createFinePayment(contract, dto.fineAmount(), null);
+            log.info("Fine payment of {} created during mark for contract {}", dto.fineAmount(), contractId);
+        }
+
         RentalContract refreshed = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("RentalContract", "id", contractId.toString()));
         log.info("Marked {} return entries for contract {}", dto.entries().size(), contractId);
@@ -182,6 +187,29 @@ public class ReturnService {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", employeeId.toString()));
     }
 
+    /**
+     * Calcula a multa sugerida por atraso.
+     *
+     * <p>Regra: 1% do valor total do contrato por dia de atraso, limitado a 20% do total.
+     * Retorna ZERO quando não há atraso ou o contrato já foi devolvido.</p>
+     */
+    private BigDecimal calculateSuggestedFine(RentalContract contract, long delayDays) {
+        if (delayDays <= 0 || Boolean.TRUE.equals(contract.getReturned())) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal contractTotal = contract.getItems().stream()
+                .map(RentalContractItem::getValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (contractTotal.compareTo(BigDecimal.ZERO) == 0) {
+            return BigDecimal.ZERO;
+        }
+        // 1% por dia de atraso, teto de 20%
+        BigDecimal dailyRate = BigDecimal.valueOf(0.01);
+        BigDecimal maxRate = BigDecimal.valueOf(0.20);
+        BigDecimal appliedRate = dailyRate.multiply(BigDecimal.valueOf(delayDays)).min(maxRate);
+        return contractTotal.multiply(appliedRate).setScale(2, java.math.RoundingMode.HALF_UP);
+    }
+
     private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId) {
         int nextInstallment = paymentRepository
                 .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
@@ -237,7 +265,7 @@ public class ReturnService {
                 .pendingCount((int) pendingCount)
                 .isFullyReturned(isFullyReturned)
                 .delayDays(delayDays)
-                .suggestedFine(BigDecimal.ZERO)
+                .suggestedFine(calculateSuggestedFine(contract, delayDays))
                 .items(items)
                 .paymentsPreview(paymentsPreview)
                 .build();

@@ -271,7 +271,7 @@ class EmployeeServiceTest {
 
         assertThatThrownBy(() -> employeeService.check(requestDTO))
                 .isInstanceOf(ValidationException.class)
-                .hasMessageContaining("Invalid employee credentials");
+                .hasMessageContaining("Credenciais inválidas");
     }
 
     @Test

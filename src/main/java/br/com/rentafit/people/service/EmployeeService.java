@@ -87,13 +87,13 @@ public class EmployeeService {
     public EmployeeCheckResponseDTO check(EmployeeCheckRequestDTO dto) {
         String normalizedInitials = normalizeInitials(dto.initials());
         Employee employee = employeeRepository.findByInitials(normalizedInitials)
-                .orElseThrow(() -> new ValidationException("Invalid employee credentials"));
+                .orElseThrow(() -> new ValidationException("Credenciais inválidas. Verifique as iniciais e o PIN."));
 
         UserAccount account = userAccountRepository.findById(employee.getId())
-                .orElseThrow(() -> new ValidationException("Invalid employee credentials"));
+                .orElseThrow(() -> new ValidationException("Credenciais inválidas. Verifique as iniciais e o PIN."));
 
         if (account.getPin() == null || !account.getPin().equals(dto.pin())) {
-            throw new ValidationException("Invalid employee credentials");
+            throw new ValidationException("Credenciais inválidas. Verifique as iniciais e o PIN.");
         }
 
         return new EmployeeCheckResponseDTO(employee.getId(), employee.getInitials(), employee.getName());
