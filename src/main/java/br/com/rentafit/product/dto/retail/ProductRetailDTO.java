@@ -35,5 +35,7 @@ public record ProductRetailDTO(
     BigDecimal value,
 
     @NotBlank(message = "Name is required")
-    String description
+    String description,
+
+    Integer warrantyDays
 ) {}

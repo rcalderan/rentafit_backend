@@ -50,6 +50,7 @@ public class RetailProductService {
                 .value(dto.value())
                 .description(dto.description())
                 .details(dto.details())
+                .warrantyDays(dto.warrantyDays())
                 .build();
         // Save product
         RetailProduct saved = retailProductRepository.save(product);

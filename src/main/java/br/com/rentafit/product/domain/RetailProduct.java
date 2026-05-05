@@ -27,6 +27,10 @@ public class RetailProduct extends Product {
     @Column(unique = true)
     private String sku;
 
+    /** Prazo de garantia em dias (ex: 90 = 90 dias). Null = sem garantia. */
+    @Column(name = "warranty_days")
+    private Integer warrantyDays;
+
     @OneToOne(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     private Stock stock;
 
@@ -66,6 +70,7 @@ public class RetailProduct extends Product {
                 .createdAt(this.getCreatedAt())
                 .updatedAt(this.getUpdatedAt())
                 .sku(this.getSku())
+                .warrantyDays(this.getWarrantyDays())
                 .stock(this.getStock().toDTO())
                 .build();
     }
@@ -104,6 +109,10 @@ public class RetailProduct extends Product {
 
             if (productRetailDTO.sku() != null) {
                 this.setSku(productRetailDTO.sku());
+            }
+
+            if (productRetailDTO.warrantyDays() != null) {
+                this.setWarrantyDays(productRetailDTO.warrantyDays());
             }
 
             this.setUpdatedAt(LocalDateTime.now());
