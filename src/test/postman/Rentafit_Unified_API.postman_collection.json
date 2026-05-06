@@ -2521,6 +2521,528 @@
 				}
 			],
 			"description": "Integração com a API NFS-e Via (Serpro) para recepção, cancelamento e substituição de NFS-e"
+		},
+		{
+			"name": "Sales Orders",
+			"item": [
+				{
+					"name": "List Orders",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders?page=0&size=20&sort=createdAt,desc",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders"
+							],
+							"query": [
+								{
+									"key": "status",
+									"value": "",
+									"disabled": true,
+									"description": "DRAFT | CONFIRMED | PAID | COMPLETED | CANCELLED"
+								},
+								{
+									"key": "dateFrom",
+									"value": "",
+									"disabled": true,
+									"description": "ISO 8601 (ex: 2026-05-01T00:00:00-03:00)"
+								},
+								{
+									"key": "dateTo",
+									"value": "",
+									"disabled": true
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "sort",
+									"value": "createdAt,desc"
+								}
+							]
+						},
+						"description": "Lista pedidos de venda paginados. Filtros opcionais: status, dateFrom, dateTo."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Order by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}"
+							]
+						},
+						"description": "Busca um pedido de venda pelo UUID."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Order by Legacy ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/legacyId/{{sales_order_legacy_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"legacyId",
+								"{{sales_order_legacy_id}}"
+							]
+						},
+						"description": "Busca pelo código legado no formato V-YYYYMMDD-N."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Orders by Customer",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/byCustomer/{{customer_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"byCustomer",
+								"{{customer_id}}"
+							]
+						},
+						"description": "Lista histórico de compras de um cliente."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Order (DRAFT)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('sales_order_id', jsonData.id);",
+									"    pm.collectionVariables.set('sales_order_legacy_id', jsonData.legacyId);",
+									"    if (jsonData.items && jsonData.items.length > 0) {",
+									"        pm.collectionVariables.set('sales_order_item_id', jsonData.items[0].id);",
+									"    }",
+									"    console.log('Sales Order criado: ' + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": \"{{customer_id}}\",\n    \"createdByEmployeeId\": \"{{employee_id}}\",\n    \"notes\": \"Pedido de teste via Postman\",\n    \"discountValue\": 0.00,\n    \"items\": [\n        {\n            \"retailProductId\": \"{{retail_product_id}}\",\n            \"quantity\": 2,\n            \"discountValue\": 5.00,\n            \"attendantEmployeeId\": null,\n            \"needsTailoring\": false,\n            \"tailoringNotes\": null\n        }\n    ],\n    \"payments\": [\n        {\n            \"installmentNumber\": 1,\n            \"paymentDate\": \"2026-05-10\",\n            \"paymentMethod\": \"PIX\",\n            \"value\": 195.00,\n            \"installments\": 1,\n            \"processedByEmployeeId\": null,\n            \"status\": \"PENDING\"\n        }\n    ]\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders"
+							]
+						},
+						"description": "Cria um pedido de venda em DRAFT. customerId é opcional (null = venda de balcão). Salva sales_order_id, sales_order_legacy_id e sales_order_item_id."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Order — Venda de Balcão (sem cliente)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set('sales_order_id', jsonData.id);",
+									"    console.log('Venda balcão criada: ' + jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": null,\n    \"createdByEmployeeId\": \"{{employee_id}}\",\n    \"notes\": \"Venda de balcão\",\n    \"discountValue\": null,\n    \"items\": [\n        {\n            \"retailProductId\": \"{{retail_product_id}}\",\n            \"quantity\": 1,\n            \"discountValue\": null,\n            \"needsTailoring\": false,\n            \"tailoringNotes\": null\n        }\n    ],\n    \"payments\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders"
+							]
+						},
+						"description": "Cria pedido sem cliente identificado (venda de balcão). customerId = null."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Order (DRAFT)",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"customerId\": \"{{customer_id}}\",\n    \"notes\": \"Pedido atualizado\",\n    \"discountValue\": 10.00,\n    \"items\": [\n        {\n            \"retailProductId\": \"{{retail_product_id}}\",\n            \"quantity\": 3,\n            \"discountValue\": 10.00,\n            \"needsTailoring\": true,\n            \"tailoringNotes\": \"Ajuste de manga\"\n        }\n    ],\n    \"payments\": null\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}"
+							]
+						},
+						"description": "Atualiza um pedido em DRAFT. Substitui itens e pagamentos por completo (replace semantics)."
+					},
+					"response": []
+				},
+				{
+					"name": "Confirm Order (DRAFT → CONFIRMED)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/confirm",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}",
+								"confirm"
+							]
+						},
+						"description": "Confirma o pedido. Reserva o estoque. DRAFT → CONFIRMED. Retorna 422 se estoque insuficiente."
+					},
+					"response": []
+				},
+				{
+					"name": "Cancel Order",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"Cliente desistiu da compra\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/cancel",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}",
+								"cancel"
+							]
+						},
+						"description": "Cancela o pedido. Válido nos status DRAFT e CONFIRMED. Libera estoque se reservado."
+					},
+					"response": []
+				},
+				{
+					"name": "Mark Item Ready (RESERVED → READY)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/items/{{sales_order_item_id}}/ready",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}",
+								"items",
+								"{{sales_order_item_id}}",
+								"ready"
+							]
+						},
+						"description": "Marca o item como pronto para entrega. RESERVED → READY."
+					},
+					"response": []
+				},
+				{
+					"name": "Deliver Item (READY → DELIVERED)",
+					"request": {
+						"method": "PATCH",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/items/{{sales_order_item_id}}/deliver?employeeId={{employee_id}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}",
+								"items",
+								"{{sales_order_item_id}}",
+								"deliver"
+							],
+							"query": [
+								{
+									"key": "employeeId",
+									"value": "{{employee_id}}",
+									"description": "Opcional"
+								}
+							]
+						},
+						"description": "Confirma a entrega do item. READY → DELIVERED. Requer pedido com status PAID."
+					},
+					"response": []
+				},
+				{
+					"name": "Emit Invoice (NFS-e)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/emit-invoice",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"sales",
+								"orders",
+								"{{sales_order_id}}",
+								"emit-invoice"
+							]
+						},
+						"description": "Emite NFS-e manualmente para o pedido pago. Retorna 422 se pedido não pago ou NFS-e já emitida."
+					},
+					"response": []
+				},
+				{
+					"name": "Sales Payments",
+					"item": [
+						{
+							"name": "List Payments",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/payments",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"sales",
+										"orders",
+										"{{sales_order_id}}",
+										"payments"
+									]
+								},
+								"description": "Lista todas as parcelas do pedido de venda."
+							},
+							"response": []
+						},
+						{
+							"name": "Add Payment",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"if (pm.response.code === 200) {",
+											"    var jsonData = pm.response.json();",
+											"    if (jsonData.payments && jsonData.payments.length > 0) {",
+											"        var last = jsonData.payments[jsonData.payments.length - 1];",
+											"        pm.collectionVariables.set('sales_payment_id', last.id);",
+											"        console.log('Sales Payment ID: ' + last.id);",
+											"    }",
+											"}"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"installmentNumber\": 1,\n    \"paymentDate\": \"2026-05-10\",\n    \"paymentMethod\": \"PIX\",\n    \"value\": 195.00,\n    \"installments\": 1,\n    \"processedByEmployeeId\": null,\n    \"status\": \"PAID\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/payments",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"sales",
+										"orders",
+										"{{sales_order_id}}",
+										"payments"
+									]
+								},
+								"description": "Adiciona uma parcela ao pedido. Salva sales_payment_id. paymentMethod: CASH | PIX | CREDIT_CARD | DEBIT_CARD | BANK_TRANSFER. status: PENDING | PAID."
+							},
+							"response": []
+						},
+						{
+							"name": "Update Payment",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"installmentNumber\": 1,\n    \"paymentDate\": \"2026-05-15\",\n    \"paymentMethod\": \"CREDIT_CARD\",\n    \"value\": 195.00,\n    \"installments\": 3,\n    \"processedByEmployeeId\": null,\n    \"status\": \"PENDING\"\n}"
+								},
+								"url": {
+									"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/payments/{{sales_payment_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"sales",
+										"orders",
+										"{{sales_order_id}}",
+										"payments",
+										"{{sales_payment_id}}"
+									]
+								},
+								"description": "Atualiza uma parcela PENDING. 422 se parcela já paga ou pedido em status avançado."
+							},
+							"response": []
+						},
+						{
+							"name": "Cancel Payment",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/v1/sales/orders/{{sales_order_id}}/payments/{{sales_payment_id}}",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"v1",
+										"sales",
+										"orders",
+										"{{sales_order_id}}",
+										"payments",
+										"{{sales_payment_id}}"
+									]
+								},
+								"description": "Cancela uma parcela PENDING. 422 se parcela já paga."
+							},
+							"response": []
+						}
+					],
+					"description": "Gerenciamento de parcelas de pagamento de pedidos de venda — /api/v1/sales/orders/{orderId}/payments"
+				}
+			],
+			"description": "Pedidos de venda (varejo) — /api/v1/sales/orders. Ciclo: DRAFT → CONFIRMED → PAID → COMPLETED | CANCELLED"
 		}
 	],
 	"event": [
@@ -2668,6 +3190,30 @@
 			"value": "",
 			"type": "string",
 			"description": "Protocolo de processamento retornado pela API NFS-e Via (Serpro)"
+		},
+		{
+			"key": "sales_order_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do pedido de venda para testes"
+		},
+		{
+			"key": "sales_order_legacy_id",
+			"value": "",
+			"type": "string",
+			"description": "Código legado do pedido de venda (formato V-YYYYMMDD-N)"
+		},
+		{
+			"key": "sales_order_item_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID do item do pedido de venda para testes"
+		},
+		{
+			"key": "sales_payment_id",
+			"value": "",
+			"type": "string",
+			"description": "UUID da parcela de pagamento do pedido de venda"
 		}
 	]
 }

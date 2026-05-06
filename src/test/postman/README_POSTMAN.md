@@ -13,6 +13,8 @@ Esta coleção contém todos os endpoints organizados por módulos:
 - **Product - Rental Items** - Gerenciamento de produtos de aluguel
 - **Product - Retail Items** - Gerenciamento de produtos para venda
 - **Product - Stock** - Gerenciamento de estoque e movimentações
+- **Sales Orders** - Pedidos de venda (varejo): ciclo DRAFT → CONFIRMED → PAID → COMPLETED | CANCELLED
+- **Sales Payments** - Parcelas de pagamento dos pedidos de venda
 
 ## 🚀 Como Usar
 
@@ -123,6 +125,10 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 | `payment_id` | UUID da parcela de pagamento | (salvo ao criar parcela) |
 | `conflict_contract_id` | UUID do contrato de teste BLOCKING | (salvo no teste de conflito) |
 | `warning_contract_id` | UUID do contrato de teste WARNING | (salvo no teste de conflito) |
+| `sales_order_id` | UUID do pedido de venda | (salvo ao criar pedido) |
+| `sales_order_legacy_id` | Código legado do pedido (V-YYYYMMDD-N) | (salvo ao criar pedido) |
+| `sales_order_item_id` | UUID do item do pedido de venda | (salvo ao criar pedido) |
+| `sales_payment_id` | UUID da parcela de pagamento de venda | (salvo ao adicionar parcela) |
 
 ## 🔄 Fluxo de Teste Recomendado
 
@@ -226,7 +232,43 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 | Mesmo item + eventDate a **±4+ dias** | Sem conflito |
 | Itens sem `rentalItemId` (legados) | Ignorados na verificação |
 
-### 5. Renovar Token (se expirar)
+### 5. Testar Módulo Sales Orders
+
+```
+# Ciclo de vida básico
+1. Create Order (DRAFT) → salva sales_order_id, sales_order_legacy_id, sales_order_item_id
+2. Get Order by ID
+3. Update Order (DRAFT)
+4. Add Payment → salva sales_payment_id
+5. Confirm Order (DRAFT → CONFIRMED, reserva estoque)
+6. Mark Item Ready (RESERVED → READY)
+7. Deliver Item (READY → DELIVERED, requer status PAID)
+8. Emit Invoice (NFS-e) — opcional
+
+# Venda de balcão
+1. Create Order — Venda de Balcão (customerId = null)
+
+# Cancelamento
+1. Cancel Order (DRAFT | CONFIRMED → CANCELLED, libera estoque)
+
+# Pagamentos
+1. Add Payment → salva sales_payment_id
+2. List Payments
+3. Update Payment
+4. Cancel Payment
+```
+
+#### Status do pedido de venda
+
+| Status | Descrição |
+|--------|-----------|
+| DRAFT | Rascunho (editável) |
+| CONFIRMED | Confirmado (estoque reservado) |
+| PAID | Pago (permite entrega) |
+| COMPLETED | Concluído (todos itens entregues) |
+| CANCELLED | Cancelado (estoque liberado se estava CONFIRMED) |
+
+### 6. Renovar Token (se expirar)
 
 ```
 Auth → Refresh Token
@@ -258,6 +300,56 @@ Auth → Refresh Token
     "phones": [
         "11987654321",
         "1133334444"
+    ]
+}
+```
+
+### Criar um Produto de Venda (Retail) com Garantia
+
+**Endpoint:** `POST /api/v1/products/retail`
+
+```json
+{
+    "name": "Camiseta Fitness",
+    "sku": "CAM-FIT-001",
+    "categoryId": "{{category_id}}",
+    "size": "M",
+    "color": "Preto",
+    "brand": "Nike",
+    "value": 99.90,
+    "description": "Camiseta fitness de alta performance",
+    "warrantyDays": 90
+}
+```
+
+### Criar um Pedido de Venda
+
+**Endpoint:** `POST /api/v1/sales/orders`
+
+```json
+{
+    "customerId": "{{customer_id}}",
+    "createdByEmployeeId": "{{employee_id}}",
+    "notes": "Pedido de teste",
+    "discountValue": 0.00,
+    "items": [
+        {
+            "retailProductId": "{{retail_product_id}}",
+            "quantity": 2,
+            "discountValue": 5.00,
+            "needsTailoring": false,
+            "tailoringNotes": null
+        }
+    ],
+    "payments": [
+        {
+            "installmentNumber": 1,
+            "paymentDate": "2026-05-10",
+            "paymentMethod": "PIX",
+            "value": 195.00,
+            "installments": 1,
+            "status": "PENDING"
+        }
     ]
 }
 ```
@@ -378,4 +470,4 @@ Para dúvidas ou problemas:
 
 ---
 
-**Rentafit API Collection** - v1.0.0
+**Rentafit API Collection** - v1.1.0

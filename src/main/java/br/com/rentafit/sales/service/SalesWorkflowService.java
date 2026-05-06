@@ -1,5 +1,6 @@
 package br.com.rentafit.sales.service;
 
+import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.sales.domain.SalesOrder;
 import br.com.rentafit.sales.domain.SalesOrderItem;
@@ -13,6 +14,8 @@ import br.com.rentafit.sales.port.RetailProductPort;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +51,8 @@ public class SalesWorkflowService {
             throw new ValidationException("Pedido sem itens não pode ser confirmado");
         }
 
+        UUID userId = getCurrentUserId();
+
         // Validar e reservar estoque para cada item
         for (SalesOrderItem item : order.getItems()) {
             var product = productPort.findById(item.getRetailProductId())
@@ -61,13 +66,13 @@ public class SalesWorkflowService {
                         + ", solicitado=" + item.getQuantity());
             }
 
-            productPort.reserveStock(item.getRetailProductId(), item.getQuantity());
+            productPort.reserveStock(item.getRetailProductId(), item.getQuantity(), userId);
             item.setItemStatus(SalesItemStatus.RESERVED);
         }
 
         order.setStatus(SalesOrderStatus.CONFIRMED);
         SalesOrder saved = orderRepository.save(order);
-        log.info("Sales order confirmed: {}", saved.getId());
+        log.info("Sales order confirmed: {} by user {}", saved.getId(), userId);
         return mapper.toDetailsDTO(saved, null);
     }
 
@@ -84,11 +89,12 @@ public class SalesWorkflowService {
         }
 
         // Liberar reservas se estava CONFIRMED
+        UUID userId = getCurrentUserId();
         if (order.getStatus() == SalesOrderStatus.CONFIRMED) {
             for (SalesOrderItem item : order.getItems()) {
                 if (item.getItemStatus() == SalesItemStatus.RESERVED
                     || item.getItemStatus() == SalesItemStatus.READY) {
-                    productPort.releaseStock(item.getRetailProductId(), item.getQuantity());
+                    productPort.releaseStock(item.getRetailProductId(), item.getQuantity(), userId);
                 }
                 item.setItemStatus(SalesItemStatus.PENDING);
             }
@@ -135,8 +141,10 @@ public class SalesWorkflowService {
                     "Item deve estar READY para entrega, status atual: " + item.getItemStatus());
         }
 
+        UUID userId = getCurrentUserId();
+
         // Saída definitiva do estoque: reserved--, total--
-        productPort.removeStock(item.getRetailProductId(), item.getQuantity());
+        productPort.removeStock(item.getRetailProductId(), item.getQuantity(), userId);
         item.setItemStatus(SalesItemStatus.DELIVERED);
         item.setDeliveredAt(OffsetDateTime.now());
         item.setDeliveredByEmployeeId(employeeId);
@@ -163,6 +171,23 @@ public class SalesWorkflowService {
                 .findFirst()
                 .orElseThrow(() -> new ValidationException(
                         "Item " + itemId + " não encontrado no pedido " + order.getId()));
+    }
+
+    /**
+     * Obtém o ID do usuário autenticado do contexto de segurança.
+     *
+     * <p>O {@code SecurityFilter} popula o contexto com {@code UserAccount} como principal.
+     * Extraímos o UUID diretamente sem tentar parsear o username como UUID.</p>
+     */
+    private UUID getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof UserAccount userAccount) {
+            return userAccount.getId();
+        }
+        // Fallback: nunca deve ocorrer em produção com JWT configurado corretamente
+        log.warn("Authenticated principal is not a UserAccount — principal type: {}",
+                auth != null ? auth.getPrincipal().getClass().getSimpleName() : "null");
+        throw new ValidationException("Usuário autenticado não identificado. Faça login novamente.");
     }
 
     private void assertStatus(SalesOrder order, SalesOrderStatus expected, String action) {

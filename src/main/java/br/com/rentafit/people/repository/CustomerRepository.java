@@ -23,8 +23,11 @@ public interface CustomerRepository extends JpaRepository<Customer, UUID> {
     @EntityGraph(value = "Customer.withAddress", type = EntityGraph.EntityGraphType.FETCH)
     Page<Customer> findAll(Pageable pageable);
 
+    // BUG-2026-05-04-6: EntityGraph FETCH + derived query pode não aplicar o filtro WHERE
+    // corretamente em algumas versões do Hibernate. Usando @Query explícita como fix.
     @EntityGraph(value = "Customer.withAddress", type = EntityGraph.EntityGraphType.FETCH)
-    Page<Customer> findByNameContainingIgnoreCase(String name, Pageable pageable);
+    @Query("SELECT c FROM Customer c WHERE LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%'))")
+    Page<Customer> findByNameContainingIgnoreCase(@Param("name") String name, Pageable pageable);
 
     @EntityGraph(value = "Customer.withAddress", type = EntityGraph.EntityGraphType.FETCH)
     @Query("SELECT c FROM Customer c WHERE LOWER(c.name) LIKE LOWER(CONCAT(:namePrefix, '%'))")

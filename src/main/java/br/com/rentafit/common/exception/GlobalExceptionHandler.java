@@ -230,11 +230,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorResponse> handleBusinessValidation(ValidationException ex,
                                                                   HttpServletRequest request) {
+        // ValidationException carrega mensagens de negócio controladas (não stack traces).
+        // A mensagem é sempre exposta para que o frontend possa exibi-la ao usuário.
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
-                .error(isProd ? "" : HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase())
-                .message(isProd ? "" : ex.getMessage())
+                .error(isProd ? null : HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase())
+                .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .build();
 

@@ -17,13 +17,13 @@ public interface RetailProductPort {
     Optional<RetailProductSnapshot> findBySku(String sku);
 
     /** Reserva estoque: available--, reserved++ */
-    void reserveStock(UUID productId, int quantity);
+    void reserveStock(UUID productId, int quantity, UUID userId);
 
     /** Libera reserva: reserved--, available++ */
-    void releaseStock(UUID productId, int quantity);
+    void releaseStock(UUID productId, int quantity, UUID userId);
 
     /** Remove do estoque definitivamente: reserved--, total-- (saída por venda) */
-    void removeStock(UUID productId, int quantity);
+    void removeStock(UUID productId, int quantity, UUID userId);
 
     /**
      * Snapshot dos dados do produto gravado no item da venda.

@@ -37,15 +37,15 @@ public class RetailProductAdapter implements RetailProductPort {
     }
 
     @Override
-    public void reserveStock(UUID productId, int quantity) {
-        stockService.reserveStock(productId, quantity, null);
-        log.info("Stock reserved via sales: {} units for product {}", quantity, productId);
+    public void reserveStock(UUID productId, int quantity, UUID userId) {
+        stockService.reserveStock(productId, quantity, userId);
+        log.info("Stock reserved via sales: {} units for product {} by user {}", quantity, productId, userId);
     }
 
     @Override
-    public void releaseStock(UUID productId, int quantity) {
-        stockService.releaseReservation(productId, quantity, null);
-        log.info("Stock released via sales: {} units for product {}", quantity, productId);
+    public void releaseStock(UUID productId, int quantity, UUID userId) {
+        stockService.releaseReservation(productId, quantity, userId);
+        log.info("Stock released via sales: {} units for product {} by user {}", quantity, productId, userId);
     }
 
     /**
@@ -54,7 +54,7 @@ public class RetailProductAdapter implements RetailProductPort {
      * Aqui o estoque já foi reservado no confirm, então decrementamos reserved.
      */
     @Override
-    public void removeStock(UUID productId, int quantity) {
+    public void removeStock(UUID productId, int quantity, UUID userId) {
         var stock = stockRepository.findByProductId(productId)
                 .orElseThrow(() -> new br.com.rentafit.common.exception.ValidationException(
                         "Stock not found for product: " + productId));
@@ -66,7 +66,7 @@ public class RetailProductAdapter implements RetailProductPort {
         stock.setQuantityTotal(stock.getQuantityTotal() - quantity);
         stock.setLastMovementDate(java.time.LocalDateTime.now());
         stockRepository.save(stock);
-        log.info("Stock removed (delivery) via sales: {} units for product {}", quantity, productId);
+        log.info("Stock removed (delivery) via sales: {} units for product {} by user {}", quantity, productId, userId);
     }
 
     private RetailProductSnapshot toSnapshot(RetailProduct product) {
