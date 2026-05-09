@@ -19,6 +19,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -39,6 +40,7 @@ public class SalesWorkflowService {
     private final SalesOrderService orderService;
     private final RetailProductPort productPort;
     private final SalesMapper mapper;
+    private final SalesBillingService billingService;
 
     /**
      * DRAFT → CONFIRMED: valida estoque e reserva.
@@ -71,6 +73,11 @@ public class SalesWorkflowService {
         }
 
         order.setStatus(SalesOrderStatus.CONFIRMED);
+        // Se já há pagamentos PAID que cobrem o total, transita direto para PAID.
+        // Necessário quando o frontend encadeia save()+confirm() e os pagamentos
+        // chegam via PUT /orders/{id} (SalesOrderService.update), que não executa
+        // a auto-transition. Sem isso, o pedido fica em CONFIRMED mesmo com tudo pago.
+        checkAndTransitionToPaid(order);
         SalesOrder saved = orderRepository.save(order);
         log.info("Sales order confirmed: {} by user {}", saved.getId(), userId);
         return mapper.toDetailsDTO(saved, null);
@@ -195,6 +202,24 @@ public class SalesWorkflowService {
             throw new ValidationException(
                     "Para " + action + ", pedido deve estar " + expected
                     + ", status atual: " + order.getStatus());
+        }
+    }
+
+    /**
+     * Verifica se soma dos pagamentos PAID >= total e transita CONFIRMED → PAID.
+     * Espelha a lógica de SalesPaymentService.checkAndTransitionToPaid para cobrir
+     * o caminho em que pagamentos chegam via update() antes do confirm().
+     */
+    private void checkAndTransitionToPaid(SalesOrder order) {
+        if (order.getStatus() != SalesOrderStatus.CONFIRMED) return;
+        BigDecimal subtotal = mapper.computeSubtotal(order.getItems());
+        BigDecimal totalValue = subtotal.subtract(order.getDiscountValue()).max(BigDecimal.ZERO);
+        BigDecimal paidValue = mapper.computePaidValue(order.getPayments());
+        if (paidValue.compareTo(totalValue) >= 0) {
+            order.setStatus(SalesOrderStatus.PAID);
+            billingService.onOrderPaid(order);
+            log.info("Sales order {} transitioned CONFIRMED→PAID during confirm (paid={}, total={})",
+                    order.getId(), paidValue, totalValue);
         }
     }
 
