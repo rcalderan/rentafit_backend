@@ -89,187 +89,15 @@ jobs:
         path: target/dependency-check-report.*
         retention-days: 30
 
-  # ─── HK PIPELINE ────────────────────────────────────────────────────────────
-
-  vpc-hk:
-    runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
-    outputs:
-      vpc-id: ${{ steps.get-outputs.outputs.VpcId }}
-      private-subnets: ${{ steps.get-outputs.outputs.PrivateSubnets }}
-      private-subnet-1: ${{ steps.get-outputs.outputs.PrivateSubnet1Id }}
-      private-subnet-2: ${{ steps.get-outputs.outputs.PrivateSubnet2Id }}
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Configure AWS credentials for HK
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-        aws-region: ${{ secrets.AWS_REGION_HK }}
-
-    - name: Cleanup VPC Stack if ROLLBACK state
-      run: |
-        STATUS=$(aws cloudformation describe-stacks \
-          --stack-name rentafit-hk-vpc \
-          --query 'Stacks[0].StackStatus' \
-          --output text 2>/dev/null || echo "DOES_NOT_EXIST")
-
-        echo "Stack status: $STATUS"
-
-        if [ "$STATUS" = "ROLLBACK_FAILED" ] || [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
-          echo "Stack em $STATUS. Limpando IGW manualmente antes de deletar..."
-
-          # Obter VPC ID do stack
-          VPC_ID=$(aws cloudformation describe-stack-resource \
-            --stack-name rentafit-hk-vpc \
-            --logical-resource-id VPC \
-            --query 'StackResourceDetail.PhysicalResourceId' \
-            --output text 2>/dev/null || echo "")
-
-          if [ -n "$VPC_ID" ]; then
-            # Detach e delete todos os IGWs da VPC
-            IGW_IDS=$(aws ec2 describe-internet-gateways \
-              --filters "Name=attachment.vpc-id,Values=$VPC_ID" \
-              --query 'InternetGateways[*].InternetGatewayId' \
-              --output text)
-
-            for IGW_ID in $IGW_IDS; do
-              echo "Detaching IGW $IGW_ID from VPC $VPC_ID..."
-              aws ec2 detach-internet-gateway --internet-gateway-id $IGW_ID --vpc-id $VPC_ID
-              echo "Deleting IGW $IGW_ID..."
-              aws ec2 delete-internet-gateway --internet-gateway-id $IGW_ID
-            done
-          fi
-
-          echo "Deletando stack..."
-          aws cloudformation delete-stack --stack-name rentafit-hk-vpc
-          aws cloudformation wait stack-delete-complete --stack-name rentafit-hk-vpc
-          echo "Stack deletado com sucesso."
-        else
-          echo "Stack em estado '$STATUS', nenhuma limpeza necessária."
-        fi
-
-    - name: Deploy VPC Stack
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: rentafit-hk-vpc
-        template: .infrastructure/cloudformation/vpc.yaml
-        parameter-overrides: >-
-          AvailabilityZone=${{ secrets.AWS_AZ_HK }}
-
-    - name: Get VPC Stack Outputs
-      id: get-outputs
-      run: |
-        aws cloudformation describe-stacks \
-          --stack-name rentafit-hk-vpc \
-          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
-          --output text | while read key value; do
-          echo "$key=$value" >> $GITHUB_OUTPUT
-        done
-
-  security-persistence-hk:
-    needs: vpc-hk
-    runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
-    outputs:
-      execution-role-arn: ${{ steps.get-outputs.outputs.ExecutionRoleArn }}
-      task-role-arn: ${{ steps.get-outputs.outputs.TaskRoleArn }}
-      file-system-id: ${{ steps.get-outputs.outputs.FileSystemId }}
-      efs-security-group-id: ${{ steps.get-outputs.outputs.EfsSecurityGroupId }}
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Configure AWS credentials for HK
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-        aws-region: ${{ secrets.AWS_REGION_HK }}
-
-    - name: Deploy Security & Persistence Stack (EFS, IAM roles)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: rentafit-hk-security-persistence
-        template: .infrastructure/cloudformation/security-persistence.yaml
-        parameter-overrides: >-
-          VpcId=${{ needs.vpc-hk.outputs.vpc-id }},
-          PrivateSubnet1Id=${{ needs.vpc-hk.outputs.private-subnet-1 }},
-          DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }}
-        capabilities: CAPABILITY_NAMED_IAM
-
-    - name: Get Security Stack Outputs
-      id: get-outputs
-      run: |
-        aws cloudformation describe-stacks \
-          --stack-name rentafit-hk-security-persistence \
-          --query 'Stacks[0].Outputs[*].[OutputKey,OutputValue]' \
-          --output text | while read key value; do
-          echo "$key=$value" >> $GITHUB_OUTPUT
-        done
-
-  deploy-hk:
-    needs: [build, vpc-hk, security-persistence-hk]
-    runs-on: ubuntu-latest
-    if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'develop'
-    env:
-      ECR_REPOSITORY: rentafit-api-hk
-      ECR_STACK_NAME: rentafit-hk-ecr
-    steps:
-    - uses: actions/checkout@v4
-
-    - name: Configure AWS credentials for HK
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_HK }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
-        aws-region: ${{ secrets.AWS_REGION_HK }}
-
-    - name: Ensure ECR repository (HK)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: ${{ env.ECR_STACK_NAME }}
-        template: .infrastructure/cloudformation/ecr-hk.yaml
-        parameter-overrides: >-
-          RepositoryName=${{ env.ECR_REPOSITORY }}
-
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
-
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-    - name: Deploy HK Infrastructure (CloudFormation)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: rentafit-hk-stack
-        template: .infrastructure/cloudformation/ecs-hk.yaml
-        parameter-overrides: >-
-          ImageUri=${{ steps.build-image.outputs.image }},
-          VpcId=${{ needs.vpc-hk.outputs.vpc-id }},
-          Subnets=${{ needs.vpc-hk.outputs.private-subnets }},
-          FileSystemId=${{ needs.security-persistence-hk.outputs.file-system-id }},
-          EfsSecurityGroupId=${{ needs.security-persistence-hk.outputs.efs-security-group-id }},
-          ExecutionRoleArn=${{ needs.security-persistence-hk.outputs.execution-role-arn }},
-          TaskRoleArn=${{ needs.security-persistence-hk.outputs.task-role-arn }},
-          DbPasswordSecretArn=${{ secrets.AWS_DB_PASSWORD_SECRET_ARN_HK }},
-          AllowedIngressCidr=${{ secrets.AWS_APP_INGRESS_CIDR_HK }},
-          AppIngressSecurityGroupId=${{ secrets.AWS_APP_INGRESS_SG_HK }}
-
   # ─── PRO PIPELINE ───────────────────────────────────────────────────────────
+  # Os jobs vpc-hk/security-persistence-hk/deploy-hk pertencem ao ci-cd-pre.yml
+  # (disparado em PRs para develop). Este arquivo gerencia apenas o deploy PRO
+  # (PRs para master).
 
   deploy-pro:
     needs: build
     runs-on: ubuntu-latest
+    environment: production
     if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'master'
     env:
       ECR_REPOSITORY: rentafit-api-pro
@@ -303,23 +131,40 @@ jobs:
         IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-    - name: Deploy PRO Infrastructure (CloudFormation)
+    # C3: Stack RDS separado com --no-fail-on-empty-changeset para não recriar
+    # o banco a cada merge (apenas aplica se houver mudança no template).
+    - name: Ensure RDS Stack (PRO) — idempotente
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
-        name: rentafit-pro-stack
+        name: rentafit-pro-rds
         template: .infrastructure/cloudformation/rds-pro.yaml
+        no-fail-on-empty-changeset: "1"
         parameter-overrides: >-
           VpcId=${{ secrets.AWS_VPC_ID }},
           PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
           DBPassword=${{ secrets.PRO_DB_PASSWORD }}
 
+    - name: Deploy ECS Stack (PRO)
+      uses: aws-actions/aws-cloudformation-github-deploy@v1
+      with:
+        name: rentafit-pro-stack
+        template: .infrastructure/cloudformation/ecs-pro.yaml
+        no-fail-on-empty-changeset: "1"
+        parameter-overrides: >-
+          ImageUri=${{ steps.build-image.outputs.image }},
+          VpcId=${{ secrets.AWS_VPC_ID }},
+          PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
+          DbPasswordSecretArn=${{ secrets.PRO_DB_PASSWORD_SECRET_ARN }}
+
   # ─── NOTIFY ─────────────────────────────────────────────────────────────────
 
   notify:
-    needs: [build, vpc-hk, security-persistence-hk, deploy-hk, deploy-pro]
+    needs: [build, deploy-pro]
     runs-on: ubuntu-latest
     if: always()
     steps:
