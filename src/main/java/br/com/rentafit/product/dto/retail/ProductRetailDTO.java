@@ -18,7 +18,7 @@ public record ProductRetailDTO(
     @NotNull(message = "Category is required")
     UUID categoryId,
 
-    @NotBlank(message = "Name is required")
+    @NotBlank(message = "Size is required")
     @Size(max = 50)
     String size,
 
@@ -34,7 +34,6 @@ public record ProductRetailDTO(
     @DecimalMax("9999999999.99")
     BigDecimal value,
 
-    @NotBlank(message = "Name is required")
     String description,
 
     Integer warrantyDays
