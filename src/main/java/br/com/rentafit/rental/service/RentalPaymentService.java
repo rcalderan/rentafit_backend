@@ -81,7 +81,6 @@ public class RentalPaymentService {
      * @return lista contendo a parcela atualizada e, se houver, a parcela-gap criada automaticamente
      */
     public List<RentalPaymentDetailsDTO> updatePayment(UUID contractId, UUID paymentId, RentalPaymentInputDTO dto) {
-        LocalDate today = LocalDate.now();
         RentalPayment payment = requirePayment(paymentId, contractId);
         RentalContract contract = requireContract(contractId);
         validatePaidInstallmentMutationAllowed(contract, payment, "atualizar");
@@ -90,7 +89,7 @@ public class RentalPaymentService {
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
 
-        payment.setPaymentDate(today);
+        payment.setPaymentDate(dto.paymentDate());
         payment.setInstallmentNumber(dto.installmentNumber());
         payment.setPaymentMethod(PaymentMethod.valueOf(dto.paymentMethod().toUpperCase()));
         payment.setValue(dto.value());

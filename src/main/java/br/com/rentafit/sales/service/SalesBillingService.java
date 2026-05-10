@@ -46,7 +46,7 @@ public class SalesBillingService {
     public SalesOrderDetailsDTO emitInvoice(UUID orderId) {
         SalesOrder order = orderService.findEntityById(orderId);
 
-        if (order.getStatus().ordinal() < SalesOrderStatus.PAID.ordinal()) {
+        if (order.getStatus() != SalesOrderStatus.PAID && order.getStatus() != SalesOrderStatus.COMPLETED) {
             throw new ValidationException(
                     "NFS-e só pode ser emitida após pagamento completo, status atual: " + order.getStatus());
         }

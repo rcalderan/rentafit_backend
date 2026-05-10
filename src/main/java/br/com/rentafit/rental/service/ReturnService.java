@@ -137,10 +137,10 @@ public class ReturnService {
 
         RentalContractItemMeta meta = item.getMetadata().stream()
                 .filter(m -> ItemMetaType.ACESSORIO.equals(m.getType())
-                        && entry.accessoryId().equals(m.getId()))
+                        && entry.accessoryId().equals(m.getAccessoryId()))
                 .findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "RentalContractItemMeta", "id", entry.accessoryId().toString()));
+                        "RentalContractItemMeta", "accessoryId", entry.accessoryId().toString()));
 
         if (Boolean.TRUE.equals(meta.getReturned())) {
             return;
