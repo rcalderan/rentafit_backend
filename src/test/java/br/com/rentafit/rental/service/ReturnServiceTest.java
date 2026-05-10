@@ -371,6 +371,62 @@ class ReturnServiceTest {
     }
 
     @Nested
+    @DisplayName("markAccessoryReturned")
+    class MarkAccessoryReturned {
+
+        @Test
+        @DisplayName("BUG-2026-05-10-4 REGRESSION: deve encontrar meta pelo accessoryId do catálogo, não pelo id interno do meta")
+        void shouldMarkAccessoryReturnedByAccessoryId() {
+            UUID accessoryId = UUID.randomUUID(); // FK para o catálogo de acessórios
+            UUID metaId      = UUID.randomUUID(); // PK interna do RentalContractItemMeta — diferente de accessoryId
+
+            RentalContractItemMeta accessoryMeta = RentalContractItemMeta.builder()
+                    .id(metaId)              // id interno do meta (NÃO o accessoryId do catálogo)
+                    .accessoryId(accessoryId) // referência ao catálogo
+                    .type(ItemMetaType.ACESSORIO)
+                    .description("Gravata")
+                    .returned(false)
+                    .build();
+            accessoryMeta.setContractItem(item);
+            item.getMetadata().add(accessoryMeta);
+
+            MarkReturnRequestDTO request = new MarkReturnRequestDTO(
+                    "João",
+                    List.of(new ReturnEntryDTO(itemId, accessoryId, OffsetDateTime.now())),
+                    null, null);
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+            when(metaRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            // BUG-4: se o filtro usar m.getId() (metaId) em vez de m.getAccessoryId() (accessoryId),
+            // o meta não será encontrado e uma ResourceNotFoundException será lançada.
+            // O teste deve passar SEM exceção após a correção.
+            assertThatCode(() -> returnService.markItemsReturned(contractId, request))
+                    .doesNotThrowAnyException();
+
+            assertThat(accessoryMeta.getReturned()).isTrue();
+        }
+
+        @Test
+        @DisplayName("BUG-2026-05-10-4 REGRESSION: lança ResourceNotFoundException quando o accessoryId não existe no contrato")
+        void shouldThrowNotFoundForUnknownAccessoryId() {
+            UUID unknownAccessoryId = UUID.randomUUID();
+
+            // Item sem metadados de acessório
+            MarkReturnRequestDTO request = new MarkReturnRequestDTO(
+                    "João",
+                    List.of(new ReturnEntryDTO(itemId, unknownAccessoryId, OffsetDateTime.now())),
+                    null, null);
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            assertThatThrownBy(() -> returnService.markItemsReturned(contractId, request))
+                    .isInstanceOf(ResourceNotFoundException.class)
+                    .hasMessageContaining(unknownAccessoryId.toString());
+        }
+    }
+
+    @Nested
     @DisplayName("delayDays e suggestedFine")
     class DelayDaysAndSuggestedFine {
 

@@ -561,6 +561,29 @@ class RentalPaymentServiceTest {
     }
 
     @Test
+    @DisplayName("BUG-2026-05-10-3 REGRESSION: updatePayment deve persistir dto.paymentDate(), não LocalDate.now()")
+    void testUpdatePayment_bug3_mustPersistDtoPaymentDate() {
+        LocalDate futureDate = LocalDate.now().plusDays(15);
+        RentalPaymentInputDTO dtoWithFutureDate = new RentalPaymentInputDTO(
+                1, futureDate, "PIX", new BigDecimal("200.00"), 1, null, "PENDING");
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+
+        paymentService.updatePayment(contractId, paymentId, dtoWithFutureDate);
+
+        // BUG-3: o código tinha payment.setPaymentDate(today) em vez de payment.setPaymentDate(dto.paymentDate())
+        // Esperamos que a data persistida seja a do DTO, não a data de hoje
+        assertThat(existingPayment.getPaymentDate())
+                .as("BUG-3: paymentDate deve ser persistida com o valor do DTO, não LocalDate.now()")
+                .isEqualTo(futureDate);
+    }
+
+    @Test
     @DisplayName("BUG REGRESSION: cenário do HAR deve bloquear baixa com alteração financeira em contrato FINALIZED")
     void testUpdatePayment_harBugRegression_contract1() {
         LocalDate existingPaymentDate = LocalDate.now().plusDays(1);

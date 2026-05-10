@@ -215,6 +215,42 @@ class UserAccountServiceTest {
 
         verify(userAccountRepository, times(1)).findByUsernameWithDetails(nonExistentUsername);
     }
+
+    @Test
+    @DisplayName("isEnabled deve retornar false quando isActive=false")
+    void testIsEnabled_ReturnsFalseWhenInactive() {
+        userAccount.setIsActive(false);
+        when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
+
+        UserDetails result = userAccountService.loadUserByUsername(username);
+
+        assertThat(result.isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("isEnabled deve retornar true quando isActive=true")
+    void testIsEnabled_ReturnsTrueWhenActive() {
+        userAccount.setIsActive(true);
+        when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
+
+        UserDetails result = userAccountService.loadUserByUsername(username);
+
+        assertThat(result.isEnabled()).isTrue();
+    }
+
+    @Test
+    @DisplayName("loadUserByUsername deve retornar conta inativa sem lançar exceção (regra Spring Security)")
+    void testLoadUserByUsername_InactiveAccountReturned() {
+        // Spring Security verifica isEnabled() no DaoAuthenticationProvider — não no loadUserByUsername.
+        // O service deve retornar a conta e deixar o DaoAuthenticationProvider lançar DisabledException.
+        userAccount.setIsActive(false);
+        when(userAccountRepository.findByUsername(username)).thenReturn(Optional.of(userAccount));
+
+        UserDetails result = userAccountService.loadUserByUsername(username);
+
+        assertThat(result).isNotNull();
+        assertThat(result.isEnabled()).isFalse();
+    }
 }
 
 
