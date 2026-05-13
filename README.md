@@ -1,18 +1,20 @@
 # Rentafit - Sistema de Gestão de Locação de Equipamentos
 
-API RESTful para gerenciamento de clientes, funcionários e sistema de autenticação para locadora de equipamentos fitness.
+API RESTful para gerenciamento completo de uma locadora de trajes e equipamentos fitness: clientes, funcionários, catálogo de produtos, contratos de locação com ciclo de vida completo, controle de estoque e emissão de NFS-e (Portal Nacional, São Carlos/GINFES e Via/Serpro).
 
 ## 🚀 Tecnologias
 
 - **Java 21 LTS**
 - **Spring Boot 3.4.1**
-- **Spring Security**
+- **Spring Security** (JWT + RSA + AES)
 - **Spring Data JPA**
+- **Spring WebFlux / Reactor** (integrações NFS-e assíncronas)
 - **PostgreSQL 14**
 - **Flyway** (migrations)
 - **Lombok**
 - **Swagger/OpenAPI 3**
 - **Docker & Docker Compose**
+- **JUnit 5 + Mockito** (testes)
 
 ---
 
@@ -147,8 +149,8 @@ Insere usuário administrador padrão:
 │────────────│  │────────────────│  │─────────────────│
 │ initials   │  │ is_authenticated│  │ username       │
 │ role_level │  │ notes          │  │ password       │
-└────────────┘  │ address_id     │  │ role           │
-                │ number         │  │ is_active      │
+│ pin        │  │ address_id     │  │ role           │
+└────────────┘  │ number         │  │ is_active      │
                 │ complement     │  └─────────────────┘
                 └────────────────┘
                         │
@@ -159,6 +161,27 @@ Insere usuário administrador padrão:
                 │──────────────────│
                 │ phone            │
                 └──────────────────┘
+
+┌───────────────────┐       ┌──────────────────────┐
+│ rental_contracts  │ 1──N  │ rental_contract_items│
+│───────────────────│       │──────────────────────│
+│ id (UUID)         │       │ rental_item_id        │
+│ status            │       │ description (snapshot)│
+│ customer_name *   │       │ value                 │
+│ pickup_date       │       │ is_delivered          │
+│ event_date        │       └──────────┬────────────┘
+│ return_date       │                  │ 1:N
+└───────────────────┘                  ▼
+         │ 1:N             ┌────────────────────────┐
+         ▼                 │ rental_contract_item_meta│
+┌─────────────────┐        │────────────────────────│
+│ rental_payments │        │ type (ACESSORIO/OBS)   │
+│─────────────────│        │ accessory_id (nullable) │
+│ installment_num │        └────────────────────────┘
+│ payment_method  │
+│ value           │
+│ status          │
+└─────────────────┘
 ```
 
 ---
@@ -171,23 +194,54 @@ Insere usuário administrador padrão:
 br.com.rentafit/
 │
 ├── auth/                        ← Autenticação e Autorização
-│   ├── domain/                  → UserAccount, UserRole
-│   ├── repository/              → UserAccountRepository
-│   ├── service/                 → UserAccountService (UserDetailsService)
-│   ├── dto/                     → (preparado para LoginDTO, etc.)
-│   ├── mapper/                  → (preparado para conversões)
-│   └── controller/              → (preparado para AuthController)
+│   ├── domain/                  → UserAccount, RefreshToken, UserRole
+│   ├── repository/              → UserAccountRepository, RefreshTokenRepository
+│   ├── service/                 → UserAccountService, RefreshTokenService, TokenService
+│   ├── dto/                     → LoginRequestDTO, LoginResponseDTO, UserProfileResponseDTO
+│   └── controller/              → AuthController
 │
 ├── people/                      ← Gestão de Pessoas
 │   ├── domain/                  → Person, Customer, Employee, Address
 │   ├── repository/              → CustomerRepository, EmployeeRepository
-│   ├── service/                 → CustomerService, EmployeeService
-│   ├── dto/                     → CustomerDTO, EmployeeDTO, AddressDTO
+│   ├── service/                 → CustomerService, EmployeeService, AddressService
+│   ├── dto/                     → CustomerDTO, EmployeeDTO, AddressDTO, ...
 │   ├── mapper/                  → PeopleMapper (toDTO, updateFromDTO)
-│   └── controller/              → CustomerController, EmployeeController
+│   └── controller/              → CustomerController, EmployeeController, AddressController
+│
+├── product/                     ← Gestão de Produtos
+│   ├── domain/                  → RentalItem, RetailProduct, Category, Stock, StockMovement
+│   ├── repository/              → RentalItemRepository, RetailProductRepository, ...
+│   ├── service/                 → RentalItemService, RetailProductService, CategoryService, StockService
+│   ├── dto/                     → RentalItemDTO, ProductRetailDTO, CategoryDTO, StockDTO, ...
+│   └── controller/              → RentalItemController, RetailProductController, CategoryController, StockController
+│
+├── rental/                      ← Módulo de Locação
+│   ├── adapter/                 → CustomerAdapter, RentalItemAdapter, AccessoryAdapter
+│   ├── controller/              → RentalContractController, RentalPaymentController
+│   ├── domain/                  → RentalContract, RentalContractItem, RentalContractItemMeta, RentalPayment
+│   ├── dto/                     → CreateRentalContractDTO, RentalContractDetailsDTO, RentalPaymentInputDTO, ...
+│   ├── mapper/                  → RentalMapper
+│   ├── port/                    → CustomerPort, RentalItemPort, AccessoryPort
+│   ├── repository/              → RentalContractRepository, RentalPaymentRepository
+│   ├── service/                 → RentalContractService, RentalPaymentService, RentalWorkflowService
+│   └── validation/              → RentalContractValidator, ItemConflictChecker
+│
+├── billing/                     ← Faturamento / NFS-e
+│   ├── config/                  → CertificateConfig
+│   ├── controller/              → BillingController, SaoCarlosNfseController, NfseViaController
+│   ├── domain/                  → Invoice
+│   ├── dto/                     → InvoiceEmissionRequestDTO, SaoCarlosEmitirNfseRequestDTO, via/...
+│   ├── repository/              → InvoiceRepository
+│   ├── service/                 → BillingService, InvoiceService, NfsePortalService, SaoCarlosNfseService, NfseViaService
+│   └── util/                    → Utilitários de billing
+│
+├── migration/                   ← Utilitários de Migração
+│   └── util/                    → BsonFileReader
 │
 ├── common/                      ← Componentes Compartilhados
-│   └── security/                → SecurityConfig
+│   ├── dto/                     → ErrorResponseDTO
+│   ├── exception/               → ResourceNotFoundException
+│   └── security/                → SecurityConfig, TokenService, CryptoService, AesCryptoService
 │
 ├── config/                      ← Configurações Globais
 │   └── OpenAPIConfig            → Swagger/OpenAPI
@@ -249,19 +303,115 @@ Após iniciar a aplicação, acesse:
 
 ### Endpoints Disponíveis
 
-#### **Customers** (`/api/customers`)
-- `GET /api/customers` - Listar todos (paginado)
-- `GET /api/customers/{id}` - Buscar por ID
-- `POST /api/customers` - Criar novo cliente
-- `PUT /api/customers/{id}` - Atualizar cliente
-- `DELETE /api/customers/{id}` - Deletar cliente
+#### **Auth** (`/api/auth`)
+- `GET  /api/auth/public-key` - Chave pública RSA para criptografia
+- `POST /api/auth/login` - Login (retorna JWT + refresh token)
+- `POST /api/auth/refresh` - Renovar access token
+- `GET  /api/auth/me` - Perfil do usuário autenticado
 
-#### **Employees** (`/api/employees`)
-- `GET /api/employees` - Listar todos (paginado)
-- `GET /api/employees/{id}` - Buscar por ID
-- `POST /api/employees` - Criar novo funcionário
-- `PUT /api/employees/{id}` - Atualizar funcionário
-- `DELETE /api/employees/{id}` - Deletar funcionário
+#### **Customers** (`/api/v1/customers`)
+- `GET    /api/v1/customers` - Listar todos (paginado)
+- `GET    /api/v1/customers?name={name}` - Buscar por nome (contains/LIKE, case-insensitive, paginado)
+- `GET    /api/v1/customers/byName/{name}` - Buscar por nome (contains/LIKE, case-insensitive, paginado)
+- `GET    /api/v1/customers/byNamePrefix/{namePrefix}` - Buscar por prefixo de nome (otimizada para autocomplete)
+- `GET    /api/v1/customers/byId/{id}` - Buscar por ID
+- `GET    /api/v1/customers/byDocument/{document}` - Buscar por CPF/CNPJ
+- `GET    /api/v1/customers/byLegacyId/{legacyId}` - Buscar por ID legado
+- `GET    /api/v1/customers/{id}/address-history` - Histórico de endereços
+- `POST   /api/v1/customers` - Criar novo cliente
+- `PUT    /api/v1/customers` - Atualizar cliente
+- `DELETE /api/v1/customers/{id}` - Deletar cliente
+
+**Exemplos de busca por nome:**
+- `GET /api/v1/customers?name=joao&page=0&size=10&sort=name,asc`
+- `GET /api/v1/customers/byName/joao?page=0&size=10&sort=name,asc`
+- `GET /api/v1/customers/byNamePrefix/jo?page=0&size=10&sort=name,asc`
+
+#### **Employees** (`/api/v1/employees`)
+- `GET    /api/v1/employees` - Listar todos (paginado)
+- `GET    /api/v1/employees/{id}` - Buscar por ID
+- `GET    /api/v1/employees/initials/{initials}` - Buscar por iniciais
+- `POST   /api/v1/employees` - Criar novo funcionário
+- `POST   /api/v1/employees/check` - Validar credenciais (iniciais + PIN, requer Bearer token válido)
+- `PUT    /api/v1/employees/{id}` - Atualizar funcionário
+- `DELETE /api/v1/employees/{id}` - Deletar funcionário
+
+#### **Addresses** (`/api/v1/addresses`)
+- `GET /api/v1/addresses/find/{zipCode}` - Buscar endereço por CEP (ViaCEP)
+
+#### **Categories** (`/api/v1/categories`)
+- `GET    /api/v1/categories` - Listar todas
+- `GET    /api/v1/categories/{id}` - Buscar por ID
+- `GET    /api/v1/categories/type/{type}` - Filtrar por tipo (RENTAL/RETAIL)
+- `GET    /api/v1/categories/active` - Listar categorias ativas
+- `POST   /api/v1/categories` - Criar categoria
+- `PUT    /api/v1/categories/{id}` - Atualizar categoria
+- `DELETE /api/v1/categories/{id}` - Deletar categoria
+
+#### **Rental Items** (`/api/v1/products/rental`)
+- `GET    /api/v1/products/rental` - Listar todos (paginado)
+- `GET    /api/v1/products/rental/{id}` - Buscar por ID
+- `GET    /api/v1/products/rental/byLegacy/{id}` - Buscar por código legado
+- `POST   /api/v1/products/rental` - Criar item de locação
+- `PUT    /api/v1/products/rental/{id}` - Atualizar item de locação
+- `DELETE /api/v1/products/rental/{id}` - Deletar item de locação
+
+#### **Retail Products** (`/api/v1/products/retail`)
+- `GET    /api/v1/products/retail` - Listar todos (paginado)
+- `GET    /api/v1/products/retail/{id}` - Buscar por ID
+- `GET    /api/v1/products/retail/bysku/{sku}` - Buscar por SKU
+- `POST   /api/v1/products/retail` - Criar produto para venda
+- `PUT    /api/v1/products/retail/{id}` - Atualizar produto
+- `DELETE /api/v1/products/retail/{id}` - Deletar produto
+
+#### **Stock** (`/api/v1/stock`)
+- `GET  /api/v1/stock/{productId}` - Consultar estoque de um produto
+- `GET  /api/v1/stock/low` - Produtos com estoque baixo
+- `GET  /api/v1/stock/{productId}/movements` - Movimentações de estoque
+- `POST /api/v1/stock/add` - Adicionar estoque
+- `POST /api/v1/stock/remove` - Remover do estoque
+- `POST /api/v1/stock/reserve` - Reservar estoque
+- `POST /api/v1/stock/release` - Liberar reserva
+
+#### **Rental Contracts** (`/api/v1/rental/contracts`)
+- `GET   /api/v1/rental/contracts` - Listar contratos (paginado)
+- `GET   /api/v1/rental/contracts/{id}` - Buscar por ID
+- `GET   /api/v1/rental/contracts/byCustomer/{customerId}` - Contratos do cliente
+- `POST  /api/v1/rental/contracts` - Criar proposta (DRAFT)
+- `PUT   /api/v1/rental/contracts/{id}` - Atualizar (apenas DRAFT)
+- `PATCH /api/v1/rental/contracts/{id}/sign` - Assinar (DRAFT → SIGNED)
+- `PATCH /api/v1/rental/contracts/{id}/finalize` - Finalizar (SIGNED → FINALIZED)
+- `PATCH /api/v1/rental/contracts/{id}/return` - Processar devolução
+- `PATCH /api/v1/rental/contracts/{id}/items/{itemId}/deliver` - Confirmar entrega de item
+- `POST  /api/v1/rental/contracts/{id}/duplicate` - Duplicar como novo DRAFT
+
+#### **Rental Payments** (`/api/v1/rental/contracts/{contractId}/payments`)
+- `GET    /api/v1/rental/contracts/{contractId}/payments` - Listar parcelas
+- `POST   /api/v1/rental/contracts/{contractId}/payments` - Adicionar parcela
+- `PUT    /api/v1/rental/contracts/{contractId}/payments/{paymentId}` - Atualizar parcela
+- `DELETE /api/v1/rental/contracts/{contractId}/payments/{paymentId}` - Cancelar parcela
+
+#### **NFS-e Portal Nacional** (`/api/billing/invoices`)
+- `POST /api/billing/invoices/emit` - Emitir NFS-e
+- `GET  /api/billing/invoices/{id}` - Consultar por ID interno
+- `GET  /api/billing/invoices/chave/{chaveAcesso}` - Consultar no Portal Nacional
+- `GET  /api/billing/invoices/chave/{chaveAcesso}/pdf` - Download PDF (DANFSe)
+- `GET  /api/billing/invoices/chave/{chaveAcesso}/xml` - Download XML legal
+- `GET  /api/billing/invoices/numero/{numeroNota}` - Consultar por número
+
+#### **NFS-e São Carlos / GINFES** (`/api/billing/saocarlos`)
+- `POST /api/billing/saocarlos/emit` - Emitir NFS-e em São Carlos
+- `GET  /api/billing/saocarlos/situacao/{protocolo}` - Situação do lote
+- `GET  /api/billing/saocarlos/lote/{protocolo}` - Consultar lote processado
+
+#### **NFS-e Via / Serpro** (`/api/billing/via`)
+- `GET  /api/billing/via/testeNfse` - Teste de integração
+- `POST /api/billing/via/nfsev` - Receber e validar NFS-e Via
+- `POST /api/billing/via/cancelamento` - Cancelar NFS-e Via
+- `POST /api/billing/via/substituicao` - Substituir NFS-e Via
+- `GET  /api/billing/via/aliquota-efetiva/cnpj/{cnpj}/trecho/{codigoTrecho}/data/{dataReferencia}` - Alíquota efetiva
+- `GET  /api/billing/via/consulta/protocolo` - Consultar por protocolo
+- `GET  /api/billing/via/consulta/chaveacesso` - Consultar por chave de acesso
 
 ---
 
@@ -344,13 +494,19 @@ O projeto inclui uma coleção unificada do Postman com todos os endpoints da AP
 **Arquivo:** `Rentafit_Unified_API.postman_collection.json`
 
 Coleção completa e unificada com todos os módulos:
-- ✅ **Auth** - Login, Refresh Token, Profile
-- ✅ **People - Customers** - CRUD completo de clientes
-- ✅ **People - Employees** - CRUD completo de funcionários
+- ✅ **Auth** - Login, Refresh Token, Profile, Chave Pública RSA
+- ✅ **People - Customers** - CRUD completo + busca por documento/legacyId/histórico de endereços
+- ✅ **People - Employees** - CRUD + busca por iniciais + validação de credenciais (PIN)
+- ✅ **People - Addresses** - Busca de CEP via ViaCEP
 - ✅ **Product - Categories** - Gerenciamento de categorias
-- ✅ **Product - Rental Items** - Produtos de aluguel
-- ✅ **Product - Retail Items** - Produtos para venda
+- ✅ **Product - Rental Items** - Produtos de aluguel (com suporte a legacyId)
+- ✅ **Product - Retail Items** - Produtos para venda (com busca por SKU)
 - ✅ **Product - Stock** - Gestão de estoque e movimentações
+- ✅ **Rental Contracts** - Ciclo de vida completo (DRAFT → SIGNED → FINALIZED → devolvido)
+- ✅ **Rental Payments** - Gerenciamento de parcelas por contrato
+- ✅ **Billing - NFS-e Portal Nacional** - Emissão e consulta de NFS-e
+- ✅ **Billing - NFS-e São Carlos (GINFES)** - Emissão e consulta para São Carlos
+- ✅ **Billing - NFS-e Via (Serpro)** - Integração com API Serpro
 
 **Características:**
 - 🔐 Autenticação automática via Bearer Token
@@ -380,7 +536,9 @@ Consulte o guia completo de uso da coleção Postman:
 1. Importe a coleção: `Rentafit_Unified_API.postman_collection.json`
 2. Importe o environment: `Rentafit_Local.postman_environment.json`
 3. Execute: `Auth → Login` (credenciais: admin/admin123)
-4. Teste os demais endpoints (token salvo automaticamente)
+4. Crie clientes, funcionários e produtos de aluguel
+5. Crie um contrato DRAFT → Sign → Finalize
+6. Teste os endpoints de pagamento, devolução e NFS-e
 
 ---
 
@@ -406,27 +564,32 @@ java -Dspring.profiles.active=local -jar target/Rentafit-0.0.1-SNAPSHOT.jar
 
 ### Implementado
 
-- ✅ Estrutura modular (auth, people, common, config)
+- ✅ Estrutura modular (auth, people, product, rental, billing, common, config)
 - ✅ Entidades JPA com herança (Person → Customer/Employee)
-- ✅ Migrations Flyway (V1, V2)
+- ✅ Migrations Flyway
 - ✅ Repositories (JPA)
 - ✅ Services com lógica de negócio
 - ✅ DTOs e Mappers (Entity↔DTO)
 - ✅ Controllers REST completos
 - ✅ Documentação Swagger/OpenAPI
 - ✅ Configuração Spring Security
-- ✅ UserDetailsService para autenticação
-- ✅ Perfis de ambiente (local, production)
+- ✅ JWT Authentication (login, access token, refresh token)
+- ✅ AuthController (login, refresh, me, public-key)
+- ✅ Criptografia RSA (CryptoService) e AES (AesCryptoService)
+- ✅ Perfis de ambiente (local, hk, production)
 - ✅ Docker Compose para PostgreSQL
+- ✅ Módulo de Locação (RentalContract, ciclo de vida completo)
+- ✅ Módulo de Faturamento NFS-e (Portal Nacional, São Carlos/GINFES, Via/Serpro)
+- ✅ Módulo de Estoque (Stock, StockMovement)
+- ✅ Testes unitários e de integração (JUnit + Mockito)
+- ✅ Validação de credenciais de funcionário por iniciais + PIN
 
 ### Em Desenvolvimento
 
-- ⏳ JWT Authentication (login, tokens)
-- ⏳ AuthController (endpoints de login/logout)
-- ⏳ Validações customizadas
-- ⏳ Tratamento global de exceções
-- ⏳ Testes unitários e de integração
-- ⏳ CI/CD pipeline
+- ⏳ Relatórios e dashboards gerenciais
+- ⏳ Integração com meios de pagamento (PagSeguro/Stripe)
+- ⏳ Notificações (e-mail / WhatsApp) para clientes
+- ⏳ CI/CD pipeline completo com deploy automatizado
 
 ---
 
@@ -796,4 +959,4 @@ Para dúvidas ou suporte, entre em contato com a equipe de desenvolvimento.
 
 ---
 
-**Rentafit Backend** - Sistema de Gestão de Locação v0.0.1
+**Rentafit Backend** - Sistema de Gestão de Locação de Trajes e Equipamentos

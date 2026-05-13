@@ -300,8 +300,7 @@ class AddressServiceTest {
                 .state("ZZ")
                 .build();
 
-        when(addressRepository.findByZipCodeAndStreetAndCityAndState(zipCode, "Rua Desconhecida", "Cidade", "ZZ"))
-                .thenReturn(Optional.empty());
+        when(addressRepository.findByZipCode(zipCode)).thenReturn(List.of());
         when(viaCepIntegrationService.fetchAddressByZipCode(zipCode)).thenReturn(null);
         when(addressRepository.save(any(Address.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -329,8 +328,8 @@ class AddressServiceTest {
 
         Address existingAddress = new Address(zipCode, "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
 
-        when(addressRepository.findByZipCodeAndStreetAndCityAndState(zipCode, "Avenida Paulista", "São Paulo", "SP"))
-                .thenReturn(Optional.of(existingAddress));
+        // Novo fluxo: quando ZIP presente, busca por ZIP primeiro
+        when(addressRepository.findByZipCode(zipCode)).thenReturn(List.of(existingAddress));
 
         // Act
         Address result = addressService.findOrCreateByAddress(dto);
@@ -338,7 +337,7 @@ class AddressServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getZipCode()).isEqualTo(zipCode);
-        verify(addressRepository, times(1)).findByZipCodeAndStreetAndCityAndState(anyString(), anyString(), anyString(), anyString());
+        verify(addressRepository, times(1)).findByZipCode(zipCode);
         verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
         verify(addressRepository, never()).save(any(Address.class));
     }
@@ -439,10 +438,9 @@ class AddressServiceTest {
                 .complement("Casa")
                 .build();
 
-        when(addressRepository.findByZipCodeAndStreetAndCityAndState(anyString(), anyString(), anyString(), anyString()))
-                .thenReturn(java.util.Optional.empty());
+        when(addressRepository.findByZipCode("12345678")).thenReturn(java.util.List.of());
         when(addressRepository.save(any(Address.class))).thenReturn(newAddress);
-        when(viaCepIntegrationService.fetchAddressByZipCode(anyString())).thenReturn(null);
+        when(viaCepIntegrationService.fetchAddressByZipCode("12345678")).thenReturn(null);
 
         // Act
         addressService.handleAddressUpdate(customer, dto);
@@ -483,8 +481,8 @@ class AddressServiceTest {
                 .complement("Apt 202")
                 .build();
 
-        when(addressRepository.findByZipCodeAndStreetAndCityAndState("01310100", "Avenida Paulista", "São Paulo", "SP"))
-                .thenReturn(java.util.Optional.of(address));
+        when(addressRepository.findByZipCode("01310100"))
+                .thenReturn(java.util.List.of(address));
 
         // Act
         addressService.handleAddressUpdate(customer, dto);
@@ -518,8 +516,8 @@ class AddressServiceTest {
                 .complement("Apt 201")
                 .build();
 
-        when(addressRepository.findByZipCodeAndStreetAndCityAndState(anyString(), anyString(), anyString(), anyString()))
-                .thenReturn(java.util.Optional.of(newAddress));
+        when(addressRepository.findByZipCode("01310100"))
+                .thenReturn(java.util.List.of(newAddress));
 
         // Act
         addressService.handleAddressUpdate(customer, dto);
@@ -566,6 +564,104 @@ class AddressServiceTest {
         verify(addressDetailsRepository, never()).save(any());
         verify(addressHistoryRepository, never()).save(any());
         verify(addressRepository, never()).save(any());
+    }
+
+    // ==================== findOrCreateByAddress – duplicate address guard ====================
+
+    @Test
+    @DisplayName("Deve reutilizar endereço existente quando CEP já está cadastrado (bug: erro 500 no POST /customers)")
+    void shouldReuseExistingAddressWhenSameZipCode() {
+        // Arrange
+        String zipCode = "13560-647";
+        String normalized = "13560647";
+
+        Address existing = new Address(normalized, "Rua Treze de Maio", "Centro", "São Carlos", "SP");
+
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode(zipCode)
+                .street("Rua Treze de Maio")
+                .city("São Carlos")
+                .state("SP")
+                .build();
+
+        // Simula que o endereço já existe no banco (cadastrado por cliente anterior)
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of(existing));
+
+        // Act
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getZipCode()).isEqualTo(normalized);
+        assertThat(result.getStreet()).isEqualTo("Rua Treze de Maio");
+        // Não deve chamar ViaCEP nem tentar salvar — reuso do registro existente
+        verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
+    @Test
+    @DisplayName("Deve criar novo endereço ao chamar findOrCreateByAddress pela primeira vez para um CEP")
+    void shouldCreateAddressOnFirstCallForZipCode() {
+        // Arrange
+        String zipCode = "13560-647";
+        String normalized = "13560647";
+
+        ViaCepResponseDTO viaCepData = ViaCepResponseDTO.builder()
+                .cep(normalized)
+                .logradouro("Rua Treze de Maio")
+                .bairro("Centro")
+                .localidade("São Carlos")
+                .uf("SP")
+                .erro(false)
+                .build();
+
+        Address created = new Address(viaCepData);
+
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode(zipCode)
+                .street("Rua Treze de Maio")
+                .city("São Carlos")
+                .state("SP")
+                .build();
+
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized)).thenReturn(viaCepData);
+        when(addressRepository.save(any(Address.class))).thenReturn(created);
+
+        // Act
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getZipCode()).isEqualTo(normalized);
+        verify(viaCepIntegrationService).fetchAddressByZipCode(normalized);
+        verify(addressRepository).save(any(Address.class));
+    }
+
+    @Test
+    @DisplayName("Deve reutilizar endereço manual quando composição já existe (sem CEP)")
+    void shouldReuseExistingManualAddressByComposition() {
+        // Arrange
+        AddressDTO manualDto = AddressDTO.builder()
+                .zipCode(null)
+                .street("Estrada Rural, KM 10")
+                .neighborhood("Zona Rural")
+                .city("Itu")
+                .state("SP")
+                .build();
+        Address existingManual = new Address(manualDto, true); // isManual = true
+
+        when(addressRepository.findByZipCodeAndStreetAndCityAndState(null, "Estrada Rural, KM 10", "Itu", "SP"))
+                .thenReturn(Optional.of(existingManual));
+
+        // Act
+        Address result = addressService.findOrCreateByAddress(manualDto);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.isManual()).isTrue();
+        verify(addressRepository, never()).save(any(Address.class));
+        verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
     }
 }
 

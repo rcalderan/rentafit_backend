@@ -1,5 +1,9 @@
 package br.com.rentafit.people.controller;
 
+import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
+import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
+import br.com.rentafit.people.dto.EmployeeCheckResponseDTO;
+import br.com.rentafit.people.dto.EmployeeCreateRequestDTO;
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.service.EmployeeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -41,15 +45,35 @@ public class EmployeeController {
         return ResponseEntity.ok(employeeService.findById(id));
     }
 
+    @GetMapping("/initials/{initials}")
+    @Operation(summary = "Get employee by initials")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Employee found"),
+        @ApiResponse(responseCode = "404", description = "Employee not found")
+    })
+    public ResponseEntity<EmployeeCheckResponseDTO> findByInitials(@PathVariable String initials) {
+        return ResponseEntity.ok(employeeService.findByInitials(initials));
+    }
+
     @PostMapping
     @Operation(summary = "Create a new employee")
     @ApiResponses({
         @ApiResponse(responseCode = "201", description = "Employee created successfully"),
         @ApiResponse(responseCode = "400", description = "Invalid input data")
     })
-    public ResponseEntity<EmployeeDTO> create(@Valid @RequestBody EmployeeDTO dto) {
-        EmployeeDTO created = employeeService.create(dto);
+    public ResponseEntity<EmployeeCheckResponseDTO> create(@Valid @RequestBody EmployeeCreateRequestDTO dto) {
+        EmployeeCheckResponseDTO created = employeeService.create(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
+    }
+
+    @PostMapping("/check")
+    @Operation(summary = "Check employee by initials and PIN")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Employee credentials validated"),
+        @ApiResponse(responseCode = "422", description = "Invalid employee credentials")
+    })
+    public ResponseEntity<EmployeeCheckResponseDTO> check(@Valid @RequestBody EmployeeCheckRequestDTO dto) {
+        return ResponseEntity.ok(employeeService.check(dto));
     }
 
     @PutMapping("/{id}")

@@ -1,10 +1,22 @@
 package br.com.rentafit.people.service;
 
+import br.com.rentafit.auth.domain.Role;
+import br.com.rentafit.auth.domain.RoleName;
+import br.com.rentafit.auth.domain.UserAccount;
+import br.com.rentafit.auth.repository.RoleRepository;
+import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
+import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.people.domain.Employee;
+import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
+import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
+import br.com.rentafit.people.dto.EmployeeCheckResponseDTO;
+import br.com.rentafit.people.dto.EmployeeCreateRequestDTO;
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.EmployeeRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,14 +28,15 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -37,6 +50,18 @@ class EmployeeServiceTest {
     private EmployeeRepository employeeRepository;
 
     @Mock
+    private UserAccountRepository userAccountRepository;
+
+    @Mock
+    private RoleRepository roleRepository;
+
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private EntityManager entityManager;
+
+    @Mock
     private PeopleMapper peopleMapper;
 
     @InjectMocks
@@ -45,6 +70,9 @@ class EmployeeServiceTest {
     private UUID employeeId;
     private Employee employee;
     private EmployeeDTO employeeDTO;
+    private EmployeeCreateRequestDTO employeeCreateRequestDTO;
+    private Role employeeRole;
+    private Query nativeQueryMock;
 
     @BeforeEach
     void setUp() {
@@ -64,6 +92,24 @@ class EmployeeServiceTest {
                 .initials("JS")
                 .roleLevel(2)
                 .build();
+
+        employeeCreateRequestDTO = new EmployeeCreateRequestDTO(
+                "Jane Smith",
+                "98765432100",
+                "jane@example.com",
+                "js",
+                2,
+                "1234"
+        );
+
+        employeeRole = new Role();
+        employeeRole.setId(3L);
+        employeeRole.setRole(RoleName.EMPLOYEE);
+
+        nativeQueryMock = mock(Query.class);
+        lenient().when(entityManager.createNativeQuery(anyString())).thenReturn(nativeQueryMock);
+        lenient().when(nativeQueryMock.setParameter(anyString(), any())).thenReturn(nativeQueryMock);
+        lenient().when(nativeQueryMock.executeUpdate()).thenReturn(1);
     }
 
     @Test
@@ -126,21 +172,29 @@ class EmployeeServiceTest {
     @Test
     @DisplayName("Deve criar novo funcionário")
     void shouldCreateNewEmployee() {
-        // Arrange
-        when(employeeRepository.save(any(Employee.class))).thenReturn(employee);
-        when(peopleMapper.toDTO(employee)).thenReturn(employeeDTO);
-        doNothing().when(peopleMapper).updateFromDTO(any(Employee.class), any(EmployeeDTO.class));
+        when(employeeRepository.saveAndFlush(any(Employee.class))).thenReturn(employee);
+        when(roleRepository.findByRole(RoleName.EMPLOYEE)).thenReturn(Optional.of(employeeRole));
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded-random-password");
 
-        // Act
-        EmployeeDTO result = employeeService.create(employeeDTO);
+        EmployeeCheckResponseDTO result = employeeService.create(employeeCreateRequestDTO);
 
-        // Assert
         assertThat(result).isNotNull();
         assertThat(result.name()).isEqualTo("Jane Smith");
         assertThat(result.initials()).isEqualTo("JS");
 
-        verify(peopleMapper, times(1)).updateFromDTO(any(Employee.class), eq(employeeDTO));
-        verify(employeeRepository, times(1)).save(any(Employee.class));
+        verify(employeeRepository, times(1)).saveAndFlush(any(Employee.class));
+        verify(roleRepository, times(1)).findByRole(RoleName.EMPLOYEE);
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção ao criar quando role EMPLOYEE não existir")
+    void shouldThrowExceptionWhenEmployeeRoleIsMissing() {
+        when(employeeRepository.saveAndFlush(any(Employee.class))).thenReturn(employee);
+        when(roleRepository.findByRole(RoleName.EMPLOYEE)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> employeeService.create(employeeCreateRequestDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("EMPLOYEE role not configured");
     }
 
     @Test
@@ -171,6 +225,53 @@ class EmployeeServiceTest {
         verify(employeeRepository, times(1)).findById(employeeId);
         verify(peopleMapper, times(1)).updateFromDTO(employee, updatedDTO);
         verify(employeeRepository, times(1)).save(employee);
+    }
+
+    @Test
+    @DisplayName("Deve buscar funcionário por iniciais")
+    void shouldFindEmployeeByInitials() {
+        when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
+
+        EmployeeCheckResponseDTO result = employeeService.findByInitials("js");
+
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo(employeeId);
+        assertThat(result.initials()).isEqualTo("JS");
+    }
+
+    @Test
+    @DisplayName("Deve validar iniciais e PIN corretamente")
+    void shouldCheckEmployeeCredentials() {
+        UserAccount account = new UserAccount();
+        account.setId(employeeId);
+        account.setPin("1234");
+        account.setRoles(Collections.singletonList(employeeRole));
+
+        when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
+        when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
+
+        EmployeeCheckRequestDTO requestDTO = new EmployeeCheckRequestDTO("js", "1234");
+        EmployeeCheckResponseDTO result = employeeService.check(requestDTO);
+
+        assertThat(result).isNotNull();
+        assertThat(result.id()).isEqualTo(employeeId);
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando PIN for inválido")
+    void shouldThrowExceptionWhenPinIsInvalid() {
+        UserAccount account = new UserAccount();
+        account.setId(employeeId);
+        account.setPin("9999");
+
+        when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
+        when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
+
+        EmployeeCheckRequestDTO requestDTO = new EmployeeCheckRequestDTO("js", "1234");
+
+        assertThatThrownBy(() -> employeeService.check(requestDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Credenciais inválidas");
     }
 
     @Test

@@ -26,6 +26,8 @@ public record ProductRetailUpdateDTO(
         @DecimalMax("9999999999.99")
         BigDecimal value,
 
-        String description
+        String description,
+
+        Integer warrantyDays
 ) {
 }

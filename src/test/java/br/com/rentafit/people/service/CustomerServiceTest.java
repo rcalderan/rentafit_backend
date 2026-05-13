@@ -25,7 +25,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.web.client.HttpClientErrorException;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -99,6 +98,52 @@ class CustomerServiceTest {
     }
 
     // ==================== findById Tests ====================
+
+    @Test
+    @DisplayName("Deve buscar clientes por nome com LIKE e paginação")
+    void shouldFindCustomersByNameLikeWithPagination() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findByNameContainingIgnoreCase("test", pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByName("test", pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(customerRepository).findByNameContainingIgnoreCase("test", pageable);
+        verify(customerRepository, never()).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("Deve usar findAll quando nome estiver vazio")
+    void shouldFallbackToFindAllWhenNameIsBlank() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findAll(pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByName("  ", pageable);
+
+        assertThat(result).isNotNull();
+        verify(customerRepository).findAll(pageable);
+        verify(customerRepository, never()).findByNameContainingIgnoreCase(anyString(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Deve buscar clientes por prefixo de nome com paginação")
+    void shouldFindCustomersByNamePrefixWithPagination() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findByNamePrefixIgnoreCase("tes", pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByNamePrefix("tes", pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(customerRepository).findByNamePrefixIgnoreCase("tes", pageable);
+    }
 
     @Test
     @DisplayName("Deve encontrar cliente por ID")
@@ -494,6 +539,61 @@ class CustomerServiceTest {
 
         // Assert
         assertThat(result).isEmpty();
+    }
+
+    // ==================== Duplicate Address Guard (bug: POST /customers erro 500) ====================
+
+    @Test
+    @DisplayName("Deve criar dois clientes no mesmo endereço sem erro 500 (regressão uk_address_composition)")
+    void shouldCreateTwoCustomersWithSameAddressWithoutError() {
+        // Arrange – endereço compartilhado (mesmo que já exista no banco)
+        AddressDTO sharedAddress = AddressDTO.builder()
+                .zipCode("13560-647")
+                .street("Rua Treze de Maio")
+                .city("São Carlos")
+                .state("SP")
+                .build();
+
+        Address existingAddress = new Address("13560647", "Rua Treze de Maio", "Centro", "São Carlos", "SP");
+
+        // DTO do primeiro cliente
+        CustomerDTO dto1 = CustomerDTO.builder()
+                .name("Cliente Um")
+                .email("cliente1@example.com")
+                .document("11122233344")
+                .number("100")
+                .address(sharedAddress)
+                .build();
+
+        // DTO do segundo cliente (mesmo endereço)
+        CustomerDTO dto2 = CustomerDTO.builder()
+                .name("Cliente Dois")
+                .email("cliente2@example.com")
+                .document("55566677788")
+                .number("100")
+                .address(sharedAddress)
+                .build();
+
+        // AddressService já retorna o endereço existente para ambos (sem INSERT duplicado)
+        when(addressService.findOrCreateByAddress(any(AddressDTO.class))).thenReturn(existingAddress);
+        when(customerRepository.findByDocument(anyString())).thenReturn(Optional.empty());
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> {
+            Customer c = inv.getArgument(0);
+            c.setId(UUID.randomUUID());
+            return c;
+        });
+
+        // Act – ambas as criações devem funcionar sem lançar exceção
+        CustomerDetailsDTO result1 = customerService.create(dto1);
+        CustomerDetailsDTO result2 = customerService.create(dto2);
+
+        // Assert
+        assertThat(result1).isNotNull();
+        assertThat(result2).isNotNull();
+        // findOrCreateByAddress chamado uma vez por cliente
+        verify(addressService, times(2)).findOrCreateByAddress(any(AddressDTO.class));
+        // save chamado uma vez por cliente
+        verify(customerRepository, times(2)).save(any(Customer.class));
     }
 }
 

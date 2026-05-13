@@ -1,6 +1,10 @@
 package br.com.rentafit.people.controller;
 
 import br.com.rentafit.people.dto.EmployeeDTO;
+import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
+import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
+import br.com.rentafit.people.dto.EmployeeCheckResponseDTO;
+import br.com.rentafit.people.dto.EmployeeCreateRequestDTO;
 import br.com.rentafit.people.service.EmployeeService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -40,6 +44,8 @@ class EmployeeControllerTest {
 
     private UUID employeeId;
     private EmployeeDTO employeeDTO;
+    private EmployeeCheckResponseDTO employeeCheckResponseDTO;
+    private EmployeeCreateRequestDTO employeeCreateRequestDTO;
 
     @BeforeEach
     void setUp() {
@@ -53,6 +59,21 @@ class EmployeeControllerTest {
                 .initials("MS")
                 .roleLevel(2)
                 .build();
+
+        employeeCheckResponseDTO = EmployeeCheckResponseDTO.builder()
+                .id(employeeId)
+                .name("Maria Santos")
+                .initials("MS")
+                .build();
+
+        employeeCreateRequestDTO = new EmployeeCreateRequestDTO(
+                "Maria Santos",
+                "98765432100",
+                "maria@example.com",
+                "ms",
+                2,
+                "1234"
+        );
     }
 
     @Test
@@ -100,22 +121,52 @@ class EmployeeControllerTest {
     }
 
     @Test
+    @DisplayName("Should return employee when findByInitials is called with valid initials")
+    void testFindByInitials() {
+        when(employeeService.findByInitials("MS")).thenReturn(employeeCheckResponseDTO);
+
+        ResponseEntity<EmployeeCheckResponseDTO> response = employeeController.findByInitials("MS");
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(employeeId);
+        assertThat(response.getBody().initials()).isEqualTo("MS");
+
+        verify(employeeService, times(1)).findByInitials("MS");
+    }
+
+    @Test
     @DisplayName("Should create employee when valid data is provided")
     void testCreate() {
-        // Arrange
-        when(employeeService.create(any(EmployeeDTO.class))).thenReturn(employeeDTO);
+        when(employeeService.create(any(EmployeeCreateRequestDTO.class))).thenReturn(employeeCheckResponseDTO);
 
-        // Act
-        ResponseEntity<EmployeeDTO> response = employeeController.create(employeeDTO);
+        ResponseEntity<EmployeeCheckResponseDTO> response = employeeController.create(employeeCreateRequestDTO);
 
-        // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().id()).isEqualTo(employeeId);
         assertThat(response.getBody().name()).isEqualTo("Maria Santos");
         assertThat(response.getBody().initials()).isEqualTo("MS");
 
-        verify(employeeService, times(1)).create(any(EmployeeDTO.class));
+        verify(employeeService, times(1)).create(any(EmployeeCreateRequestDTO.class));
+    }
+
+    @Test
+    @DisplayName("Should check employee credentials when valid initials and pin are provided")
+    void testCheck() {
+        String initials = "MS";
+        String pin = "1234";
+        String name = "Jao";
+        EmployeeCheckRequestDTO requestDTO = new EmployeeCheckRequestDTO(initials, pin);
+        when(employeeService.check(requestDTO)).thenReturn(new EmployeeCheckResponseDTO(employeeId, initials, name));
+
+        ResponseEntity<EmployeeCheckResponseDTO> response = employeeController.check(requestDTO);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().id()).isEqualTo(employeeId);
+
+        verify(employeeService, times(1)).check(requestDTO);
     }
 
     @Test

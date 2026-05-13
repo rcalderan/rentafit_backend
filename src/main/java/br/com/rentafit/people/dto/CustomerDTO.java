@@ -1,5 +1,6 @@
 package br.com.rentafit.people.dto;
 
+import br.com.rentafit.common.validation.ValidCpfCnpj;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.Builder;
@@ -14,8 +15,7 @@ public record CustomerDTO(
     @Size(max = 255, message = "Name must not exceed 255 characters")
     String name,
 
-    @Size(max = 50, message = "Document must not exceed 50 characters")
-    @Pattern(regexp = "^[0-9]{11}$|^[0-9]{14}$", message = "Document must be a valid CPF (11 digits) or CNPJ (14 digits)")
+    @ValidCpfCnpj
     String document,
 
     @Email(message = "Email must be valid")

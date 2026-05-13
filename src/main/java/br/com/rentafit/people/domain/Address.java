@@ -18,9 +18,16 @@ import java.util.UUID;
  * Addresses are shared across multiple people to avoid duplication.
  */
 @Entity
-@Table(name = "addresses", uniqueConstraints = {
-    @UniqueConstraint(name = "uk_address_composition", columnNames = {"zip_code", "street", "city", "state"})
-})
+@Table(
+        name = "addresses",
+        indexes = {
+                @Index(name = "idx_addresses_zip_code", columnList = "zip_code"),
+                @Index(
+                        name = "idx_addresses_composition",
+                        columnList = "zip_code, street, neighborhood, city, state"
+                )
+        }
+)
 @Immutable
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED, force = true)

@@ -20,5 +20,6 @@ public record ProductRetailDetailsDTO(
     LocalDateTime updatedAt,
     String details,
     String sku,
+    Integer warrantyDays,
     StockDTO stock
 ) {}

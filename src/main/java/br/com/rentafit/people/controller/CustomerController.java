@@ -1,6 +1,5 @@
 package br.com.rentafit.people.controller;
 
-import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.dto.CustomerDetailsDTO;
@@ -31,8 +30,32 @@ public class CustomerController {
     @GetMapping
     @Operation(summary = "List all customers with pagination")
     @ApiResponse(responseCode = "200", description = "Customers retrieved successfully")
-    public ResponseEntity<Page<CustomerDetailsDTO>> findAll(@Valid Pageable pageable) {
-        return ResponseEntity.ok(customerService.findAll(pageable));
+    public ResponseEntity<Page<CustomerDetailsDTO>> findAll(
+            @RequestParam(required = false) String name,
+            @Valid Pageable pageable) {
+        return ResponseEntity.ok(customerService.search(name, pageable));
+    }
+
+    @GetMapping("/byName/{name}")
+    @Operation(summary = "List byName customers with pagination")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Customer found"),
+            @ApiResponse(responseCode = "404", description = "Customer not found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
+    public ResponseEntity<Page<CustomerDetailsDTO>> findByName(@PathVariable String name,@Valid Pageable pageable) {
+        return ResponseEntity.ok(customerService.findByName(name,pageable));
+    }
+
+    @GetMapping("/byNamePrefix/{namePrefix}")
+    @Operation(summary = "List customers by name prefix with pagination (optimized)")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Customers found"),
+            @ApiResponse(responseCode = "500", description = "Server error")
+    })
+    public ResponseEntity<Page<CustomerDetailsDTO>> findByNamePrefix(@PathVariable String namePrefix,
+                                                                      @Valid Pageable pageable) {
+        return ResponseEntity.ok(customerService.findByNamePrefix(namePrefix, pageable));
     }
 
     @GetMapping("/byId/{id}")

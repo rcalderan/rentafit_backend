@@ -9,6 +9,9 @@ receita/
 .legado
 .prompt
 .docs
+.copilot/*
+.windsurf/*
+.QA/*
 
 ### STS ###
 .apt_generated

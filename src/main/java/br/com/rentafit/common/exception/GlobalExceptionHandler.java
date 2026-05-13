@@ -1,6 +1,7 @@
 package br.com.rentafit.common.exception;
 
 import br.com.rentafit.common.util.EnvironmentUtil;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
@@ -9,8 +10,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.time.LocalDateTime;
@@ -21,7 +24,7 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    private boolean isProd = EnvironmentUtil.isProduction();
+    private final boolean isProd = EnvironmentUtil.isProduction();
 
     // ==================== 4xx Errors ====================
 
@@ -69,11 +72,10 @@ public class GlobalExceptionHandler {
         List<ErrorResponse.FieldError> fieldErrors = new ArrayList<>();
         String message = "Invalid JSON format or type mismatch";
 
-        if (ex.getCause() instanceof InvalidFormatException) {
-            InvalidFormatException ife = (InvalidFormatException) ex.getCause();
+        if (ex.getCause() instanceof InvalidFormatException ife) {
 
             String fieldName = ife.getPath().stream()
-                    .map(ref -> ref.getFieldName())
+                    .map(JsonMappingException.Reference::getFieldName)
                     .filter(name -> name != null && !name.isEmpty())
                     .findFirst()
                     .orElse("unknown");
@@ -120,6 +122,62 @@ public class GlobalExceptionHandler {
                 .error(isProd ? "" : HttpStatus.BAD_REQUEST.getReasonPhrase())
                 .message(isProd ? "Invalid argument" : ex.getMessage())
                 .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
+     * Handles type-conversion failures for path and query parameters.
+     * Example: a malformed UUID in /contracts/{id} returns 400 instead of 500.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex,
+                                                                          HttpServletRequest request) {
+        String paramName  = ex.getName();
+        Object rejected   = ex.getValue();
+        String targetType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
+
+        String message = String.format(
+                "Parâmetro '%s' com valor '%s' não pode ser convertido para o tipo '%s'",
+                paramName, rejected, targetType);
+
+        ErrorResponse body = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(isProd ? "" : HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(isProd ? "Invalid parameter type" : message)
+                .path(request.getRequestURI())
+                .errors(List.of(ErrorResponse.FieldError.builder()
+                        .field(paramName)
+                        .message("Tipo inválido. Esperado: " + targetType)
+                        .rejectedValue(rejected)
+                        .build()))
+                .build();
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
+    /**
+     * Handles missing required query or path parameters.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(MissingServletRequestParameterException ex,
+                                                                               HttpServletRequest request) {
+        String message = String.format("Parâmetro obrigatório '%s' (tipo: %s) está ausente",
+                ex.getParameterName(), ex.getParameterType());
+
+        ErrorResponse body = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(isProd ? "" : HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(isProd ? "Missing required parameter" : message)
+                .path(request.getRequestURI())
+                .errors(List.of(ErrorResponse.FieldError.builder()
+                        .field(ex.getParameterName())
+                        .message("Parâmetro obrigatório ausente")
+                        .rejectedValue(null)
+                        .build()))
                 .build();
 
         return ResponseEntity.badRequest().body(body);
@@ -172,11 +230,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorResponse> handleBusinessValidation(ValidationException ex,
                                                                   HttpServletRequest request) {
+        // ValidationException carrega mensagens de negócio controladas (não stack traces).
+        // A mensagem é sempre exposta para que o frontend possa exibi-la ao usuário.
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.UNPROCESSABLE_ENTITY.value())
-                .error(isProd ? "" : HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase())
-                .message(isProd ? "" : ex.getMessage())
+                .error(isProd ? null : HttpStatus.UNPROCESSABLE_ENTITY.getReasonPhrase())
+                .message(ex.getMessage())
                 .path(request.getRequestURI())
                 .build();
 

@@ -13,6 +13,8 @@ Esta coleção contém todos os endpoints organizados por módulos:
 - **Product - Rental Items** - Gerenciamento de produtos de aluguel
 - **Product - Retail Items** - Gerenciamento de produtos para venda
 - **Product - Stock** - Gerenciamento de estoque e movimentações
+- **Sales Orders** - Pedidos de venda (varejo): ciclo DRAFT → CONFIRMED → PAID → COMPLETED | CANCELLED
+- **Sales Payments** - Parcelas de pagamento dos pedidos de venda
 
 ## 🚀 Como Usar
 
@@ -117,6 +119,16 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 | `category_id` | UUID da categoria para testes | (salvo ao criar categoria) |
 | `rental_product_id` | UUID do produto de aluguel | (salvo ao criar rental product) |
 | `retail_product_id` | UUID do produto de venda | (salvo ao criar retail product) |
+| `contract_id` | UUID do contrato de locação | (salvo ao criar contrato) |
+| `item_id` | UUID do item do contrato | (salvo ao criar contrato) |
+| `revision_contract_id` | UUID da revisão de contrato | (salvo ao criar revisão) |
+| `payment_id` | UUID da parcela de pagamento | (salvo ao criar parcela) |
+| `conflict_contract_id` | UUID do contrato de teste BLOCKING | (salvo no teste de conflito) |
+| `warning_contract_id` | UUID do contrato de teste WARNING | (salvo no teste de conflito) |
+| `sales_order_id` | UUID do pedido de venda | (salvo ao criar pedido) |
+| `sales_order_legacy_id` | Código legado do pedido (V-YYYYMMDD-N) | (salvo ao criar pedido) |
+| `sales_order_item_id` | UUID do item do pedido de venda | (salvo ao criar pedido) |
+| `sales_payment_id` | UUID da parcela de pagamento de venda | (salvo ao adicionar parcela) |
 
 ## 🔄 Fluxo de Teste Recomendado
 
@@ -176,7 +188,87 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 6. Remove Stock
 ```
 
-### 4. Renovar Token (se expirar)
+### 4. Testar Módulo Rental Contracts
+
+```
+# Ciclo de vida básico
+1. Create Contract (DRAFT) → salva contract_id e item_id
+2. Get Contract by ID
+3. Update Contract (DRAFT)
+4. ⚡ Update with Deficit — parcela automática criada (parcelas < total)
+5. Sign Contract (DRAFT → SIGNED)
+6. Finalize Contract (SIGNED → FINALIZED)
+7. Deliver Item
+8. Process Return
+
+# Revisão de contrato
+1. Revise Contract (SIGNED → REVISION) → salva revision_contract_id
+2. Sign Revision (REVISION → SIGNED) — pai vira SUPERSEDED
+3. Verify Parent is SUPERSEDED
+
+# Duplicação
+1. Duplicate Contract → salva novo contract_id (DRAFT sem pagamentos)
+
+# Pagamentos
+1. Add Payment → salva payment_id
+2. List Payments
+3. Update Payment
+4. Cancel Payment
+
+# Teste de conflitos de reserva (⚡)
+1. Assinar/Finalizar o 1º contrato (contract_id deve estar SIGNED ou FINALIZED)
+2. ⚡ Create 2nd Contract (mesmo item, mesma data) → salva conflict_contract_id
+3. ⚡ Sign 2nd Contract → espera 422 BLOCKING
+4. ⚡ Create 3rd Contract (mesmo item, +2 dias) → salva warning_contract_id
+5. ⚡ Sign 3rd Contract → espera 200 com warnings[]
+```
+
+#### Conflitos de reserva — regras
+
+| Cenário | Resultado |
+|---------|-----------|
+| Mesmo item + **mesmo eventDate** que contrato SIGNED/FINALIZED | **422 BLOCKING** — transição impedida |
+| Mesmo item + eventDate a **±1~3 dias** de contrato SIGNED/FINALIZED | **200 + warnings[]** — alerta de proximidade |
+| Mesmo item + eventDate a **±4+ dias** | Sem conflito |
+| Itens sem `rentalItemId` (legados) | Ignorados na verificação |
+
+### 5. Testar Módulo Sales Orders
+
+```
+# Ciclo de vida básico
+1. Create Order (DRAFT) → salva sales_order_id, sales_order_legacy_id, sales_order_item_id
+2. Get Order by ID
+3. Update Order (DRAFT)
+4. Add Payment → salva sales_payment_id
+5. Confirm Order (DRAFT → CONFIRMED, reserva estoque)
+6. Mark Item Ready (RESERVED → READY)
+7. Deliver Item (READY → DELIVERED, requer status PAID)
+8. Emit Invoice (NFS-e) — opcional
+
+# Venda de balcão
+1. Create Order — Venda de Balcão (customerId = null)
+
+# Cancelamento
+1. Cancel Order (DRAFT | CONFIRMED → CANCELLED, libera estoque)
+
+# Pagamentos
+1. Add Payment → salva sales_payment_id
+2. List Payments
+3. Update Payment
+4. Cancel Payment
+```
+
+#### Status do pedido de venda
+
+| Status | Descrição |
+|--------|-----------|
+| DRAFT | Rascunho (editável) |
+| CONFIRMED | Confirmado (estoque reservado) |
+| PAID | Pago (permite entrega) |
+| COMPLETED | Concluído (todos itens entregues) |
+| CANCELLED | Cancelado (estoque liberado se estava CONFIRMED) |
+
+### 6. Renovar Token (se expirar)
 
 ```
 Auth → Refresh Token
@@ -208,6 +300,56 @@ Auth → Refresh Token
     "phones": [
         "11987654321",
         "1133334444"
+    ]
+}
+```
+
+### Criar um Produto de Venda (Retail) com Garantia
+
+**Endpoint:** `POST /api/v1/products/retail`
+
+```json
+{
+    "name": "Camiseta Fitness",
+    "sku": "CAM-FIT-001",
+    "categoryId": "{{category_id}}",
+    "size": "M",
+    "color": "Preto",
+    "brand": "Nike",
+    "value": 99.90,
+    "description": "Camiseta fitness de alta performance",
+    "warrantyDays": 90
+}
+```
+
+### Criar um Pedido de Venda
+
+**Endpoint:** `POST /api/v1/sales/orders`
+
+```json
+{
+    "customerId": "{{customer_id}}",
+    "createdByEmployeeId": "{{employee_id}}",
+    "notes": "Pedido de teste",
+    "discountValue": 0.00,
+    "items": [
+        {
+            "retailProductId": "{{retail_product_id}}",
+            "quantity": 2,
+            "discountValue": 5.00,
+            "needsTailoring": false,
+            "tailoringNotes": null
+        }
+    ],
+    "payments": [
+        {
+            "installmentNumber": 1,
+            "paymentDate": "2026-05-10",
+            "paymentMethod": "PIX",
+            "value": 195.00,
+            "installments": 1,
+            "status": "PENDING"
+        }
     ]
 }
 ```
@@ -291,8 +433,18 @@ GET /api/v1/customers?page=0&size=10&sort=name,asc
 ## 🔍 Filtros Específicos
 
 ### Customers
+- `GET /api/v1/customers?name={name}` - Busca por nome (contains/LIKE, case-insensitive)
+- `GET /api/v1/customers/byName/{name}` - Busca por nome (contains/LIKE, case-insensitive)
+- `GET /api/v1/customers/byNamePrefix/{namePrefix}` - Busca por prefixo (otimizada para autocomplete)
 - `GET /api/v1/customers/byDocument/{document}` - Busca por CPF/CNPJ
 - `GET /api/v1/customers/byLegacyId/{legacyId}` - Busca por ID legado
+
+**Exemplos úteis (Customers):**
+```
+GET /api/v1/customers?name=ana&page=0&size=10&sort=name,asc
+GET /api/v1/customers/byName/ana?page=0&size=10&sort=name,asc
+GET /api/v1/customers/byNamePrefix/an?page=0&size=10&sort=name,asc
+```
 
 ### Categories
 - `GET /api/v1/categories/type/{type}` - Filtra por tipo (RENTAL, RETAIL, ACCESSORY)
@@ -318,4 +470,4 @@ Para dúvidas ou problemas:
 
 ---
 
-**Rentafit API Collection** - v1.0.0
+**Rentafit API Collection** - v1.1.0

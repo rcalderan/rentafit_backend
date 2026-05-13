@@ -76,10 +76,10 @@ class CustomerControllerTest {
         CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", "12345678900",
                 "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
         Page<CustomerDetailsDTO> page = new PageImpl<>(List.of(detailsDTO), pageable, 1);
-        when(customerService.findAll(any(Pageable.class))).thenReturn(page);
+        when(customerService.search(null, pageable)).thenReturn(page);
 
         // Act
-        ResponseEntity<Page<CustomerDetailsDTO>> response = customerController.findAll(pageable);
+        ResponseEntity<Page<CustomerDetailsDTO>> response = customerController.findAll(null, pageable);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -89,7 +89,24 @@ class CustomerControllerTest {
         assertThat(response.getBody().getContent().getFirst().name()).isEqualTo("João Silva");
         assertThat(response.getBody().getTotalElements()).isEqualTo(1);
 
-        verify(customerService, times(1)).findAll(any(Pageable.class));
+        verify(customerService, times(1)).search(null, pageable);
+    }
+
+    @Test
+    @DisplayName("Should return paginated customers when findByNamePrefix is called")
+    void testFindByNamePrefix() {
+        Pageable pageable = PageRequest.of(0, 10);
+        CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", "12345678900",
+                "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
+        Page<CustomerDetailsDTO> page = new PageImpl<>(List.of(detailsDTO), pageable, 1);
+        when(customerService.findByNamePrefix("Jo", pageable)).thenReturn(page);
+
+        ResponseEntity<Page<CustomerDetailsDTO>> response = customerController.findByNamePrefix("Jo", pageable);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getContent()).hasSize(1);
+        verify(customerService, times(1)).findByNamePrefix("Jo", pageable);
     }
 
     @Test

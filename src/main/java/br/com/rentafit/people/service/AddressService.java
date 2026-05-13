@@ -17,12 +17,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.ErrorResponseException;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.server.handler.ResponseStatusExceptionHandler;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Service for managing addresses with ViaCEP integration
@@ -77,29 +77,74 @@ public class AddressService {
 
     /**
      * Find address by ZIP code or create from ViaCEP if not exists.
-     * If ViaCEP doesn't have the address, it creates a manual entry.
+     * Lookup strategy:
+     *   1. If ZIP is present → search by ZIP code first (covers the case of multiple
+     *      customers living at the same address, avoiding unique-constraint violations).
+     *   2. If not found by ZIP → try composite key (zip + street + city + state).
+     *   3. If still not found → fetch from ViaCEP and persist.
+     *   4. If no ZIP at all → persist as manual entry.
+     *
      * @param addressDTO address details
-     * @return Address entity
+     * @return Address entity (existing or newly created)
      */
     @Transactional
     public Address findOrCreateByAddress(AddressDTO addressDTO) {
         String normalizedZip = ZipCodeUtils.normalize(addressDTO.zipCode());
 
-        // 1. Try to find existing address by composite key to avoid duplicates
-        return addressRepository.findByZipCodeAndStreetAndCityAndState(
-                        normalizedZip,
-                        addressDTO.street(),
-                        addressDTO.city(),
-                        addressDTO.state())
-                .orElseGet(() -> {
-                    // 2. If not found locally and has ZIP code, attempt ViaCEP integration
-                    if (normalizedZip != null) {
-                        return createFromViaCep(addressDTO);
+        // 1. When a ZIP code is provided, try to find an existing address by ZIP first.
+        //    This is the main guard against duplicate-key errors: two customers at the
+        //    same address will always reuse the same Address row.
+        if (normalizedZip != null) {
+            List<Address> byZip = addressRepository.findByZipCode(normalizedZip);
+            if (!byZip.isEmpty()) {
+                // If there is only one address for this ZIP, reuse it as before.
+                if (byZip.size() == 1) {
+                    log.debug("Reusing existing address for ZIP code: {}", normalizedZip);
+                    return byZip.getFirst();
+                }
+
+                // Multiple addresses share this ZIP. Prefer one that matches street/city/state.
+                Address matchedByComposition = null;
+                for (Address candidate : byZip) {
+                    if (Objects.equals(candidate.getStreet(), addressDTO.street())
+                            && Objects.equals(candidate.getCity(), addressDTO.city())
+                            && Objects.equals(candidate.getState(), addressDTO.state())) {
+                        matchedByComposition = candidate;
+                        break;
                     }
-                    // 3. If no ZIP code, save as manual entry
-                    log.info("Saving manual address without ZIP code: {}, {}", addressDTO.street(), addressDTO.city());
-                    return addressRepository.save(new Address(addressDTO, true));
-                });
+                }
+
+                if (matchedByComposition != null) {
+                    log.debug("Reusing existing address for ZIP + composition: {}, {}, {}, {}",
+                            normalizedZip, addressDTO.street(), addressDTO.city(), addressDTO.state());
+                    return matchedByComposition;
+                }
+
+                // No exact composition match; fall back to first entry for backward compatibility.
+                log.warn("Multiple addresses found for ZIP {} but none matched street/city/state; reusing first result.",
+                        normalizedZip);
+                return byZip.getFirst();
+            }
+
+            // 2. Not in the local DB yet — create from ViaCEP (or fall back to manual)
+            return createFromViaCep(addressDTO);
+        }
+
+        // 3. No ZIP code provided — try to match by full composition before inserting
+        Optional<Address> byComposition = addressRepository.findByZipCodeAndStreetAndCityAndState(
+                null,
+                addressDTO.street(),
+                addressDTO.city(),
+                addressDTO.state());
+
+        if (byComposition.isPresent()) {
+            log.debug("Reusing existing manual address: {}, {}", addressDTO.street(), addressDTO.city());
+            return byComposition.get();
+        }
+
+        // 4. Truly new manual address (no ZIP, no prior match)
+        log.info("Saving new manual address without ZIP code: {}, {}", addressDTO.street(), addressDTO.city());
+        return addressRepository.save(new Address(addressDTO, true));
     }
 
     @Transactional
@@ -175,17 +220,7 @@ public class AddressService {
         PersonAddressDetails currentDetails = customer.getCurrentAddress();
 
         // Check if address actually changed (compare composite fields if ZIP is null)
-        boolean addressChanged;
-        if (currentDetails == null) {
-            addressChanged = true;
-        } else {
-            Address cur = currentDetails.getAddress();
-            AddressDTO next = dto.address();
-            addressChanged = !Objects.equals(cur.getZipCode(), newZipCode) ||
-                             !Objects.equals(cur.getStreet(), next.street()) ||
-                             !Objects.equals(cur.getCity(), next.city()) ||
-                             !Objects.equals(cur.getState(), next.state());
-        }
+        boolean addressChanged = isAddressChanged(dto, currentDetails, newZipCode);
 
         boolean detailsChanged = currentDetails != null && (
                 !Objects.equals(currentDetails.getNumber(), dto.number()) ||
@@ -216,6 +251,21 @@ public class AddressService {
                     currentDetails != null ? currentDetails.getAddress().getZipCode() : "none",
                     newZipCode);
         }
+    }
+
+    private boolean isAddressChanged(CustomerDTO dto, PersonAddressDetails currentDetails, String newZipCode) {
+        boolean addressChanged;
+        if (currentDetails == null) {
+            addressChanged = true;
+        } else {
+            Address cur = currentDetails.getAddress();
+            AddressDTO next = dto.address();
+            addressChanged = !Objects.equals(cur.getZipCode(), newZipCode) ||
+                             !Objects.equals(cur.getStreet(), next.street()) ||
+                             !Objects.equals(cur.getCity(), next.city()) ||
+                             !Objects.equals(cur.getState(), next.state());
+        }
+        return addressChanged;
     }
 
     /**

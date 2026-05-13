@@ -1,0 +1,283 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EC2 Spot Instance t3.small para Rentafit HK - Docker Compose com PostgreSQL'
+
+Parameters:
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID (usar vpc padrao ou criada pelo vpc.yaml)'
+
+  SubnetId:
+    Type: AWS::EC2::Subnet::Id
+    Description: 'Subnet publica para a instancia'
+
+  KeyPairName:
+    Type: String
+    Description: 'Key Pair para acesso SSH (opcional, SSM preferido)'
+    Default: ''
+
+  AllowedIp:
+    Type: String
+    Description: 'IP permitido para acesso (formato CIDR, ex: 201.42.1.1/32). Deixe vazio para 0.0.0.0/0 (nao recomendado)'
+    Default: ''
+
+  DbPassword:
+    Type: String
+    NoEcho: true
+    Description: 'Senha do PostgreSQL (obrigatorio - nao use valor padrao)'
+
+  S3BucketName:
+    Type: String
+    Description: 'Bucket S3 para deploy do docker-compose'
+    Default: 'noivamodas.com.br'
+
+Conditions:
+  HasKeyPair: !Not [!Equals [!Ref KeyPairName, '']]
+  HasSpecificIp: !Not [!Equals [!Ref AllowedIp, '']]
+
+Resources:
+
+  # --- IAM ROLE (SSM + ECR + S3) ---
+  EC2Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: Rentafit-HK-EC2-Role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Policies:
+        - PolicyName: S3ReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub 'arn:aws:s3:::${S3BucketName}'
+                  - !Sub 'arn:aws:s3:::${S3BucketName}/hk/*'
+
+  EC2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2Role
+
+  # --- SECURITY GROUP ---
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: rentafit-hk-sg
+      GroupDescription: 'Security Group para Rentafit HK - App e PostgreSQL'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        # SSH (opcional, SSM e preferido)
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !If [HasSpecificIp, !Ref AllowedIp, '0.0.0.0/0']
+          Description: 'SSH access'
+        # API Spring Boot
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: !If [HasSpecificIp, !Ref AllowedIp, '0.0.0.0/0']
+          Description: 'Rentafit API'
+        # PostgreSQL (apenas para debug remoto, se necessario)
+        - IpProtocol: tcp
+          FromPort: 5432
+          ToPort: 5432
+          CidrIp: !If [HasSpecificIp, !Ref AllowedIp, '0.0.0.0/0']
+          Description: 'PostgreSQL (debug only)'
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: Rentafit-HK-SG
+
+  # --- LAUNCH TEMPLATE (Spot Instance) ---
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: Rentafit-HK-LaunchTemplate
+      LaunchTemplateData:
+        InstanceType: t3.small
+        ImageId: ami-0c02fb55956c7d316  # Amazon Linux 2023 (us-east-1)
+        IamInstanceProfile:
+          Arn: !GetAtt EC2InstanceProfile.Arn
+        KeyName: !If [HasKeyPair, !Ref KeyPairName, !Ref 'AWS::NoValue']
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            AssociatePublicIpAddress: true
+            DeleteOnTermination: true
+            SubnetId: !Ref SubnetId
+            Groups:
+              - !Ref AppSecurityGroup
+        InstanceMarketOptions:
+          MarketType: spot
+          SpotOptions:
+            SpotInstanceType: one-time
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs:
+              VolumeSize: 10
+              VolumeType: gp3
+              DeleteOnTermination: true
+        UserData:
+          Fn::Base64: !Sub |
+            #!/bin/bash
+            set -e
+
+            # Atualizar sistema
+            dnf update -y
+
+            # Instalar Docker
+            dnf install -y docker
+            systemctl enable docker
+            systemctl start docker
+            usermod -aG docker ec2-user
+
+            # Instalar Docker Compose (plugin)
+            mkdir -p /usr/local/lib/docker/cli-plugins
+            curl -SL https://github.com/docker/compose/releases/download/v2.23.0/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose
+            chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
+
+            # Criar diretorio da aplicacao
+            mkdir -p /opt/rentafit
+            cd /opt/rentafit
+
+            # Criar docker-compose.yml inicial (sera sobrescrito pelo deploy)
+            cat > docker-compose.yml << 'EOF'
+            version: '3.8'
+            services:
+              app:
+                image: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/rentafit-api-hk:latest
+                container_name: rentafit-app
+                ports:
+                  - "8080:8080"
+                environment:
+                  SPRING_PROFILES_ACTIVE: hk
+                  DB_HOST: postgres
+                  DB_PASSWORD: ${DbPassword}
+                  DB_USER: postgres
+                  DB_NAME: rentafit
+                depends_on:
+                  - postgres
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+                  interval: 30s
+                  timeout: 10s
+                  retries: 3
+                  start_period: 60s
+
+              postgres:
+                image: postgres:14-alpine
+                container_name: rentafit-postgres
+                environment:
+                  POSTGRES_DB: rentafit
+                  POSTGRES_USER: postgres
+                  POSTGRES_PASSWORD: ${DbPassword}
+                volumes:
+                  - postgres_data:/var/lib/postgresql/data
+                restart: unless-stopped
+                healthcheck:
+                  test: ["CMD-SHELL", "pg_isready -U postgres -d rentafit"]
+                  interval: 10s
+                  timeout: 5s
+                  retries: 5
+
+            volumes:
+              postgres_data:
+            EOF
+
+            # Criar script de deploy
+            cat > /opt/rentafit/deploy.sh << 'DEPLOYEOF'
+            #!/bin/bash
+            set -e
+
+            echo "=== Rentafit HK Deploy ==="
+            cd /opt/rentafit
+
+            # Login no ECR
+            echo "Autenticando no ECR..."
+            aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+
+            # Baixar docker-compose atualizado do S3
+            echo "Baixando configuracao atualizada..."
+            aws s3 cp s3://${S3BucketName}/hk/docker-compose.yml docker-compose.yml
+
+            # Pull da nova imagem
+            echo "Atualizando imagem..."
+            docker-compose pull app
+
+            # Restart dos servicos
+            echo "Reiniciando servicos..."
+            docker-compose up -d
+
+            # Limpeza de imagens antigas
+            echo "Limpando imagens antigas..."
+            docker image prune -f
+
+            echo "=== Deploy concluido ==="
+            DEPLOYEOF
+
+            chmod +x /opt/rentafit/deploy.sh
+
+            # Executar primeiro deploy
+            sleep 10
+            /opt/rentafit/deploy.sh 2>&1 | tee /var/log/rentafit-deploy.log
+
+            # Agendamento de backup diario (snapshot do volume)
+            # Nota: Backup automatizado via AWS Backup ou Lambda pode ser adicionado depois
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: Rentafit-HK-Server
+              - Key: Environment
+                Value: hk
+              - Key: Project
+                Value: rentafit
+
+  # --- EC2 INSTANCE (via Launch Template) ---
+  EC2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+
+  # --- ELASTIC IP (Opcional - descomente se precisar de IP fixo) ---
+  # ElasticIP:
+  #   Type: AWS::EC2::EIP
+  #   Properties:
+  #     Domain: vpc
+  #     InstanceId: !Ref EC2Instance
+
+Outputs:
+  InstanceId:
+    Description: 'ID da instancia EC2'
+    Value: !Ref EC2Instance
+    Export:
+      Name: Rentafit-HK-InstanceId
+
+  InstancePublicIP:
+    Description: 'IP publico da instancia (muda ao reiniciar se nao houver EIP)'
+    Value: !GetAtt EC2Instance.PublicIp
+
+  SecurityGroupId:
+    Description: 'Security Group ID'
+    Value: !Ref AppSecurityGroup
+
+  DeployCommand:
+    Description: 'Comando SSM para deploy manual'
+    Value: !Sub 'aws ssm send-command --instance-ids ${EC2Instance} --document-name "AWS-RunShellScript" --parameters commands=["/opt/rentafit/deploy.sh"]'

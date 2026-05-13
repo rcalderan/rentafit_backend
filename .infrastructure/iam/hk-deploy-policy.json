@@ -23,22 +23,45 @@
       "Resource": "arn:aws:ecr:*:*:repository/rentafit-api-hk"
     },
     {
-      "Sid": "ECSDeployHK",
+      "Sid": "S3DeployHK",
       "Effect": "Allow",
       "Action": [
-        "ecs:UpdateService",
-        "ecs:DescribeServices"
+        "s3:PutObject",
+        "s3:GetObject",
+        "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:ecs:*:*:service/Rentafit-HK-Cluster/rentafit-hk-service",
-        "arn:aws:ecs:*:*:cluster/Rentafit-HK-Cluster"
+        "arn:aws:s3:::<BUCKET_NAME>",
+        "arn:aws:s3:::<BUCKET_NAME>/hk/*"
       ]
+    },
+    {
+      "Sid": "SSMDeployHK",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:SendCommand",
+        "ssm:GetCommandInvocation",
+        "ssm:DescribeInstanceInformation",
+        "ssm:ListCommandInvocations",
+        "ssm:ListDocuments"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EC2DescribeHK",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeInstances"
+      ],
+      "Resource": "*"
     },
     {
       "Sid": "LogsReadHK",
       "Effect": "Allow",
       "Action": [
-        "logs:DescribeLogGroups"
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:GetLogEvents"
       ],
       "Resource": "*"
     }

@@ -216,6 +216,7 @@ class RetailProductServiceTest {
                 null,
                 null,
                 new BigDecimal("160.00"),
+                null,
                 null
         );
 
