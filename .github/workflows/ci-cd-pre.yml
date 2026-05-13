@@ -100,7 +100,7 @@ jobs:
     if: github.event.pull_request.merged == true && github.base_ref == 'develop'
     env:
       ECR_REPOSITORY: rentafit-api-hk
-      S3_BUCKET: rentafit-hk-deploy-${{ secrets.AWS_ACCOUNT_ID }}
+      S3_BUCKET: ${{ secrets.S3_BUCKET_HK }}
       INSTANCE_ID: ${{ secrets.HK_INSTANCE_ID }}
     steps:
     - uses: actions/checkout@v4
@@ -138,8 +138,8 @@ jobs:
 
     - name: Upload docker-compose to S3
       run: |
-        aws s3 cp docker-compose.hk.rendered.yml s3://${S3_BUCKET}/docker-compose.hk.yml
-        echo "Docker-compose uploaded to s3://${S3_BUCKET}/docker-compose.hk.yml"
+        aws s3 cp docker-compose.hk.rendered.yml s3://${S3_BUCKET}/hk/docker-compose.hk.yml
+        echo "Docker-compose uploaded to s3://${S3_BUCKET}/hk/docker-compose.hk.yml"
 
     - name: Deploy via AWS Systems Manager (SSM)
       run: |
@@ -147,7 +147,7 @@ jobs:
           --instance-ids "${INSTANCE_ID}" \
           --document-name "AWS-RunShellScript" \
           --comment "Deploy Rentafit HK - ${{ github.sha }}" \
-          --parameters commands=["cd /opt/rentafit && aws s3 cp s3://${S3_BUCKET}/docker-compose.hk.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
+          --parameters commands=["cd /opt/rentafit && aws s3 cp s3://${S3_BUCKET}/hk/docker-compose.hk.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
           --output text \
           --query 'Command.CommandId')
 

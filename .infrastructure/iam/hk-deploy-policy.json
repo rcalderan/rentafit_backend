@@ -31,8 +31,8 @@
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::rentafit-hk-deploy-*",
-        "arn:aws:s3:::rentafit-hk-deploy-*/*"
+        "arn:aws:s3:::<BUCKET_NAME>",
+        "arn:aws:s3:::<BUCKET_NAME>/hk/*"
       ]
     },
     {
