@@ -124,7 +124,8 @@ Resources:
         InstanceMarketOptions:
           MarketType: spot
           SpotOptions:
-            SpotInstanceType: one-time
+            SpotInstanceType: persistent
+            InstanceInterruptionBehavior: stop
         BlockDeviceMappings:
           - DeviceName: /dev/xvda
             Ebs:

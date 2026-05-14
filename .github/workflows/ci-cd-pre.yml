@@ -112,11 +112,32 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_HK }}
         aws-region: ${{ secrets.AWS_REGION }}
 
+    - name: Verify EC2 Instance is running
+      id: check-ec2
+      run: |
+        echo "Checking EC2 instance ${secrets.HK_INSTANCE_ID}..."
+        STATUS=$(aws ec2 describe-instances \
+          --instance-ids "${secrets.HK_INSTANCE_ID}" \
+          --query 'Reservations[0].Instances[0].State.Name' \
+          --output text 2>/dev/null || echo "not-found")
+
+        if [ "$STATUS" != "running" ]; then
+          echo "⚠️ EC2 instance is not running (status: ${STATUS})"
+          echo "⏭️ Skipping deploy. Start the instance manually or wait for scheduler."
+          echo "skip_deploy=true" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        echo "✅ EC2 instance is running"
+        echo "skip_deploy=false" >> $GITHUB_OUTPUT
+
     - name: Login to Amazon ECR
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build, tag, and push image to Amazon ECR
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
@@ -129,6 +150,7 @@ jobs:
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
     - name: Substitute variables in docker-compose
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
       run: |
         envsubst < docker-compose.hk.yml > docker-compose.hk.rendered.yml
         cat docker-compose.hk.rendered.yml
@@ -137,17 +159,19 @@ jobs:
         DB_PASSWORD: ${{ secrets.HK_DB_PASSWORD }}
 
     - name: Upload docker-compose to S3
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
       run: |
-        aws s3 cp docker-compose.hk.rendered.yml s3://${S3_BUCKET}/hk/docker-compose.hk.yml
-        echo "Docker-compose uploaded to s3://${S3_BUCKET}/hk/docker-compose.hk.yml"
+        aws s3 cp docker-compose.hk.rendered.yml s3://${secrets.HK_S3_BUCKET}/hk/docker-compose.yml
+        echo "Docker-compose uploaded to s3://${secrets.HK_S3_BUCKET}/hk/docker-compose.yml"
 
     - name: Deploy via AWS Systems Manager (SSM)
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
       run: |
         COMMAND_ID=$(aws ssm send-command \
-          --instance-ids "${INSTANCE_ID}" \
+          --instance-ids "${secrets.HK_INSTANCE_ID}" \
           --document-name "AWS-RunShellScript" \
           --comment "Deploy Rentafit HK - ${{ github.sha }}" \
-          --parameters commands=["cd /opt/rentafit && aws s3 cp s3://${S3_BUCKET}/hk/docker-compose.hk.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
+          --parameters commands=["cd /opt/rentafit && aws s3 cp s3://${secrets.HK_S3_BUCKET}/hk/docker-compose.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
           --output text \
           --query 'Command.CommandId')
 
@@ -156,12 +180,12 @@ jobs:
 
         # Aguardar execucao
         echo "Aguardando execucao do deploy..."
-        aws ssm wait command-executed --command-id "${COMMAND_ID}" --instance-id "${INSTANCE_ID}"
+        aws ssm wait command-executed --command-id "${COMMAND_ID}" --instance-id "${secrets.HK_INSTANCE_ID}"
 
         # Verificar status
         STATUS=$(aws ssm get-command-invocation \
           --command-id "${COMMAND_ID}" \
-          --instance-id "${INSTANCE_ID}" \
+          --instance-id "${secrets.HK_INSTANCE_ID}" \
           --query 'Status' \
           --output text)
 
