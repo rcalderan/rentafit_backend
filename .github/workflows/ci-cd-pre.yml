@@ -158,6 +158,15 @@ jobs:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         DB_PASSWORD: ${{ secrets.HK_DB_PASSWORD }}
 
+    - name: Validate S3_BUCKET
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
+      run: |
+        if [ -z "${S3_BUCKET}" ]; then
+          echo "❌ Secret S3_BUCKET_HK is not configured"
+          exit 1
+        fi
+        echo "✅ S3 bucket: ${S3_BUCKET}"
+
     - name: Upload docker-compose to S3
       if: steps.check-ec2.outputs.skip_deploy != 'true'
       run: |
