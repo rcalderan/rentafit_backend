@@ -152,7 +152,7 @@ jobs:
     - name: Substitute variables in docker-compose
       if: steps.check-ec2.outputs.skip_deploy != 'true'
       run: |
-        envsubst < docker-compose.hk.yml > docker-compose.hk.rendered.yml
+        envsubst < docker-compose.hk.yaml > docker-compose.hk.rendered.yml
         cat docker-compose.hk.rendered.yml
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
