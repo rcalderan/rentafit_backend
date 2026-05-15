@@ -240,7 +240,14 @@ Resources:
 
             # Executar primeiro deploy
             sleep 10
-            /opt/rentafit/deploy.sh 2>&1 | tee /var/log/rentafit-deploy.log
+            if /opt/rentafit/deploy.sh 2>&1 | tee /var/log/rentafit-deploy.log; then
+                echo "=== Primeiro deploy concluido com sucesso ==="
+            else
+                echo "=== ERRO NO PRIMEIRO DEPLOY ==="
+                echo "Log de erro:"
+                cat /var/log/rentafit-deploy.log
+                exit 1
+            fi
 
             # Agendamento de backup diario (snapshot do volume)
             # Nota: Backup automatizado via AWS Backup ou Lambda pode ser adicionado depois
