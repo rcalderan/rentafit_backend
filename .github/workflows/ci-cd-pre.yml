@@ -200,8 +200,7 @@ jobs:
 
           if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
             break
-          
-          
+          fi
 
           sleep 10
         done
