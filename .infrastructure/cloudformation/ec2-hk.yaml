@@ -220,6 +220,11 @@ Resources:
             echo "Atualizando imagem..."
             docker-compose pull app
 
+            # Garantir que o SSM Agent esteja ativo
+            echo "Garantindo que o SSM Agent esteja ativo..."
+            systemctl enable amazon-ssm-agent
+            systemctl start amazon-ssm-agent
+
             # Restart dos servicos
             echo "Reiniciando servicos..."
             docker-compose up -d
