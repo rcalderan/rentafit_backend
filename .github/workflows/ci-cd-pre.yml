@@ -180,7 +180,7 @@ jobs:
           --instance-ids "${INSTANCE_ID}" \
           --document-name "AWS-RunShellScript" \
           --comment "Deploy Rentafit HK - ${{ github.sha }}" \
-          --parameters commands=["cd /opt/rentafit && aws s3 cp s3://${S3_BUCKET}/hk/docker-compose.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
+          --parameters commands=["mkdir -p /opt/rentafit && cd /opt/rentafit && aws s3 cp s3://${S3_BUCKET}/hk/docker-compose.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
           --output text \
           --query 'Command.CommandId')
 
@@ -200,7 +200,8 @@ jobs:
 
           if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
             break
-          fi
+          
+          
 
           sleep 10
         done
