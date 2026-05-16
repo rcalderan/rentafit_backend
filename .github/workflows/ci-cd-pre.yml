@@ -178,17 +178,18 @@ jobs:
       run: |
         SCRIPT=$(cat << 'HEREDOC'
         #!/bin/bash
+        export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         set -e
         BUCKET="${S3_BUCKET_NAME:-}"
         REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
         ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
         echo "Bucket: ${BUCKET} | Region: ${REGION}"
-        aws ecr get-login-password --region "${REGION}" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+        aws ecr get-login-password --region "${REGION}" | /usr/bin/docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
         aws s3 cp "s3://${BUCKET}/hk/docker-compose.yml" /opt/rentafit/docker-compose.yml --region "${REGION}"
         cd /opt/rentafit
-        docker compose pull app
-        docker compose up -d
-        docker image prune -f
+        /usr/bin/docker compose pull app
+        /usr/bin/docker compose up -d
+        /usr/bin/docker image prune -f
         echo "=== Deploy concluido ==="
         HEREDOC
         )
