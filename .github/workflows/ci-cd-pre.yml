@@ -173,6 +173,56 @@ jobs:
         aws s3 cp docker-compose.hk.rendered.yml s3://${S3_BUCKET}/hk/docker-compose.yml
         echo "Docker-compose uploaded to s3://${S3_BUCKET}/hk/docker-compose.yml"
 
+    - name: Update deploy.sh on EC2 via SSM
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
+      run: |
+        SCRIPT=$(cat << 'HEREDOC'
+        #!/bin/bash
+        set -e
+        BUCKET="${S3_BUCKET_NAME:-}"
+        REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+        ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "Bucket: ${BUCKET} | Region: ${REGION}"
+        aws ecr get-login-password --region "${REGION}" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+        aws s3 cp "s3://${BUCKET}/hk/docker-compose.yml" /opt/rentafit/docker-compose.yml --region "${REGION}"
+        cd /opt/rentafit
+        docker compose pull app
+        docker compose up -d
+        docker image prune -f
+        echo "=== Deploy concluido ==="
+        HEREDOC
+        )
+
+        ENCODED=$(echo "$SCRIPT" | base64 -w 0)
+
+        UPD_CMD=$(aws ssm send-command \
+          --instance-ids "${INSTANCE_ID}" \
+          --document-name "AWS-RunShellScript" \
+          --comment "Update deploy.sh - ${{ github.sha }}" \
+          --parameters "commands=[\"echo ${ENCODED} | base64 -d > /opt/rentafit/deploy.sh && chmod +x /opt/rentafit/deploy.sh && echo 'deploy.sh updated'\"]" \
+          --output text \
+          --query 'Command.CommandId')
+
+        echo "Update Command ID: ${UPD_CMD}"
+
+        for i in {1..12}; do
+          UPD_STATUS=$(aws ssm get-command-invocation \
+            --command-id "${UPD_CMD}" \
+            --instance-id "${INSTANCE_ID}" \
+            --query 'Status' \
+            --output text 2>/dev/null || echo "Pending")
+          echo "Update status: ${UPD_STATUS} ($i/12)"
+          if [ "$UPD_STATUS" = "Success" ] || [ "$UPD_STATUS" = "Failed" ] || [ "$UPD_STATUS" = "Cancelled" ]; then
+            break
+          fi
+          sleep 5
+        done
+
+        if [ "$UPD_STATUS" != "Success" ]; then
+          echo "❌ Falha ao atualizar deploy.sh: ${UPD_STATUS}"
+          exit 1
+        fi
+
     - name: Deploy via AWS Systems Manager (SSM)
       if: steps.check-ec2.outputs.skip_deploy != 'true'
       run: |
@@ -180,7 +230,7 @@ jobs:
           --instance-ids "${INSTANCE_ID}" \
           --document-name "AWS-RunShellScript" \
           --comment "Deploy Rentafit HK - ${{ github.sha }}" \
-          --parameters commands=["mkdir -p /opt/rentafit && cd /opt/rentafit && aws s3 cp s3://${S3_BUCKET}/hk/docker-compose.yml docker-compose.yml && aws ecr get-login-password | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }} && docker-compose pull app && docker-compose up -d && docker image prune -f"] \
+          --parameters "commands=[\"S3_BUCKET_NAME=${{ secrets.S3_BUCKET_HK }} /opt/rentafit/deploy.sh\"]" \
           --output text \
           --query 'Command.CommandId')
 
