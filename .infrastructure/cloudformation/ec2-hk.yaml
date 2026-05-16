@@ -203,39 +203,18 @@ Resources:
             # Criar script de deploy
             cat > /opt/rentafit/deploy.sh << 'DEPLOYEOF'
             #!/bin/bash
+            export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             set -e
-
-            echo "=== Rentafit HK Deploy ==="
-            cd /opt/rentafit
-
-            # S3_BUCKET_NAME pode ser injetado pelo SSM ou usar o valor padrao do provisionamento
-            BUCKET="${S3_BUCKET_NAME:-DEFAULT_BUCKET}"
+            BUCKET="${S3_BUCKET_NAME:-}"
             REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
             ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-
-            echo "Bucket: ${BUCKET}"
-            echo "Region: ${REGION}"
-
-            # Login no ECR
-            echo "Autenticando no ECR..."
-            aws ecr get-login-password --region "${REGION}" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-
-            # Baixar docker-compose atualizado do S3
-            echo "Baixando configuracao atualizada..."
-            aws s3 cp "s3://${BUCKET}/hk/docker-compose.yml" docker-compose.yml --region "${REGION}"
-
-            # Pull da nova imagem
-            echo "Atualizando imagem..."
-            docker compose pull app
-
-            # Restart dos servicos
-            echo "Reiniciando servicos..."
-            docker compose up -d
-
-            # Limpeza de imagens antigas
-            echo "Limpando imagens antigas..."
-            docker image prune -f
-
+            echo "Bucket: ${BUCKET} | Region: ${REGION}"
+            aws ecr get-login-password --region "${REGION}" | /usr/bin/docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
+            aws s3 cp "s3://${BUCKET}/hk/docker-compose.yml" /opt/rentafit/docker-compose.yml --region "${REGION}"
+            cd /opt/rentafit
+            /usr/bin/docker compose pull app
+            /usr/bin/docker compose up -d
+            /usr/bin/docker image prune -f
             echo "=== Deploy concluido ==="
             DEPLOYEOF
 
@@ -243,7 +222,7 @@ Resources:
 
             # Executar primeiro deploy
             sleep 10
-            if /opt/rentafit/deploy.sh 2>&1 | tee /var/log/rentafit-deploy.log; then
+            if S3_BUCKET_NAME="${S3BucketName}" /opt/rentafit/deploy.sh 2>&1 | tee /var/log/rentafit-deploy.log; then
                 echo "=== Primeiro deploy concluido com sucesso ==="
             else
                 echo "=== ERRO NO PRIMEIRO DEPLOY ==="
