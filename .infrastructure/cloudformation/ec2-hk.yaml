@@ -208,26 +208,29 @@ Resources:
             echo "=== Rentafit HK Deploy ==="
             cd /opt/rentafit
 
+            # S3_BUCKET_NAME pode ser injetado pelo SSM ou usar o valor padrao do provisionamento
+            BUCKET="${S3_BUCKET_NAME:-DEFAULT_BUCKET}"
+            REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+            ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+
+            echo "Bucket: ${BUCKET}"
+            echo "Region: ${REGION}"
+
             # Login no ECR
             echo "Autenticando no ECR..."
-            aws ecr get-login-password --region ${AWS::Region} | docker login --username AWS --password-stdin ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com
+            aws ecr get-login-password --region "${REGION}" | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
             # Baixar docker-compose atualizado do S3
             echo "Baixando configuracao atualizada..."
-            aws s3 cp s3://${S3BucketName}/hk/docker-compose.yml docker-compose.yml
+            aws s3 cp "s3://${BUCKET}/hk/docker-compose.yml" docker-compose.yml --region "${REGION}"
 
             # Pull da nova imagem
             echo "Atualizando imagem..."
-            docker-compose pull app
-
-            # Garantir que o SSM Agent esteja ativo
-            echo "Garantindo que o SSM Agent esteja ativo..."
-            systemctl enable amazon-ssm-agent
-            systemctl start amazon-ssm-agent
+            docker compose pull app
 
             # Restart dos servicos
             echo "Reiniciando servicos..."
-            docker-compose up -d
+            docker compose up -d
 
             # Limpeza de imagens antigas
             echo "Limpando imagens antigas..."
