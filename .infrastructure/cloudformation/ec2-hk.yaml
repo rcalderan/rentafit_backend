@@ -137,11 +137,11 @@ Resources:
             #!/bin/bash
             set -e
 
-            # Atualizar sistema
-            dnf update -y
+            # Atualizar sistema (yum funciona em Amazon Linux 2 e 2023)
+            yum update -y
 
             # Instalar Docker
-            dnf install -y docker
+            yum install -y docker
             systemctl enable docker
             systemctl start docker
             usermod -aG docker ec2-user
@@ -205,12 +205,12 @@ Resources:
             #!/bin/bash
             export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
             set -e
-            BUCKET="${S3_BUCKET_NAME:-}"
+            BUCKET="${!S3_BUCKET_NAME:-}"
             REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
             ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-            echo "Bucket: ${BUCKET} | Region: ${REGION}"
-            aws ecr get-login-password --region "${REGION}" | /usr/bin/docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-            aws s3 cp "s3://${BUCKET}/hk/docker-compose.yml" /opt/rentafit/docker-compose.yml --region "${REGION}"
+            echo "Bucket: ${!BUCKET} | Region: ${!REGION}"
+            aws ecr get-login-password --region "${!REGION}" | /usr/bin/docker login --username AWS --password-stdin "${!ACCOUNT_ID}.dkr.ecr.${!REGION}.amazonaws.com"
+            aws s3 cp "s3://${!BUCKET}/hk/docker-compose.yml" /opt/rentafit/docker-compose.yml --region "${!REGION}"
             cd /opt/rentafit
             /usr/bin/docker compose pull app
             /usr/bin/docker compose up -d
@@ -251,12 +251,19 @@ Resources:
         LaunchTemplateId: !Ref LaunchTemplate
         Version: !GetAtt LaunchTemplate.LatestVersionNumber
 
-  # --- ELASTIC IP (Opcional - descomente se precisar de IP fixo) ---
-  # ElasticIP:
-  #   Type: AWS::EC2::EIP
-  #   Properties:
-  #     Domain: vpc
-  #     InstanceId: !Ref EC2Instance
+  # --- ELASTIC IP (IP fixo para o backend) ---
+  ElasticIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref EC2Instance
+      Tags:
+        - Key: Name
+          Value: Rentafit-HK-EIP
+        - Key: Environment
+          Value: hk
+        - Key: Project
+          Value: rentafit
 
 Outputs:
   InstanceId:
@@ -266,8 +273,14 @@ Outputs:
       Name: Rentafit-HK-InstanceId
 
   InstancePublicIP:
-    Description: 'IP publico da instancia (muda ao reiniciar se nao houver EIP)'
-    Value: !GetAtt EC2Instance.PublicIp
+    Description: 'IP publico da instancia (fixo via Elastic IP)'
+    Value: !Ref ElasticIP
+
+  ElasticIPAllocationId:
+    Description: 'Elastic IP Allocation ID para DNS/Route53'
+    Value: !GetAtt ElasticIP.AllocationId
+    Export:
+      Name: Rentafit-HK-EIP-AllocationId
 
   SecurityGroupId:
     Description: 'Security Group ID'
