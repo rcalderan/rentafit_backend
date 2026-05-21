@@ -5,6 +5,8 @@ import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
+import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
+import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.service.RefreshTokenService;
 import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
@@ -28,6 +30,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +47,9 @@ class AuthControllerTest {
 
     @Mock
     private CryptoService cryptoService;
+
+    @Mock
+    private UserAccountService userAccountService;
 
     @InjectMocks
     private AuthController authController;
@@ -163,6 +169,35 @@ class AuthControllerTest {
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Should setup credentials successfully on first access")
+    void setupCredentials_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+        principal.setPin(null);
+
+        SetupCredentialsRequestDTO request = new SetupCredentialsRequestDTO("NewP@ss1", "1234");
+
+        ResponseEntity<Void> response = authController.setupCredentials(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(userAccountService).setupCredentials(principal, "NewP@ss1", "1234");
+    }
+
+    @Test
+    @DisplayName("Should change password successfully")
+    void changePassword_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+
+        ChangePasswordRequestDTO request = new ChangePasswordRequestDTO("AnotherP@ss1");
+
+        ResponseEntity<Void> response = authController.changePassword(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(userAccountService).changePassword(principal, "AnotherP@ss1");
     }
 }
 

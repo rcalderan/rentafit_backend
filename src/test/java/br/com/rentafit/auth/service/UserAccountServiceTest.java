@@ -4,16 +4,20 @@ import br.com.rentafit.auth.domain.Role;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.repository.UserAccountRepository;
+import br.com.rentafit.common.exception.ValidationException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.lang.reflect.Field;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -32,14 +36,21 @@ class UserAccountServiceTest {
     @Mock
     private UserAccountRepository userAccountRepository;
 
-    @InjectMocks
+    @Mock
+    private PasswordEncoder passwordEncoder;
+
     private UserAccountService userAccountService;
 
     private UserAccount userAccount;
     private String username;
 
     @BeforeEach
-    void setUp() {
+    void setUp() throws Exception {
+        userAccountService = new UserAccountService(userAccountRepository, passwordEncoder);
+        Field expiryField = UserAccountService.class.getDeclaredField("passwordExpiryDays");
+        expiryField.setAccessible(true);
+        expiryField.set(userAccountService, 90L);
+
         username = "john.doe";
 
         Role adminRole = new Role();
@@ -250,6 +261,78 @@ class UserAccountServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.isEnabled()).isFalse();
+    }
+
+    @Test
+    @DisplayName("getPasswordExpiryDays deve retornar o valor configurado")
+    void testGetPasswordExpiryDays() {
+        assertThat(userAccountService.getPasswordExpiryDays()).isEqualTo(90L);
+    }
+
+    @Nested
+    @DisplayName("setupCredentials")
+    class SetupCredentialsTests {
+
+        @Test
+        @DisplayName("Should set password, PIN, and passwordChangedAt on first access")
+        void testSetupCredentials_Success() {
+            userAccount.setPin(null);
+            when(passwordEncoder.encode("NewP@ss1")).thenReturn("$2a$10$encodedHash");
+            when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
+
+            userAccountService.setupCredentials(userAccount, "NewP@ss1", "1234");
+
+            assertThat(userAccount.getPassword()).isEqualTo("$2a$10$encodedHash");
+            assertThat(userAccount.getPin()).isEqualTo("1234");
+            assertThat(userAccount.getPasswordChangedAt()).isNotNull();
+            assertThat(userAccount.getPasswordChangedAt()).isBefore(OffsetDateTime.now().plusSeconds(1));
+            verify(userAccountRepository).save(userAccount);
+            verify(passwordEncoder).encode("NewP@ss1");
+        }
+
+        @Test
+        @DisplayName("Should throw ValidationException when PIN already set")
+        void testSetupCredentials_AlreadyConfigured() {
+            userAccount.setPin("9999");
+
+            assertThatThrownBy(() -> userAccountService.setupCredentials(userAccount, "NewP@ss1", "1234"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Credentials already configured");
+
+            verify(userAccountRepository, never()).save(any());
+            verify(passwordEncoder, never()).encode(any());
+        }
+    }
+
+    @Nested
+    @DisplayName("changePassword")
+    class ChangePasswordTests {
+
+        @Test
+        @DisplayName("Should update password and passwordChangedAt")
+        void testChangePassword_Success() {
+            when(passwordEncoder.encode("AnotherP@ss1")).thenReturn("$2a$10$newHash");
+            when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
+
+            userAccountService.changePassword(userAccount, "AnotherP@ss1");
+
+            assertThat(userAccount.getPassword()).isEqualTo("$2a$10$newHash");
+            assertThat(userAccount.getPasswordChangedAt()).isNotNull();
+            verify(userAccountRepository).save(userAccount);
+            verify(passwordEncoder).encode("AnotherP@ss1");
+        }
+
+        @Test
+        @DisplayName("Should update passwordChangedAt to current time")
+        void testChangePassword_UpdatesTimestamp() {
+            OffsetDateTime before = OffsetDateTime.now().minusSeconds(1);
+            when(passwordEncoder.encode(any())).thenReturn("hash");
+            when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
+
+            userAccountService.changePassword(userAccount, "ValidP@ss1");
+
+            assertThat(userAccount.getPasswordChangedAt()).isAfter(before);
+        }
     }
 }
 
