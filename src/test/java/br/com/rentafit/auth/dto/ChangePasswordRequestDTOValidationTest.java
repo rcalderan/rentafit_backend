@@ -43,7 +43,7 @@ class ChangePasswordRequestDTOValidationTest {
     void blankPasswordShouldFail() {
         ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(2);
+        assertThat(violations).hasSize(3);
         assertThat(violations.stream().map(v -> v.getPropertyPath().toString())).allMatch(p -> p.equals("newPassword"));
     }
 
@@ -52,9 +52,9 @@ class ChangePasswordRequestDTOValidationTest {
     void shortPasswordShouldFail() {
         ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("Short1!");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("8");
+        assertThat(violations).hasSize(2);
+        assertThat(violations.stream().map(v -> v.getPropertyPath().toString())).allMatch(p -> p.equals("newPassword"));
+        assertThat(violations.stream().map(ConstraintViolation::getMessage)).anyMatch(m -> m.contains("8"));
     }
 
     @Test
