@@ -14,6 +14,7 @@ import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,6 +61,7 @@ class RentalContractServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(contractService, "legacyIdPattern", "yyMMdd");
         contractId = UUID.randomUUID();
         customerId = UUID.randomUUID();
         legacyId = "CTR001";
@@ -213,7 +215,7 @@ class RentalContractServiceTest {
         RentalContractDetailsDTO result = contractService.create(createDTO);
 
         assertThat(result).isNotNull();
-        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")) + "-";
         assertThat(contractWithoutLegacyId.getLegacyId()).isEqualTo(todayPrefix + "1");
         verify(validator).validateDateOrder(any(), any(), any());
         verify(validator).validateAndGetCustomer(customerId);
@@ -253,7 +255,7 @@ class RentalContractServiceTest {
     @Test
     @DisplayName("create deve gerar legacyId sequencial quando já existem contratos no dia")
     void testCreate_autoGenerateLegacyId_increment() {
-        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")) + "-";
 
         RentalContract contractNoLegacy = RentalContract.builder()
                 .id(contractId).customerId(customerId)
@@ -718,7 +720,7 @@ class RentalContractServiceTest {
     @Test
     @DisplayName("duplicate deve criar novo DRAFT com snapshot atualizado, sem pagamentos e legacyId gerado")
     void testDuplicate_success() {
-        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")) + "-";
 
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
         when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
@@ -744,7 +746,7 @@ class RentalContractServiceTest {
     @Test
     @DisplayName("revise deve criar REVISION com itens e pagamentos copiados")
     void testRevise_success() {
-        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + "-";
+        String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")) + "-";
 
         // Adiciona item e pagamento ao contrato assinado
         signedContract.getItems().add(RentalContractItem.builder()

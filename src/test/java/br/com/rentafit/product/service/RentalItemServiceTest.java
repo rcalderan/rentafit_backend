@@ -13,6 +13,7 @@ import br.com.rentafit.product.dto.rental.RentalItemUpdateDTO;
 import br.com.rentafit.product.repository.CategoryRepository;
 import br.com.rentafit.product.repository.RentalItemRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,6 +60,7 @@ class RentalItemServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(rentalItemService, "legacyIdPattern", "yyMMdd");
         productId = UUID.randomUUID();
         categoryId = UUID.randomUUID();
 

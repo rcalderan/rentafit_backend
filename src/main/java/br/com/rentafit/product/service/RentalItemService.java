@@ -10,17 +10,22 @@ import br.com.rentafit.product.repository.RentalItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class RentalItemService {
+    @Value("${rentafit.legacy-id.pattern:yyMMdd}")
+    private String legacyIdPattern;
 
     private static final Logger log = LoggerFactory.getLogger(RentalItemService.class);
 
@@ -29,15 +34,16 @@ public class RentalItemService {
 
     public RentalItemDetailsDTO create(RentalItemDTO dto) {
         log.debug("Creating product: {}", dto.name());
+        boolean idExists = dto.legacyId() != null && !dto.legacyId().isEmpty();
 
         Category category = categoryRepository.findById(dto.categoryId())
                 .orElseThrow(()-> new ValidationException("Category not found"));
-
-        if (dto.legacyId() != null) {
+        if (idExists) {
             if (checkLegacyIdExists(dto.legacyId())) {
                 throw new ValidationException("Legacy ID already exists");
             }
         }
+        
         RentalItem product = RentalItem.builder()
                 .name(dto.name())
                 .category(category)
@@ -46,7 +52,7 @@ public class RentalItemService {
                 .brand(dto.brand())
                 .value(dto.value())
                 .description(dto.description())
-                .legacyId(dto.legacyId())
+                .legacyId(idExists ? dto.legacyId() : generateLegacyId())
                 .notes(dto.notes())
                 .build();
         // Save product
@@ -54,6 +60,21 @@ public class RentalItemService {
         log.info("Product created with ID: {}", saved.getId());
 
         return saved.toDTO();
+    }
+        /**
+     * Gera legacyId no formato YYYYMMDD-N, onde N é sequencial no dia.
+     * <p>IDs legados importados futuramente serão inteiros simples (ex: "1", "2"),
+     * sem conflito com este formato.</p>
+     */
+    String generateLegacyId() {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(legacyIdPattern);
+        String prefix = LocalDate.now().format(formatter) + "-";
+        return rentalItemRepository.findMaxLegacyIdByPrefix(prefix)
+                .map(max -> {
+                    int lastN = Integer.parseInt(max.substring(prefix.length()));
+                    return prefix + (lastN + 1);
+                })
+                .orElse(prefix + "1");
     }
 
     public RentalItemDetailsDTO findById(UUID id) {
