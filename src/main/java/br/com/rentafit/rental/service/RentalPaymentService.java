@@ -84,8 +84,8 @@ public class RentalPaymentService {
         RentalPayment payment = requirePayment(paymentId, contractId);
         RentalContract contract = requireContract(contractId);
         validatePaidInstallmentMutationAllowed(contract, payment, "atualizar");
-        //validateLockedContractSettlementIntegrity(contract, payment, dto);
-        //validatePaymentDate(dto, contract);
+        validateLockedContractSettlementIntegrity(contract, payment, dto);
+        validatePaymentDate(dto, contract);
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
 
