@@ -13,6 +13,7 @@ import br.com.rentafit.sales.port.SalesCustomerPort;
 import br.com.rentafit.sales.port.SalesCustomerPort.CustomerSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -55,6 +56,7 @@ class SalesOrderServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(orderService, "legacyIdPattern", "yyMMdd");
         orderId     = UUID.randomUUID();
         customerId  = UUID.randomUUID();
         productId   = UUID.randomUUID();

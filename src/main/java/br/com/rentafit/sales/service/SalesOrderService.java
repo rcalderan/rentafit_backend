@@ -14,6 +14,7 @@ import br.com.rentafit.sales.port.SalesCustomerPort.CustomerSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,8 @@ public class SalesOrderService {
     private final RetailProductPort productPort;
     private final SalesMapper mapper;
 
-    private static final DateTimeFormatter LEGACY_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    @Value("${rentafit.legacy-id.pattern:yyMMdd}")
+    private String legacyIdPattern;
 
     public SalesOrderDetailsDTO create(CreateSalesOrderDTO dto) {
         CustomerSnapshot customer = resolveCustomer(dto.customerId());
@@ -160,7 +162,8 @@ public class SalesOrderService {
 
     /** Gera legacyId no formato V-YYYYMMDD-N. */
     private String generateLegacyId() {
-        String prefix = "V-" + LocalDate.now().format(LEGACY_DATE_FMT) + "-";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(legacyIdPattern);
+        String prefix = "V-" + LocalDate.now().format(formatter) + "-";
         long count = orderRepository.countByLegacyIdPrefix(prefix);
         return prefix + (count + 1);
     }

@@ -37,6 +37,10 @@ public class UserAccount implements UserDetails {
     private String pin;
 
 
+    @Column(name = "password_changed_at")
+    @Schema(description = "Timestamp of last password change")
+    private java.time.OffsetDateTime passwordChangedAt;
+
     @Column(name = "is_active")
     @Schema(description = "Whether the account is active")
     private Boolean isActive = true;

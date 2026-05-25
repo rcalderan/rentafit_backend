@@ -37,7 +37,14 @@ public class UserProfileResponseDTO {
     @Schema(description = "Account active status", example = "true")
     private boolean isActive;
 
+    @Schema(description = "Whether the password has expired and must be changed", example = "false")
+    private boolean passwordExpired;
+
     public UserProfileResponseDTO(UserAccount user){
+        this(user, 90);
+    }
+
+    public UserProfileResponseDTO(UserAccount user, long passwordExpiryDays){
         this.id = user.getId();
         this.username = user.getUsername();
         this.name = user.getPerson() != null ? user.getPerson().getName() : null;
@@ -47,6 +54,14 @@ public class UserProfileResponseDTO {
                 .map(role -> role.getRole().name())
                 .toList() : List.of();
         this.isActive = Boolean.TRUE.equals(user.getIsActive());
+        this.passwordExpired = isPasswordExpired(user.getPasswordChangedAt(), passwordExpiryDays);
+    }
+
+    private static boolean isPasswordExpired(java.time.OffsetDateTime passwordChangedAt, long expiryDays) {
+        if (passwordChangedAt == null) {
+            return true;
+        }
+        return java.time.OffsetDateTime.now().isAfter(passwordChangedAt.plusDays(expiryDays));
     }
 
 }

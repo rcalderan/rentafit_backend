@@ -15,6 +15,7 @@ import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -53,7 +54,8 @@ public class RentalContractService {
     private final RentalWorkflowService workflowService;
     private final RentalMapper mapper;
 
-    private static final DateTimeFormatter LEGACY_ID_DATE_FMT = DateTimeFormatter.ofPattern("yyyyMMdd");
+    @Value("${rentafit.legacy-id.pattern:yyMMdd}")
+    private String legacyIdPattern;
 
     // ── CRUD ──────────────────────────────────────────────────────────────────
 
@@ -511,7 +513,8 @@ public class RentalContractService {
      * sem conflito com este formato.</p>
      */
     String generateLegacyId() {
-        String prefix = LocalDate.now().format(LEGACY_ID_DATE_FMT) + "-";
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(legacyIdPattern);
+        String prefix = LocalDate.now().format(formatter) + "-";
         return contractRepository.findMaxLegacyIdByPrefix(prefix)
                 .map(max -> {
                     int lastN = Integer.parseInt(max.substring(prefix.length()));

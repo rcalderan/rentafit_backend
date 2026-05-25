@@ -5,6 +5,11 @@ import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
+import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
+import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
+import br.com.rentafit.auth.dto.UserProfileResponseDTO;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
 import br.com.rentafit.auth.service.RefreshTokenService;
 import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
@@ -28,6 +33,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +51,9 @@ class AuthControllerTest {
 
     @Mock
     private CryptoService cryptoService;
+
+    @Mock
+    private UserAccountService userAccountService;
 
     @InjectMocks
     private AuthController authController;
@@ -163,6 +173,90 @@ class AuthControllerTest {
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("Should setup credentials successfully on first access")
+    void setupCredentials_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+        principal.setPin(null);
+
+        SetupCredentialsRequestDTO request = new SetupCredentialsRequestDTO("NewP@ss1", "1234");
+
+        ResponseEntity<Void> response = authController.setupCredentials(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(userAccountService).setupCredentials(principal, "NewP@ss1", "1234");
+    }
+
+    @Test
+    @DisplayName("Should change password successfully")
+    void changePassword_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+
+        ChangePasswordRequestDTO request = new ChangePasswordRequestDTO("AnotherP@ss1");
+
+        ResponseEntity<Void> response = authController.changePassword(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(userAccountService).changePassword(principal, "AnotherP@ss1");
+    }
+
+    @Test
+    @DisplayName("Should return user profile when authenticated user is found")
+    void getCurrentUser_Success() {
+        UserAccount user = new UserAccount();
+        user.setUsername("user");
+        user.setId(UUID.randomUUID());
+
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn("user");
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+
+        when(userAccountService.getUserWithDetails("user")).thenReturn(Optional.of(user));
+        when(userAccountService.getPasswordExpiryDays()).thenReturn(90L);
+
+        ResponseEntity<UserProfileResponseDTO> response = authController.getCurrentUser();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getUsername()).isEqualTo("user");
+    }
+
+    @Test
+    @DisplayName("Should return 404 when authenticated user is not found")
+    void getCurrentUser_NotFound() {
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn("non-existent");
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+
+        when(userAccountService.getUserWithDetails("non-existent")).thenReturn(Optional.empty());
+
+        ResponseEntity<UserProfileResponseDTO> response = authController.getCurrentUser();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("Should return 500 when getCurrentUser throws an exception")
+    void getCurrentUser_Exception() {
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getName()).thenReturn("user");
+        SecurityContext securityContext = mock(SecurityContext.class);
+        when(securityContext.getAuthentication()).thenReturn(authentication);
+        SecurityContextHolder.setContext(securityContext);
+
+        when(userAccountService.getUserWithDetails("user")).thenThrow(new RuntimeException("DB error"));
+
+        ResponseEntity<UserProfileResponseDTO> response = authController.getCurrentUser();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     }
 }
 

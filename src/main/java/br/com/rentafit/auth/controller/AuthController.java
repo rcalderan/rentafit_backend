@@ -2,8 +2,10 @@ package br.com.rentafit.auth.controller;
 
 import br.com.rentafit.auth.domain.RefreshToken;
 import br.com.rentafit.auth.domain.UserAccount;
+import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
+import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import br.com.rentafit.auth.service.RefreshTokenService;
@@ -11,12 +13,15 @@ import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
 import br.com.rentafit.common.security.TokenService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -165,7 +170,7 @@ public class AuthController {
                     .getAuthentication().getName();
 
             return userAccountService.getUserWithDetails(username)
-                    .map(UserProfileResponseDTO::new)
+                    .map(user -> new UserProfileResponseDTO(user, userAccountService.getPasswordExpiryDays()))
                     .map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
@@ -173,5 +178,33 @@ public class AuthController {
             e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    @PostMapping("/setup-credentials")
+    @Operation(summary = "Setup inicial de credenciais",
+              description = "Define senha e PIN no primeiro acesso. Requer que o PIN ainda não esteja configurado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Credentials configured successfully"),
+        @ApiResponse(responseCode = "422", description = "Validation error or credentials already configured")
+    })
+    public ResponseEntity<Void> setupCredentials(
+            @AuthenticationPrincipal UserAccount principal,
+            @Valid @RequestBody SetupCredentialsRequestDTO request) {
+        userAccountService.setupCredentials(principal, request.newPassword(), request.pin());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/change-password")
+    @Operation(summary = "Alterar senha expirada",
+              description = "Permite ao usuário autenticado definir uma nova senha quando expirada.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Password changed successfully"),
+        @ApiResponse(responseCode = "422", description = "Validation error")
+    })
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal UserAccount principal,
+            @Valid @RequestBody ChangePasswordRequestDTO request) {
+        userAccountService.changePassword(principal, request.newPassword());
+        return ResponseEntity.ok().build();
     }
 }
