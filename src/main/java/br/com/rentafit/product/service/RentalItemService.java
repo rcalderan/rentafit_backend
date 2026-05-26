@@ -62,7 +62,7 @@ public class RentalItemService {
         return saved.toDTO();
     }
         /**
-     * Gera legacyId no formato YYYYMMDD-N, onde N é sequencial no dia.
+     * Gera legacyId no formato YYMMDD-N, onde N é sequencial no dia.
      * <p>IDs legados importados futuramente serão inteiros simples (ex: "1", "2"),
      * sem conflito com este formato.</p>
      */
