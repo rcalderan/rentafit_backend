@@ -4,6 +4,11 @@ on:
   pull_request:
     branches: [ master ]
     types: [ opened, synchronize, reopened, closed ]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - 'Dockerfile'
+      - '.github/workflows/ci-cd-pro.yml'
 
 jobs:
   build:
@@ -17,7 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Para SonarQube necessita do histórico completo
+        fetch-depth: 0  # Full history needed for SonarQube analysis
 
     - name: Setup Java ${{ matrix.java-version }}
       uses: actions/setup-java@v4
@@ -41,7 +46,7 @@ jobs:
       with:
         name: test-reports-${{ matrix.java-version }}
         path: target/surefire-reports/
-        retention-days: 30
+        retention-days: 7
 
     - name: Run Integration Tests
       run: mvn verify -DskipUnitTests=false
@@ -57,7 +62,7 @@ jobs:
 #      env:
 #        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 #        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
-#      continue-on-error: true  # Não interrompe se SonarQube falhar
+#      continue-on-error: true  # Don't fail the pipeline if SonarQube fails
 
     - name: Check Code Coverage
       run: mvn jacoco:report
@@ -87,12 +92,12 @@ jobs:
       with:
         name: dependency-check-report
         path: target/dependency-check-report.*
-        retention-days: 30
+        retention-days: 7
 
   # ─── PRO PIPELINE ───────────────────────────────────────────────────────────
-  # Os jobs vpc-hk/security-persistence-hk/deploy-hk pertencem ao ci-cd-pre.yml
-  # (disparado em PRs para develop). Este arquivo gerencia apenas o deploy PRO
-  # (PRs para master).
+  # The HK pipeline jobs (security-check, deploy-hk) are in ci-cd-pre.yml
+  # (triggered on PRs to develop). This file manages PRO deploy only
+  # (PRs to master).
 
   deploy-pro:
     needs: build
@@ -124,21 +129,30 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
     - name: Build, tag, and push image to Amazon ECR
       id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        provenance: false
 
-    # C3: Stack RDS separado com --no-fail-on-empty-changeset para não recriar
-    # o banco a cada merge (apenas aplica se houver mudança no template).
-    - name: Ensure RDS Stack (PRO) — idempotente
+    - name: Set image output
+      id: set-output
+      run: |
+        echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+    # C3: Separate RDS stack with --no-fail-on-empty-changeset to avoid
+    # recreating the database on every merge (only applies if template changes).
+    - name: Ensure RDS Stack (PRO) — idempotent
       uses: aws-actions/aws-cloudformation-github-deploy@v1
       with:
         name: rentafit-pro-rds
@@ -156,7 +170,7 @@ jobs:
         template: .infrastructure/cloudformation/ecs-pro.yaml
         no-fail-on-empty-changeset: "1"
         parameter-overrides: >-
-          ImageUri=${{ steps.build-image.outputs.image }},
+          ImageUri=${{ steps.set-output.outputs.image }},
           VpcId=${{ secrets.AWS_VPC_ID }},
           PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
           DbPasswordSecretArn=${{ secrets.PRO_DB_PASSWORD_SECRET_ARN }}

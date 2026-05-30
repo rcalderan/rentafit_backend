@@ -1,5 +1,6 @@
 package br.com.rentafit.rental.service;
 
+import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalContractItem;
@@ -639,6 +640,442 @@ class RentalPaymentServiceTest {
                 .hasMessageContaining("não é permitido alterar número, data, forma ou valor");
 
         verify(paymentRepository, never()).save(any(RentalPayment.class));
+    }
+
+    // ── Additional Coverage Tests ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("listByContract deve retornar lista de parcelas quando contrato existe")
+    void testListByContract_success() {
+        when(contractRepository.existsById(contractId)).thenReturn(true);
+        when(paymentRepository.findByContractIdOrderByInstallmentNumber(contractId))
+                .thenReturn(List.of(existingPayment));
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.listByContract(contractId);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0)).isEqualTo(detailsDTO);
+    }
+
+    @Test
+    @DisplayName("listByContract deve lancar ResourceNotFoundException quando contrato nao existe")
+    void testListByContract_contractNotFound() {
+        when(contractRepository.existsById(contractId)).thenReturn(false);
+
+        assertThatThrownBy(() -> paymentService.listByContract(contractId))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("RentalContract")
+                .hasMessageContaining(contractId.toString());
+    }
+
+    @Test
+    @DisplayName("addPayment deve lancar ResourceNotFoundException quando contrato nao existe")
+    void testAddPayment_contractNotFound() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.addPayment(contractId, validPaymentDTO))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("updatePayment deve lancar ResourceNotFoundException quando contrato nao existe")
+    void testUpdatePayment_contractNotFound() {
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(contractRepository.findById(contractId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("updatePayment deve lancar ResourceNotFoundException quando parcela nao existe")
+    void testUpdatePayment_paymentNotFound() {
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("cancelPayment deve lancar ResourceNotFoundException quando contrato nao existe")
+    void testCancelPayment_contractNotFound() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.cancelPayment(contractId, paymentId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("cancelPayment deve lancar ResourceNotFoundException quando parcela nao existe")
+    void testCancelPayment_paymentNotFound() {
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> paymentService.cancelPayment(contractId, paymentId))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("validatePaymentDate deve aceitar paymentDate nula")
+    void testValidatePaymentDate_nullDate() {
+        RentalPaymentInputDTO nullDateDTO = new RentalPaymentInputDTO(
+                1, null, "PIX", new BigDecimal("200.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(0L);
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(BigDecimal.ZERO);
+        when(mapper.toPaymentEntity(nullDateDTO, draftContract)).thenReturn(existingPayment);
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        RentalPaymentDetailsDTO result = paymentService.addPayment(contractId, nullDateDTO);
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("validatePaymentDate deve aceitar contract eventDate nula")
+    void testValidatePaymentDate_nullContractEventDate() {
+        RentalContract nullEventContract = RentalContract.builder()
+                .id(contractId)
+                .status(ContractStatus.DRAFT)
+                .eventDate(null)
+                .items(draftContract.getItems())
+                .payments(new ArrayList<>())
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(nullEventContract));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(0L);
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(BigDecimal.ZERO);
+        when(mapper.toPaymentEntity(validPaymentDTO, nullEventContract)).thenReturn(existingPayment);
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        RentalPaymentDetailsDTO result = paymentService.addPayment(contractId, validPaymentDTO);
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("validateTotalValueNotExceeded nao deve subtrair quando payment status nao for PENDING ou PAID")
+    void testValidateTotalValueNotExceeded_cancelledPaymentNotSubtracted() {
+        RentalPayment cancelledPayment = RentalPayment.builder()
+                .id(paymentId)
+                .contract(draftContract)
+                .installmentNumber(1)
+                .paymentDate(LocalDate.now().plusDays(10))
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("200.00"))
+                .installments(1)
+                .status(PaymentStatus.CANCELLED)
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(cancelledPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("400.00"));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("ultrapassa");
+    }
+
+    @Test
+    @DisplayName("validateTotalValueNotExceeded nao deve subtrair quando payment value for nulo")
+    void testValidateTotalValueNotExceeded_nullPaymentValueNotSubtracted() {
+        RentalPayment nullValuePayment = RentalPayment.builder()
+                .id(paymentId)
+                .contract(draftContract)
+                .installmentNumber(1)
+                .paymentDate(LocalDate.now().plusDays(10))
+                .paymentMethod(PaymentMethod.PIX)
+                .value(null)
+                .installments(1)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(nullValuePayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("400.00"));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("ultrapassa");
+    }
+
+    @Test
+    @DisplayName("validateTotalValueNotExceeded deve aceitar newValue nulo")
+    void testValidateTotalValueNotExceeded_nullNewValue() {
+        RentalPaymentInputDTO nullValueDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX", null, 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, nullValueDTO);
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("validatePaidInstallmentMutationAllowed deve bloquear alteracao de PAID em contrato SIGNED/REVISION/CLOSED")
+    void testValidatePaidInstallmentMutationAllowed_variousLockedStatuses() {
+        for (ContractStatus status : List.of(ContractStatus.SIGNED, ContractStatus.REVISION, ContractStatus.CLOSED)) {
+            RentalContract lockedContract = RentalContract.builder()
+                    .id(contractId)
+                    .status(status)
+                    .eventDate(LocalDate.now().plusDays(30))
+                    .items(draftContract.getItems())
+                    .payments(new ArrayList<>())
+                    .build();
+
+            RentalPayment paidPayment = RentalPayment.builder()
+                    .id(paymentId)
+                    .contract(lockedContract)
+                    .installmentNumber(1)
+                    .paymentDate(LocalDate.now().plusDays(10))
+                    .paymentMethod(PaymentMethod.PIX)
+                    .value(new BigDecimal("200.00"))
+                    .installments(1)
+                    .status(PaymentStatus.PAID)
+                    .processedByEmployeeId(UUID.randomUUID())
+                    .build();
+
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(lockedContract));
+            when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(paidPayment));
+
+            assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("parcela PAGA");
+        }
+    }
+
+    @Test
+    @DisplayName("validateLockedContractSettlementIntegrity deve aceitar update quando contract nao esta locked")
+    void testValidateLockedContractSettlementIntegrity_notLocked() {
+        UUID employeeId = UUID.randomUUID();
+        RentalPaymentInputDTO paidChangedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(15), "PIX", new BigDecimal("300.00"), 1, employeeId, "PAID"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, paidChangedDTO);
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("validateLockedContractSettlementIntegrity deve aceitar update quando nao esta baixando agora")
+    void testValidateLockedContractSettlementIntegrity_notSettlingNow() {
+        RentalPaymentInputDTO pendingChangedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(15), "PIX", new BigDecimal("100.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any())).thenReturn(new BigDecimal("200.00"));
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, pendingChangedDTO);
+        assertThat(result).isNotNull();
+    }
+
+    @Test
+    @DisplayName("validateLockedContractSettlementIntegrity deve lancar excecao quando numero da parcela muda")
+    void testValidateLockedContractSettlementIntegrity_installmentChanged() {
+        RentalPaymentInputDTO badDTO = new RentalPaymentInputDTO(
+                9,
+                existingPayment.getPaymentDate(), "PIX", existingPayment.getValue(), 1, UUID.randomUUID(), "PAID"
+        );
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, badDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("não é permitido alterar número, data, forma ou valor");
+    }
+
+    @Test
+    @DisplayName("validateLockedContractSettlementIntegrity deve lancar excecao quando data da parcela muda")
+    void testValidateLockedContractSettlementIntegrity_dateChanged() {
+        RentalPaymentInputDTO badDTO = new RentalPaymentInputDTO(
+                1,
+                existingPayment.getPaymentDate().plusDays(1),
+                "PIX", existingPayment.getValue(), 1, UUID.randomUUID(), "PAID"
+        );
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, badDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("não é permitido alterar número, data, forma ou valor");
+    }
+
+    @Test
+    @DisplayName("validateLockedContractSettlementIntegrity deve lancar excecao quando metodo muda")
+    void testValidateLockedContractSettlementIntegrity_methodChanged() {
+        RentalPaymentInputDTO badDTO = new RentalPaymentInputDTO(
+                1,
+                existingPayment.getPaymentDate(),
+                "CREDIT_CARD",
+                existingPayment.getValue(), 1, UUID.randomUUID(), "PAID"
+        );
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, badDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("não é permitido alterar número, data, forma ou valor");
+    }
+
+    @Test
+    @DisplayName("autoCreateGapPaymentIfNeeded nao deve criar parcela-gap quando activeCount >= 24")
+    void testAutoCreateGapPaymentIfNeeded_maxInstallmentsReached() {
+        RentalPaymentInputDTO reducedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX", new BigDecimal("100.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))
+                .thenReturn(new BigDecimal("100.00"));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(24L);
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, reducedDTO);
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("autoCreateGapPaymentIfNeeded deve ignorar itens com valor nulo no calculo do total")
+    void testAutoCreateGapPaymentIfNeeded_nullValueItem() {
+        RentalContractItem nullValueItem = RentalContractItem.builder()
+                .id(UUID.randomUUID())
+                .description("Acessorio")
+                .value(null)
+                .metadata(new ArrayList<>())
+                .build();
+
+        RentalContract nullValueContract = RentalContract.builder()
+                .id(contractId)
+                .status(ContractStatus.DRAFT)
+                .eventDate(LocalDate.now().plusDays(30))
+                .items(List.of(nullValueItem))
+                .payments(new ArrayList<>())
+                .build();
+
+        RentalPaymentInputDTO reducedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX", new BigDecimal("0.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(nullValueContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))
+                .thenReturn(BigDecimal.ZERO);
+        when(paymentRepository.save(existingPayment)).thenReturn(existingPayment);
+        when(mapper.toPaymentDetailsDTO(existingPayment)).thenReturn(detailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, reducedDTO);
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("computeNextPaymentDate deve usar eventDate quando latestPaymentDate for nulo")
+    void testComputeNextPaymentDate_nullLatestPaymentDate() {
+        RentalPaymentInputDTO reducedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX", new BigDecimal("100.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))
+                .thenReturn(new BigDecimal("100.00"));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(1);
+        when(paymentRepository.findMaxPaymentDateByContractId(contractId)).thenReturn(Optional.empty());
+
+        RentalPayment gapPayment = RentalPayment.builder()
+                .id(UUID.randomUUID())
+                .contract(draftContract)
+                .installmentNumber(2)
+                .paymentDate(draftContract.getEventDate())
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("400.00"))
+                .installments(1)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        RentalPaymentDetailsDTO gapDetailsDTO = new RentalPaymentDetailsDTO(
+                gapPayment.getId(), 2, gapPayment.getPaymentDate(),
+                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente"
+        );
+
+        when(paymentRepository.save(any(RentalPayment.class))).thenReturn(existingPayment, gapPayment);
+        when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(detailsDTO, gapDetailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, reducedDTO);
+        assertThat(result).hasSize(2);
+        assertThat(result.get(1).paymentDate()).isEqualTo(draftContract.getEventDate());
+    }
+
+    @Test
+    @DisplayName("computeNextPaymentDate deve retornar candidate quando candidate <= eventDate")
+    void testComputeNextPaymentDate_candidateBeforeOrEqualEventDate() {
+        RentalPaymentInputDTO reducedDTO = new RentalPaymentInputDTO(
+                1, LocalDate.now().plusDays(10), "PIX", new BigDecimal("100.00"), 1, null, "PENDING"
+        );
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+        when(paymentRepository.sumValueByContractIdAndStatusIn(eq(contractId), any()))
+                .thenReturn(new BigDecimal("200.00"))
+                .thenReturn(new BigDecimal("100.00"));
+        when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(1);
+
+        LocalDate latestPaymentDate = LocalDate.now().minusDays(10);
+        when(paymentRepository.findMaxPaymentDateByContractId(contractId)).thenReturn(Optional.of(latestPaymentDate));
+
+        LocalDate expectedCandidate = latestPaymentDate.plusDays(30);
+
+        RentalPayment gapPayment = RentalPayment.builder()
+                .id(UUID.randomUUID())
+                .contract(draftContract)
+                .installmentNumber(2)
+                .paymentDate(expectedCandidate)
+                .paymentMethod(PaymentMethod.PIX)
+                .value(new BigDecimal("400.00"))
+                .installments(1)
+                .status(PaymentStatus.PENDING)
+                .build();
+
+        RentalPaymentDetailsDTO gapDetailsDTO = new RentalPaymentDetailsDTO(
+                gapPayment.getId(), 2, gapPayment.getPaymentDate(),
+                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente"
+        );
+
+        when(paymentRepository.save(any(RentalPayment.class))).thenReturn(existingPayment, gapPayment);
+        when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(detailsDTO, gapDetailsDTO);
+
+        List<RentalPaymentDetailsDTO> result = paymentService.updatePayment(contractId, paymentId, reducedDTO);
+        assertThat(result).hasSize(2);
+        assertThat(result.get(1).paymentDate()).isEqualTo(expectedCandidate);
     }
 }
 

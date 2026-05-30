@@ -240,42 +240,41 @@
 						<goals>
 							<goal>check</goal>
 						</goals>
-						<configuration>
-							<rules>
-								<rule>
-									<element>BUNDLE</element>
-									<limits>
-										<limit>
-											<counter>LINE</counter>
-											<value>COVEREDRATIO</value>
-											<minimum>0.90</minimum>
-										</limit>
-									</limits>
-									<!-- Exclui os mesmos pacotes do relatório -->
-									<excludes>
-										<exclude>br.com.rentafit.*.dto.*</exclude>
-										<exclude>br.com.rentafit.*.dtos.*</exclude>
-										<exclude>br.com.rentafit.*.repository.*</exclude>
-										<exclude>br.com.rentafit.*.repositories.*</exclude>
-										<exclude>br.com.rentafit.*.domain.*</exclude>
-										<exclude>br.com.rentafit.*.entity.*</exclude>
-										<exclude>br.com.rentafit.*.entities.*</exclude>
-										<exclude>br.com.rentafit.*.config.*</exclude>
-										<exclude>br.com.rentafit.*.mapper.*</exclude>
-										<exclude>br.com.rentafit.*.mappers.*</exclude>
-										<exclude>br.com.rentafit.*Application</exclude>
-										<exclude>br.com.rentafit.*Config</exclude>
-										<!-- Exclui módulo billing (não será utilizado por enquanto) -->
-										<exclude>br.com.rentafit.billing.*</exclude>
-										<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
-										<exclude>br.com.rentafit.people.service.ViaCepIntegrationService</exclude>
-									</excludes>
-								</rule>
-							</rules>
-						</configuration>
 					</execution>
 				</executions>
 				<configuration>
+					<!-- Regras de cobertura para jacoco:check -->
+					<rules>
+						<rule>
+							<element>BUNDLE</element>
+							<limits>
+								<limit>
+									<counter>LINE</counter>
+									<value>COVEREDRATIO</value>
+									<minimum>0.90</minimum>
+								</limit>
+							</limits>
+							<!-- Exclui os mesmos pacotes do relatório -->
+							<excludes>
+								<exclude>br.com.rentafit.*.dto.*</exclude>
+								<exclude>br.com.rentafit.*.dtos.*</exclude>
+								<exclude>br.com.rentafit.*.repository.*</exclude>
+								<exclude>br.com.rentafit.*.repositories.*</exclude>
+								<exclude>br.com.rentafit.*.domain.*</exclude>
+								<exclude>br.com.rentafit.*.entity.*</exclude>
+								<exclude>br.com.rentafit.*.entities.*</exclude>
+								<exclude>br.com.rentafit.*.config.*</exclude>
+								<exclude>br.com.rentafit.*.mapper.*</exclude>
+								<exclude>br.com.rentafit.*.mappers.*</exclude>
+								<exclude>br.com.rentafit.*Application</exclude>
+								<exclude>br.com.rentafit.*Config</exclude>
+								<!-- Exclui módulo billing (não será utilizado por enquanto) -->
+								<exclude>br.com.rentafit.billing.*</exclude>
+								<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
+								<exclude>br.com.rentafit.people.service.ViaCepIntegrationService</exclude>
+							</excludes>
+						</rule>
+					</rules>
 					<!-- Inclui apenas services, controllers e clients -->
 					<includes>
 						<include>**/service/**</include>

@@ -4,6 +4,13 @@ on:
   pull_request:
     branches: [ develop ]
     types: [ opened, synchronize, reopened, closed ]
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - 'Dockerfile'
+      - 'docker-compose.hk.yaml'
+      - '.github/workflows/ci-cd-pre.yml'
+      - 'scripts/**'
 
 jobs:
   build:
@@ -17,7 +24,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Para SonarQube necessita do histórico completo
+        fetch-depth: 0  # Full history needed for SonarQube analysis
 
     - name: Setup Java ${{ matrix.java-version }}
       uses: actions/setup-java@v4
@@ -41,7 +48,7 @@ jobs:
       with:
         name: test-reports-${{ matrix.java-version }}
         path: target/surefire-reports/
-        retention-days: 30
+        retention-days: 7
 
     - name: Run Integration Tests
       run: mvn verify -DskipUnitTests=false
@@ -57,7 +64,7 @@ jobs:
 #      env:
 #        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 #        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
-#      continue-on-error: true  # Não interrompe se SonarQube falhar
+#      continue-on-error: true  # Don't fail the pipeline if SonarQube fails
 
     - name: Check Code Coverage
       run: mvn jacoco:report
@@ -87,12 +94,12 @@ jobs:
       with:
         name: dependency-check-report
         path: target/dependency-check-report.*
-        retention-days: 30
+        retention-days: 7
 
   # ─── HK PIPELINE ────────────────────────────────────────────────────────────
-  # Nova arquitetura: EC2 Spot Instance com Docker Compose
-  # Infra criada via CloudFormation (ec2-hk.yaml, lambda-scheduler.yaml)
-  # Deploy: push imagem ECR + upload compose para S3 + SSM RunCommand para deploy
+  # Architecture: EC2 Spot Instance with Docker Compose
+  # Infrastructure created via CloudFormation (ec2-hk.yaml, lambda-scheduler.yaml)
+  # Deploy: Push ECR image + Upload compose to S3 + SSM RunCommand for deploy
 
   deploy-hk:
     needs: [build]
@@ -136,18 +143,29 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Set up Docker Buildx
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
+      uses: docker/setup-buildx-action@v3
+
     - name: Build, tag, and push image to Amazon ECR
       if: steps.check-ec2.outputs.skip_deploy != 'true'
       id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        provenance: false
+
+    - name: Set image output
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
+      id: set-output
       run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker tag $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+        echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
     - name: Substitute variables in docker-compose
       if: steps.check-ec2.outputs.skip_deploy != 'true'
@@ -220,61 +238,146 @@ jobs:
         done
 
         if [ "$UPD_STATUS" != "Success" ]; then
-          echo "❌ Falha ao atualizar deploy.sh: ${UPD_STATUS}"
+          echo "❌ Failed to update deploy.sh: ${UPD_STATUS}"
           exit 1
         fi
 
-    - name: Deploy via AWS Systems Manager (SSM)
+    - name: Deploy via AWS Systems Manager (SSM) with retry
       if: steps.check-ec2.outputs.skip_deploy != 'true'
+      id: ssm-deploy
       run: |
-        COMMAND_ID=$(aws ssm send-command \
-          --instance-ids "${INSTANCE_ID}" \
-          --document-name "AWS-RunShellScript" \
-          --comment "Deploy Rentafit HK - ${{ github.sha }}" \
-          --parameters "commands=[\"S3_BUCKET_NAME=${{ secrets.S3_BUCKET_HK }} /opt/rentafit/deploy.sh\"]" \
-          --output text \
-          --query 'Command.CommandId')
+        START_TIME=$(date +%s)
+        echo "deploy_start_time=$START_TIME" >> $GITHUB_OUTPUT
 
-        echo "SSM Command ID: ${COMMAND_ID}"
-        echo "command_id=${COMMAND_ID}" >> $GITHUB_OUTPUT
+        deploy_attempt() {
+          echo "🚀 Sending SSM command..."
+          COMMAND_ID=$(aws ssm send-command \
+            --instance-ids "${INSTANCE_ID}" \
+            --document-name "AWS-RunShellScript" \
+            --comment "Deploy Rentafit HK - ${{ github.sha }}" \
+            --parameters "commands=[\"S3_BUCKET_NAME=${{ secrets.S3_BUCKET_HK }} /opt/rentafit/deploy.sh\"]" \
+            --output text \
+            --query 'Command.CommandId')
 
-        # Aguardar execucao (polling manual para capturar erro mesmo se falhar)
-        echo "Aguardando execucao do deploy..."
-        for i in {1..30}; do
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${INSTANCE_ID}" \
-            --query 'Status' \
-            --output text 2>/dev/null || echo "Pending")
+          echo "SSM Command ID: ${COMMAND_ID}"
 
-          echo "Status: ${STATUS} (tentativa $i/30)"
+          echo "⏳ Waiting for execution (polling for status)..."
+          for i in {1..30}; do
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query 'Status' \
+              --output text 2>/dev/null || echo "Pending")
 
-          if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+            echo "Status: ${STATUS} (poll $i/30)"
+
+            if [ "$STATUS" = "Success" ] || [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ]; then
+              break
+            fi
+            sleep 10
+          done
+
+          echo "Final status: ${STATUS}"
+
+          if [ "$STATUS" = "Success" ]; then
+            return 0
+          else
+            echo "=== ERROR OUTPUT ==="
+            aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query 'StandardErrorContent' \
+              --output text 2>/dev/null || echo "(No error output)"
+            echo "=== STANDARD OUTPUT ==="
+            aws ssm get-command-invocation \
+              --command-id "${COMMAND_ID}" \
+              --instance-id "${INSTANCE_ID}" \
+              --query 'StandardOutputContent' \
+              --output text 2>/dev/null || echo "(No output)"
+            return 1
+          fi
+        }
+
+        MAX_ATTEMPTS=3
+        ATTEMPT=1
+        DEPLOY_SUCCESS=false
+
+        while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+          echo ""
+          echo "🔄 Deploy attempt ${ATTEMPT}/${MAX_ATTEMPTS}"
+
+          if deploy_attempt; then
+            DEPLOY_SUCCESS=true
             break
           fi
 
+          if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+            echo "⚠️ Attempt ${ATTEMPT} failed, waiting 30s before retry..."
+            sleep 30
+          fi
+          ATTEMPT=$((ATTEMPT + 1))
+        done
+
+        END_TIME=$(date +%s)
+        DURATION=$((END_TIME - START_TIME))
+        echo "deploy_duration=$DURATION" >> $GITHUB_OUTPUT
+
+        echo ""
+        echo "⏱️ Total deploy duration: ${DURATION}s"
+        echo "📊 Deploy attempts: ${ATTEMPT}/${MAX_ATTEMPTS}"
+
+        if [ "$DEPLOY_SUCCESS" = "true" ]; then
+          echo "✅ SSM deploy completed successfully!"
+        else
+          echo "❌ Deploy failed after ${MAX_ATTEMPTS} attempts"
+          exit 1
+        fi
+
+    - name: Health Check
+      if: steps.check-ec2.outputs.skip_deploy != 'true'
+      id: health-check
+      run: |
+        echo "Waiting for application to start..."
+        sleep 30
+
+        PUBLIC_IP=$(aws ec2 describe-instances \
+          --instance-ids "${INSTANCE_ID}" \
+          --query 'Reservations[0].Instances[0].PublicIpAddress' \
+          --output text)
+
+        echo "Checking health at http://${PUBLIC_IP}:8080/actuator/health"
+
+        for i in {1..10}; do
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 10 \
+            "http://${PUBLIC_IP}:8080/actuator/health" 2>/dev/null || echo "000")
+
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Health check passed!"
+            exit 0
+          fi
+          echo "Attempt $i/10 - Status: $STATUS"
           sleep 10
         done
 
-        echo "Status final: ${STATUS}"
+        echo "❌ Health check failed after 10 attempts"
+        exit 1
 
-        if [ "$STATUS" = "Success" ]; then
-          echo "Deploy realizado com sucesso!"
+    - name: Job Summary
+      if: always() && steps.check-ec2.outputs.skip_deploy != 'true'
+      run: |
+        echo "## 🚀 Deploy HK Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Metric | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| Commit | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+        echo "| Deploy Duration | ${{ steps.ssm-deploy.outputs.deploy_duration }}s |" >> $GITHUB_STEP_SUMMARY
+        echo "| Health Check | ${{ steps.health-check.outcome }} |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        if [ "${{ steps.health-check.outcome }}" = "success" ]; then
+          echo "✅ Deploy completed successfully!" >> $GITHUB_STEP_SUMMARY
         else
-          echo "Deploy falhou com status: ${STATUS}"
-          echo "=== ERROR OUTPUT ==="
-          aws ssm get-command-invocation \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${INSTANCE_ID}" \
-            --query 'StandardErrorContent' \
-            --output text || echo "(Nao foi possivel obter o erro)"
-          echo "=== STANDARD OUTPUT ==="
-          aws ssm get-command-invocation \
-            --command-id "${COMMAND_ID}" \
-            --instance-id "${INSTANCE_ID}" \
-            --query 'StandardOutputContent' \
-            --output text || echo "(Nao foi possivel obter o output)"
-          exit 1
+          echo "❌ Deploy failed - check logs" >> $GITHUB_STEP_SUMMARY
         fi
 
 
