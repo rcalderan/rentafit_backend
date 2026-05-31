@@ -47,6 +47,40 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/customers/signup").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/addresses/find/**").permitAll()
+
+                        // Área self-service do cliente autenticado (qualquer role autenticada)
+                        .requestMatchers("/api/v1/account/**").authenticated()
+
+                        // Employees: somente ADMIN (hierarquia não é auto-aplicada aqui — listar explicitamente)
+                        .requestMatchers("/api/v1/employees/**").hasRole("ADMIN")
+
+                        // Customers: EMPLOYEE, MANAGER, ADMIN gerenciam; CUSTOMER não acessa dados de outros
+                        .requestMatchers(HttpMethod.GET,    "/api/v1/customers/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/v1/customers/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/v1/customers/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/customers/**").hasAnyRole("MANAGER", "ADMIN")
+
+                        // Produtos: leitura EMPLOYEE/MANAGER/ADMIN, escrita MANAGER/ADMIN, delete ADMIN
+                        .requestMatchers(HttpMethod.GET,    "/api/v1/products/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/v1/products/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/v1/products/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/products/**").hasRole("ADMIN")
+
+                        // Locação e pagamentos: EMPLOYEE, MANAGER, ADMIN
+                        .requestMatchers("/api/v1/rental/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+
+                        // Vendas: EMPLOYEE, MANAGER, ADMIN
+                        .requestMatchers("/api/v1/sales/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+
+                        // Faturamento/NFS-e (já tem @PreAuthorize, defense-in-depth)
+                        .requestMatchers("/api/v1/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+
+                        // Admin de usuários (já tem @PreAuthorize, defense-in-depth)
+                        .requestMatchers("/api/auth/users/**").hasAnyRole("MANAGER", "ADMIN")
+
+                        // Demais endpoints auth (login, me, refresh, setup, change-pw)
+                        .requestMatchers("/api/auth/**").authenticated()
+
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
