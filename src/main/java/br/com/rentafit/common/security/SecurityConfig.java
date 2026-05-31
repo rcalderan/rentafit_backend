@@ -9,6 +9,7 @@ import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -20,6 +21,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity
 @RequiredArgsConstructor
 public class SecurityConfig {
 
@@ -43,6 +45,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/customers/signup").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/addresses/find/**").permitAll()
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
@@ -66,7 +70,7 @@ public class SecurityConfig {
 
     @Bean
     public RoleHierarchy roleHierarchy(){
-        String hierarchy = "ROLE_ADMIN > ROLE_MANAGER\nROLE_EMPLOYEE > ROLE_CUSTOMER";
+        String hierarchy = "ROLE_ADMIN > ROLE_MANAGER > ROLE_EMPLOYEE > ROLE_CUSTOMER";
         return RoleHierarchyImpl.fromHierarchy(hierarchy);
     }
 }
