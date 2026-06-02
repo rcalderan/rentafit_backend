@@ -221,5 +221,49 @@ start target/site/jacoco/index.html
 
 ---
 
+## 📦 NOVO: Área da Conta do Cliente (Account)
+
+**Data:** 01/06/2026  
+**Módulo:** People - CustomerAccountController  
+**Status:** ✅ COMPLETO
+
+### 📁 Arquivo Criado
+```
+src/test/java/br/com/rentafit/people/controller/
+└── CustomerAccountControllerTest.java         (9 testes)
+```
+
+### 📊 Cobertura
+| Classe | Instruções | Linhas | Métodos | Status |
+|--------|-----------|--------|---------|--------|
+| CustomerAccountController | 100% | 100% | 100% | ✅✅✅ |
+
+### 🧪 Testes Implementados
+
+1. **myRentals** - Retorna locações paginadas do cliente autenticado
+2. **myRentals vazio** - Retorna página vazia quando não há locações
+3. **myRentals paginação** - Respeita parâmetros de paginação personalizados
+4. **myHistory completo** - Retorna histórico combinado (locações + pedidos)
+5. **myHistory vazio** - Retorna dados vazios quando não há histórico
+6. **myHistory apenas locações** - Quando não há pedidos de venda
+7. **myHistory apenas pedidos** - Quando não há locações
+8. **myHistory extenso** - Múltiplos registros de locações e pedidos
+9. **Proteção IDOR** - Garante que apenas dados do principal autenticado são retornados
+
+### 🔒 Segurança Testada
+- ✅ Acesso restrito a usuários autenticados (`@PreAuthorize`)
+- ✅ Isolamento de dados por cliente (prevenção de IDOR)
+- ✅ Uso correto de `@AuthenticationPrincipal`
+
+### 📈 Métricas
+```
+Testes:        9
+Falhas:        0
+Erros:         0
+Cobertura:     100%
+```
+
+---
+
 **Desenvolvido com qualidade e atenção aos detalhes** ✨
 
