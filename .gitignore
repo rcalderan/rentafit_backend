@@ -9,9 +9,15 @@ receita/
 .legado
 .prompt
 .docs
-.copilot/*
-.devin/*
-.QA/*
+.copilot
+.devin
+.QA
+
+### Graphify ###
+graphify-out/
+.kiro/
+.agents/
+CLAUDE.md
 
 ### STS ###
 .apt_generated

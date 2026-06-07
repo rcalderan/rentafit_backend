@@ -71,6 +71,17 @@ public class SalesPaymentService {
                     "Máximo de " + MAX_INSTALLMENTS + " parcelas por pedido atingido");
         }
 
+        BigDecimal subtotal = mapper.computeSubtotal(order.getItems());
+        BigDecimal totalValue = subtotal.subtract(order.getDiscountValue()).max(BigDecimal.ZERO);
+        BigDecimal alreadyScheduled = order.getPayments().stream()
+                .map(SalesPayment::getValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (alreadyScheduled.add(dto.value()).compareTo(totalValue) > 0) {
+            throw new ValidationException(
+                    "Soma das parcelas (" + alreadyScheduled.add(dto.value()) +
+                    ") excede o total a pagar (" + totalValue + ")");
+        }
+
         SalesPayment payment = mapper.toPaymentEntity(dto, order);
         order.getPayments().add(payment);
 
