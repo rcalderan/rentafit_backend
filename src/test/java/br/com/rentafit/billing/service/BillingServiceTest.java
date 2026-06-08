@@ -1,6 +1,6 @@
 package br.com.rentafit.billing.service;
 
-import br.com.rentafit.billing.domain.Invoice;
+import br.com.rentafit.billing.domain.FiscalDocument;
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.billing.dto.DpsResponse;
 import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
@@ -33,7 +33,7 @@ class BillingServiceTest {
     private NfsePortalService nfsePortalService;
 
     @Mock
-    private InvoiceService invoiceService;
+    private FiscalDocumentService fiscalDocumentService;
 
     @Mock
     private CustomerRepository customerRepository;
@@ -74,7 +74,7 @@ class BillingServiceTest {
         when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
         when(nfsePortalService.sendDps(any(DpsRequest.class)))
                 .thenReturn(Mono.just(dpsResponse));
-        when(invoiceService.save(any(Invoice.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(fiscalDocumentService.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         Mono<InvoiceEmissionResponseDTO> result = billingService.emitInvoice(request);
 

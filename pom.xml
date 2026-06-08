@@ -147,6 +147,38 @@
 		</dependency>
 
 		<!-- ============================================ -->
+		<!-- FISCAL (NF-e / NFS-e)                        -->
+		<!-- ============================================ -->
+
+		<!-- XML Digital Signature (XMLDSig) — Jakarta EE 9 compatible -->
+		<dependency>
+			<groupId>org.apache.santuario</groupId>
+			<artifactId>xmlsec</artifactId>
+			<version>3.0.5</version>
+		</dependency>
+
+		<!-- JAX-WS API (Jakarta namespace) para stubs SEFAZ-SP -->
+		<dependency>
+			<groupId>jakarta.xml.ws</groupId>
+			<artifactId>jakarta.xml.ws-api</artifactId>
+			<version>4.0.2</version>
+		</dependency>
+
+		<!-- JAX-WS RI runtime (Eclipse Metro 4.x — Jakarta-compatible) -->
+		<dependency>
+			<groupId>com.sun.xml.ws</groupId>
+			<artifactId>jaxws-rt</artifactId>
+			<version>4.0.3</version>
+			<exclusions>
+				<!-- evita conflito com jakarta.xml.bind já gerenciado pelo Spring Boot -->
+				<exclusion>
+					<groupId>com.sun.xml.bind</groupId>
+					<artifactId>jaxb-impl</artifactId>
+				</exclusion>
+			</exclusions>
+		</dependency>
+
+		<!-- ============================================ -->
 		<!-- TEST DEPENDENCIES                            -->
 		<!-- ============================================ -->
 
@@ -268,8 +300,6 @@
 								<exclude>br.com.rentafit.*.mappers.*</exclude>
 								<exclude>br.com.rentafit.*Application</exclude>
 								<exclude>br.com.rentafit.*Config</exclude>
-								<!-- Exclui módulo billing (não será utilizado por enquanto) -->
-								<exclude>br.com.rentafit.billing.*</exclude>
 								<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
 								<exclude>br.com.rentafit.people.service.ViaCepIntegrationService</exclude>
 							</excludes>

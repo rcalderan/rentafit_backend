@@ -1,6 +1,5 @@
 package br.com.rentafit.billing.config;
 
-import br.com.rentafit.config.CertificateConfig;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +19,7 @@ import java.security.KeyStore;
 @Slf4j
 public class NfseWebClientConfig {
 
-    private final CertificateConfig certificateConfig;
+    private final FiscalCertificateProvider certificateProvider;
 
     @Value("${nfs-e.api.url}")
     private String nfseBaseUrl;
@@ -54,7 +53,7 @@ public class NfseWebClientConfig {
      */
     private WebClient criarWebClientComMtls(String baseUrl, String nomeCliente) {
         try {
-            KeyStore keyStore = certificateConfig.nfsKeyStore();
+            KeyStore keyStore = certificateProvider.keyStore();
             WebClient.Builder builder = WebClient.builder();
 
             if (keyStore == null) {

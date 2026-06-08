@@ -1,7 +1,10 @@
 package br.com.rentafit.billing.service;
 
+import br.com.rentafit.billing.domain.FiscalDocument;
 import br.com.rentafit.billing.domain.TaxInfo;
-import br.com.rentafit.billing.domain.Invoice;
+import br.com.rentafit.billing.domain.enums.FiscalDocumentStatus;
+import br.com.rentafit.billing.domain.enums.FiscalDocumentType;
+import br.com.rentafit.billing.domain.enums.FiscalOrigin;
 import br.com.rentafit.billing.dto.DpsRequest;
 import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
 import br.com.rentafit.billing.dto.InvoiceEmissionResponseDTO;
@@ -23,7 +26,7 @@ import java.time.OffsetDateTime;
 public class BillingService {
 
     private final NfsePortalService nfsePortalService;
-    private final InvoiceService invoiceService;
+    private final FiscalDocumentService fiscalDocumentService;
     private final CustomerRepository customerRepository;
 
     @Value("${nfs-e.prestador.cnpj:00000000000000}")
@@ -55,20 +58,22 @@ public class BillingService {
 
         return nfsePortalService.sendDps(dpsRequest)
                 .map(response -> {
-                    Invoice invoice = Invoice.builder()
+                    FiscalDocument doc = FiscalDocument.builder()
+                            .type(FiscalDocumentType.NFSE)
+                            .status(FiscalDocumentStatus.AUTHORIZED)
                             .accessKey(response.getAccessKey())
-                            .invoiceNumber(Long.parseLong(response.getProtocol().substring(0, 10))) // Extrair do protocolo
+                            .protocol(response.getProtocol())
                             .customer(customer)
                             .issueDate(OffsetDateTime.now())
-                            .serviceValue(request.getServiceValue())
-                            .status(Invoice.InvoiceStatus.AUTHORIZED)
+                            .totalValue(request.getServiceValue())
                             .taxes(taxInfo)
+                            .origin(FiscalOrigin.MANUAL)
                             .build();
 
-                    Invoice savedInvoice = invoiceService.save(invoice);
-                    log.info("NFS-e emitida e salva com sucesso: {}", savedInvoice.getAccessKey());
+                    FiscalDocument saved = fiscalDocumentService.save(doc);
+                    log.info("NFS-e emitida e salva com sucesso: {}", saved.getAccessKey());
 
-                    return mapToResponseDTO(savedInvoice, response);
+                    return mapToResponseDTO(saved, response);
                 });
     }
 
@@ -172,25 +177,24 @@ public class BillingService {
                 .build();
     }
 
-    private InvoiceEmissionResponseDTO mapToResponseDTO(Invoice invoice,
+    private InvoiceEmissionResponseDTO mapToResponseDTO(FiscalDocument doc,
             br.com.rentafit.billing.dto.DpsResponse portalResponse) {
         return InvoiceEmissionResponseDTO.builder()
-                .id(invoice.getId())
-                .accessKey(invoice.getAccessKey())
-                .invoiceNumber(invoice.getInvoiceNumber())
+                .id(doc.getId())
+                .accessKey(doc.getAccessKey())
                 .protocol(portalResponse.getProtocol())
-                .status(invoice.getStatus().name())
-                .issueDate(invoice.getIssueDate())
+                .status(doc.getStatus().name())
+                .issueDate(doc.getIssueDate())
                 .processingDate(portalResponse.getDhProcessamento())
-                .serviceValue(invoice.getServiceValue())
+                .serviceValue(doc.getTotalValue())
                 .taxes(InvoiceEmissionResponseDTO.TaxInfoDTO.builder()
-                        .ibsRate(invoice.getTaxes().getIbsRate())
-                        .ibsValue(invoice.getTaxes().getIbsValue())
-                        .cbsRate(invoice.getTaxes().getCbsRate())
-                        .cbsValue(invoice.getTaxes().getCbsValue())
-                        .isqnRate(invoice.getTaxes().getIsqnRate())
-                        .isqnValue(invoice.getTaxes().getIsqnValue())
-                        .totalTaxValue(invoice.getTaxes().getTotalTaxValue())
+                        .ibsRate(doc.getTaxes().getIbsRate())
+                        .ibsValue(doc.getTaxes().getIbsValue())
+                        .cbsRate(doc.getTaxes().getCbsRate())
+                        .cbsValue(doc.getTaxes().getCbsValue())
+                        .isqnRate(doc.getTaxes().getIsqnRate())
+                        .isqnValue(doc.getTaxes().getIsqnValue())
+                        .totalTaxValue(doc.getTaxes().getTotalTaxValue())
                         .build())
                 .build();
     }

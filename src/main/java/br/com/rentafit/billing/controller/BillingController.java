@@ -1,11 +1,11 @@
 package br.com.rentafit.billing.controller;
 
-import br.com.rentafit.billing.domain.Invoice;
+import br.com.rentafit.billing.domain.FiscalDocument;
 import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
 import br.com.rentafit.billing.dto.InvoiceEmissionResponseDTO;
 import br.com.rentafit.billing.dto.NfseConsultaResponse;
 import br.com.rentafit.billing.service.BillingService;
-import br.com.rentafit.billing.service.InvoiceService;
+import br.com.rentafit.billing.service.FiscalDocumentService;
 import br.com.rentafit.billing.service.NfsePortalService;
 import br.com.rentafit.common.security.CertificateAuthentication;
 import io.swagger.v3.oas.annotations.Operation;
@@ -38,7 +38,7 @@ import java.util.UUID;
 public class BillingController {
 
     private final BillingService billingService;
-    private final InvoiceService invoiceService;
+    private final FiscalDocumentService fiscalDocumentService;
     private final NfsePortalService nfsePortalService;
 
     @PostMapping("/emit")
@@ -105,13 +105,15 @@ public class BillingController {
         @ApiResponse(responseCode = "200", description = "NFS-e encontrada"),
         @ApiResponse(responseCode = "404", description = "NFS-e não encontrada")
     })
-    public ResponseEntity<Invoice> consultarPorId(
+    public ResponseEntity<FiscalDocument> consultarPorId(
             @Parameter(description = "ID interno da nota fiscal") @PathVariable UUID id) {
         log.info("Consultando NFS-e por ID: {}", id);
 
-        return invoiceService.getById(id)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        try {
+            return ResponseEntity.ok(fiscalDocumentService.getById(id));
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping("/chave/{chaveAcesso}")
@@ -217,12 +219,9 @@ public class BillingController {
         @ApiResponse(responseCode = "200", description = "NFS-e encontrada"),
         @ApiResponse(responseCode = "404", description = "NFS-e não encontrada")
     })
-    public ResponseEntity<Invoice> consultarPorNumero(
+    public ResponseEntity<Void> consultarPorNumero(
             @Parameter(description = "Número da nota fiscal") @PathVariable Long numeroNota) {
-        log.info("Consultando NFS-e por número: {}", numeroNota);
-
-        return invoiceService.getByInvoiceNumber(numeroNota)
-                .map(invoice -> ResponseEntity.ok(invoice))
-                .orElseGet(() -> ResponseEntity.notFound().build());
+        log.info("Endpoint consultarPorNumero obsoleto, use /chave/{chaveAcesso}");
+        return ResponseEntity.status(410).build();
     }
 }
