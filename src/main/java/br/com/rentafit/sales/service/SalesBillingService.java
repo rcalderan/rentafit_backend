@@ -7,6 +7,7 @@ import br.com.rentafit.sales.domain.enums.InvoiceStatus;
 import br.com.rentafit.sales.domain.enums.SalesOrderStatus;
 import br.com.rentafit.sales.dto.SalesOrderDetailsDTO;
 import br.com.rentafit.sales.mapper.SalesMapper;
+import br.com.rentafit.sales.port.BillingInvoicePort;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ public class SalesBillingService {
     private final SalesOrderRepository orderRepository;
     private final SalesOrderService orderService;
     private final SalesMapper mapper;
+    private final BillingInvoicePort billingInvoicePort;
 
     /** Chamado automaticamente pelo SalesPaymentService ao transitar para PAID. */
     public void onOrderPaid(SalesOrder order) {
@@ -61,16 +63,14 @@ public class SalesBillingService {
     }
 
     /**
-     * Integração com módulo Billing.
-     * TODO: chamar BillingService.emit() quando módulo estiver funcional.
-     * Por ora, apenas marca como EMITTED com placeholder.
+     * Integração com módulo Billing via port.
+     * Emite NFS-e real e atualiza o pedido com a chave de acesso.
      */
     private void emitInvoiceInternal(SalesOrder order) {
-        // TODO: integração real com billing service
-        // String invoiceId = billingService.emit(order);
-        String invoiceId = "NFSE-PLACEHOLDER-" + order.getLegacyId();
+        BillingInvoicePort.InvoiceSnapshot snapshot = billingInvoicePort.emitInvoice(order);
         order.setInvoiceStatus(InvoiceStatus.EMITTED);
-        order.setInvoiceId(invoiceId);
-        log.info("NFS-e emitida para pedido {}: {}", order.getId(), invoiceId);
+        order.setInvoiceId(snapshot.accessKey());
+        log.info("NFS-e emitida para pedido {}: chave={}, protocolo={}",
+                order.getId(), snapshot.accessKey(), snapshot.protocol());
     }
 }

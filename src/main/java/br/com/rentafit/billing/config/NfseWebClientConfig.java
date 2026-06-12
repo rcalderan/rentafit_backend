@@ -30,6 +30,9 @@ public class NfseWebClientConfig {
     @Value("${nfs-e.certificate.password:}")
     private String certificatePassword;
 
+    @Value("${nf-e.sefaz.url:https://homologacao.nfe.fazenda.sp.gov.br}")
+    private String sefazBaseUrl;
+
     /**
      * WebClient para chamadas à API NFS-e (DPS, consultas, eventos).
      * Usa mTLS com certificado ICP-Brasil.
@@ -46,6 +49,15 @@ public class NfseWebClientConfig {
     @Bean
     public WebClient stsWebClient() {
         return criarWebClientComMtls(stsUrl, "STS");
+    }
+
+    /**
+     * WebClient para transmissão de NF-e (modelo 55) à SEFAZ-SP.
+     * Usa mTLS com certificado ICP-Brasil A1.
+     */
+    @Bean
+    public WebClient nfeSefazWebClient() {
+        return criarWebClientComMtls(sefazBaseUrl, "SEFAZ-SP NF-e");
     }
 
     /**

@@ -7,6 +7,7 @@ import br.com.rentafit.sales.domain.enums.InvoiceStatus;
 import br.com.rentafit.sales.domain.enums.SalesOrderStatus;
 import br.com.rentafit.sales.dto.SalesOrderDetailsDTO;
 import br.com.rentafit.sales.mapper.SalesMapper;
+import br.com.rentafit.sales.port.BillingInvoicePort;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,6 +35,7 @@ class SalesBillingServiceTest {
     @Mock private SalesOrderRepository orderRepository;
     @Mock private SalesOrderService orderService;
     @Mock private SalesMapper mapper;
+    @Mock private BillingInvoicePort billingInvoicePort;
 
     @InjectMocks
     private SalesBillingService billingService;
@@ -81,7 +83,10 @@ class SalesBillingServiceTest {
         @Test
         @DisplayName("deve emitir NFS-e com sucesso para pedido PAID")
         void deveEmitirParaPedidoPago() {
+            String accessKey = "35260512345678000191550010000012341234567890";
             when(orderService.findEntityById(orderId)).thenReturn(paidOrder);
+            when(billingInvoicePort.emitInvoice(paidOrder))
+                    .thenReturn(new BillingInvoicePort.InvoiceSnapshot(accessKey, "135123456789012", "AUTHORIZED", accessKey));
             when(orderRepository.save(paidOrder)).thenReturn(paidOrder);
             when(mapper.toDetailsDTO(eq(paidOrder), any())).thenReturn(detailsDTO);
 
@@ -89,15 +94,19 @@ class SalesBillingServiceTest {
 
             assertThat(result).isNotNull();
             assertThat(paidOrder.getInvoiceStatus()).isEqualTo(InvoiceStatus.EMITTED);
-            assertThat(paidOrder.getInvoiceId()).startsWith("NFSE-PLACEHOLDER-");
+            assertThat(paidOrder.getInvoiceId()).isEqualTo(accessKey);
+            verify(billingInvoicePort).emitInvoice(paidOrder);
             verify(orderRepository).save(paidOrder);
         }
 
         @Test
         @DisplayName("deve emitir NFS-e com sucesso para pedido COMPLETED")
         void deveEmitirParaPedidoConcluido() {
+            String accessKey = "35260512345678000191550010000012341234567890";
             paidOrder.setStatus(SalesOrderStatus.COMPLETED);
             when(orderService.findEntityById(orderId)).thenReturn(paidOrder);
+            when(billingInvoicePort.emitInvoice(paidOrder))
+                    .thenReturn(new BillingInvoicePort.InvoiceSnapshot(accessKey, "135123456789012", "AUTHORIZED", accessKey));
             when(orderRepository.save(paidOrder)).thenReturn(paidOrder);
             when(mapper.toDetailsDTO(eq(paidOrder), any())).thenReturn(detailsDTO);
 
@@ -105,6 +114,7 @@ class SalesBillingServiceTest {
 
             assertThat(result).isNotNull();
             assertThat(paidOrder.getInvoiceStatus()).isEqualTo(InvoiceStatus.EMITTED);
+            assertThat(paidOrder.getInvoiceId()).isEqualTo(accessKey);
         }
 
         @Test
@@ -176,12 +186,16 @@ class SalesBillingServiceTest {
         @Test
         @DisplayName("deve emitir NFS-e automaticamente quando autoEmitOnPayment=true")
         void deveEmitirAutomaticamenteQuandoAutoEmitHabilitado() {
+            String accessKey = "35260512345678000191550010000012341234567890";
             when(billingProperties.isAutoEmitOnPayment()).thenReturn(true);
+            when(billingInvoicePort.emitInvoice(paidOrder))
+                    .thenReturn(new BillingInvoicePort.InvoiceSnapshot(accessKey, "135123456789012", "AUTHORIZED", accessKey));
 
             billingService.onOrderPaid(paidOrder);
 
             assertThat(paidOrder.getInvoiceStatus()).isEqualTo(InvoiceStatus.EMITTED);
-            assertThat(paidOrder.getInvoiceId()).startsWith("NFSE-PLACEHOLDER-");
+            assertThat(paidOrder.getInvoiceId()).isEqualTo(accessKey);
+            verify(billingInvoicePort).emitInvoice(paidOrder);
         }
     }
 }

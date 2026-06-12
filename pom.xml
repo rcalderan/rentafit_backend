@@ -302,16 +302,20 @@
 								<exclude>br.com.rentafit.*Config</exclude>
 								<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
 								<exclude>br.com.rentafit.people.service.ViaCepIntegrationService</exclude>
+							<exclude>br.com.rentafit.billing.controller.BillingController</exclude>
 							</excludes>
 						</rule>
 					</rules>
-					<!-- Inclui apenas services, controllers e clients -->
+					<!-- Inclui services, controllers, nfe, nfse e config -->
 					<includes>
 						<include>**/service/**</include>
 						<include>**/services/**</include>
 						<include>**/controller/**</include>
 						<include>**/controllers/**</include>
 						<include>**/client/**</include>
+						<include>**/nfe/**</include>
+						<include>**/nfse/**</include>
+						<include>**/config/FiscalCertificateProvider.*</include>
 					</includes>
 					<!-- Exclui DTOs, repositories e outras classes auxiliares -->
 					<excludes>
@@ -327,8 +331,6 @@
 						<exclude>**/mappers/**</exclude>
 						<exclude>**/*Application.*</exclude>
 						<exclude>**/*Config.*</exclude>
-						<!-- Exclui módulo billing (não será utilizado por enquanto) -->
-						<exclude>**/billing/**</exclude>
 						<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
 						<exclude>**/ViaCepIntegrationService.*</exclude>
 					</excludes>

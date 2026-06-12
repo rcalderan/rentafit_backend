@@ -18,6 +18,7 @@ graphify-out/
 .kiro/
 .agents/
 CLAUDE.md
+graphify*
 
 ### STS ###
 .apt_generated

@@ -105,4 +105,86 @@ class BillingServiceTest {
         org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                 () -> billingService.emitInvoice(request));
     }
+
+    @Test
+    @DisplayName("Should emit invoice with custom tax rates")
+    void shouldEmitInvoiceWithCustomTaxRates() {
+        UUID customerId = UUID.randomUUID();
+        Customer customer = new Customer();
+        customer.setId(customerId);
+        customer.setName("Jane Doe");
+        customer.setDocument("12345678901"); // CPF
+
+        InvoiceEmissionRequestDTO request = InvoiceEmissionRequestDTO.builder()
+                .customerId(customerId)
+                .serviceValue(new BigDecimal("200.00"))
+                .nbsCode("2.0202")
+                .serviceDescription("Custom tax service")
+                .cityCode("3550308")
+                .ibsRate(new BigDecimal("0.03"))
+                .cbsRate(new BigDecimal("0.02"))
+                .isqnRate(new BigDecimal("0.01"))
+                .build();
+
+        DpsResponse dpsResponse = DpsResponse.builder()
+                .accessKey("custom-access-key")
+                .protocol("custom-protocol")
+                .status("AUTORIZADA")
+                .dhProcessamento(OffsetDateTime.now())
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(nfsePortalService.sendDps(any(DpsRequest.class)))
+                .thenReturn(Mono.just(dpsResponse));
+        when(fiscalDocumentService.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Mono<InvoiceEmissionResponseDTO> result = billingService.emitInvoice(request);
+
+        StepVerifier.create(result)
+                .assertNext(response -> {
+                    assertThat(response.getAccessKey()).isEqualTo("custom-access-key");
+                    assertThat(response.getTaxes().getIbsRate()).isEqualByComparingTo(new BigDecimal("0.03"));
+                    assertThat(response.getTaxes().getCbsRate()).isEqualByComparingTo(new BigDecimal("0.02"));
+                    assertThat(response.getTaxes().getIsqnRate()).isEqualByComparingTo(new BigDecimal("0.01"));
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    @DisplayName("Should handle CPF document correctly")
+    void shouldHandleCpfDocument() {
+        UUID customerId = UUID.randomUUID();
+        Customer customer = new Customer();
+        customer.setId(customerId);
+        customer.setName("Individual Person");
+        customer.setDocument("12345678901"); // CPF (11 chars)
+
+        InvoiceEmissionRequestDTO request = InvoiceEmissionRequestDTO.builder()
+                .customerId(customerId)
+                .serviceValue(new BigDecimal("50.00"))
+                .nbsCode("3.0303")
+                .serviceDescription("Individual service")
+                .cityCode("3550308")
+                .build();
+
+        DpsResponse dpsResponse = DpsResponse.builder()
+                .accessKey("cpf-access-key")
+                .protocol("cpf-protocol")
+                .status("AUTORIZADA")
+                .dhProcessamento(OffsetDateTime.now())
+                .build();
+
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(customer));
+        when(nfsePortalService.sendDps(any(DpsRequest.class)))
+                .thenReturn(Mono.just(dpsResponse));
+        when(fiscalDocumentService.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        Mono<InvoiceEmissionResponseDTO> result = billingService.emitInvoice(request);
+
+        StepVerifier.create(result)
+                .assertNext(response -> {
+                    assertThat(response.getAccessKey()).isEqualTo("cpf-access-key");
+                })
+                .verifyComplete();
+    }
 }

@@ -48,4 +48,10 @@ public class InvoiceEmissionRequestDTO {
 
     @Schema(description = "Alíquota do ISQN (se aplicável)")
     private BigDecimal isqnRate;
+
+    @Schema(description = "ID da entidade de origem (pedido de venda, contrato, etc.)")
+    private UUID originId;
+
+    @Schema(description = "Tipo de origem: SALES, RENTAL, MANUAL")
+    private String origin;
 }

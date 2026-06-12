@@ -12,6 +12,9 @@ import org.springframework.stereotype.Component;
  * rentafit:
  *   billing:
  *     auto-emit-on-payment: false
+ *     nbs-code: "931230000"
+ *     service-description: "Locação de trajes e acessórios de vestuário"
+ *     city-code: "3548906"
  * </pre>
  *
  * <p>Quando {@code autoEmitOnPayment = true}, a NFS-e é emitida automaticamente
@@ -25,4 +28,13 @@ public class SalesBillingProperties {
 
     /** Se true, emite NFS-e automaticamente ao atingir status PAID. */
     private boolean autoEmitOnPayment = false;
+
+    /** Código NBS para serviço de locação de trajes (padrão: 931230000). */
+    private String nbsCode = "931230000";
+
+    /** Descrição do serviço prestado (padrão: locação de trajes). */
+    private String serviceDescription = "Locação de trajes e acessórios de vestuário";
+
+    /** Código IBGE do município de prestação (padrão: São Carlos/SP = 3548906). */
+    private String cityCode = "3548906";
 }
