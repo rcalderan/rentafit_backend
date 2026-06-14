@@ -13,10 +13,16 @@ receita/
 .devin
 .QA
 
+### Playwright ###
+.playwright*
+.claude
+test-results
+
+
 ### Graphify ###
 graphify-out/
 .kiro/
-.agents/
+.agents
 CLAUDE.md
 graphify*
 

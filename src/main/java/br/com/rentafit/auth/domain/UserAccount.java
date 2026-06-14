@@ -32,8 +32,8 @@ public class UserAccount implements UserDetails {
     @Schema(description = "Hashed password")
     private String password;
 
-    @Column(length = 4)
-    @Schema(description = "4-digit security PIN", example = "1234")
+    @Column(length = 255)
+    @Schema(description = "BCrypt hash of the 4-digit security PIN")
     private String pin;
 
 

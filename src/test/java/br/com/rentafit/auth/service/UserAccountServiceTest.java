@@ -278,12 +278,13 @@ class UserAccountServiceTest {
         void testSetupCredentials_Success() {
             userAccount.setPin(null);
             when(passwordEncoder.encode("NewP@ss1")).thenReturn("$2a$10$encodedHash");
+            when(passwordEncoder.encode("1234")).thenReturn("$2a$10$encodedPinHash");
             when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
 
             userAccountService.setupCredentials(userAccount, "NewP@ss1", "1234");
 
             assertThat(userAccount.getPassword()).isEqualTo("$2a$10$encodedHash");
-            assertThat(userAccount.getPin()).isEqualTo("1234");
+            assertThat(userAccount.getPin()).isEqualTo("$2a$10$encodedPinHash");
             assertThat(userAccount.getPasswordChangedAt()).isNotNull();
             assertThat(userAccount.getPasswordChangedAt()).isBefore(OffsetDateTime.now().plusSeconds(1));
             verify(userAccountRepository).save(userAccount);

@@ -56,7 +56,7 @@ public class UserAccountService implements UserDetailsService {
             throw new ValidationException("Credentials already configured. Use change-password to update your password.");
         }
         user.setPassword(passwordEncoder.encode(newPassword));
-        user.setPin(pin);
+        user.setPin(passwordEncoder.encode(pin));
         user.setPasswordChangedAt(OffsetDateTime.now());
         userAccountRepository.save(user);
     }

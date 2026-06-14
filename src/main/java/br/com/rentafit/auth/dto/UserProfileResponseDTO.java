@@ -28,8 +28,8 @@ public class UserProfileResponseDTO {
     @Schema(description = "FullName", example = "JOHN DOE")
     private String name;
     
-    @Schema(description = "USER PIN", example = "XSEA")
-    private String pin;
+    @Schema(description = "Whether the user has already configured a PIN", example = "true")
+    private boolean pinConfigured;
     
     @Schema(description = "User access role", example = "ROLE_MANAGER")
     private List<String> roles;
@@ -48,7 +48,7 @@ public class UserProfileResponseDTO {
         this.id = user.getId();
         this.username = user.getUsername();
         this.name = user.getPerson() != null ? user.getPerson().getName() : null;
-        this.pin = user.getPin();
+        this.pinConfigured = user.getPin() != null;
         this.legacyId = user.getPerson() != null ? user.getPerson().getLegacyId() : null;
         this.roles = user.getRoles() != null ? user.getRoles().stream()
                 .map(role -> role.getRole().name())

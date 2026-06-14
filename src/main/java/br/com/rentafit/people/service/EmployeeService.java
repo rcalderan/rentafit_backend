@@ -92,7 +92,7 @@ public class EmployeeService {
         UserAccount account = userAccountRepository.findById(employee.getId())
                 .orElseThrow(() -> new ValidationException("Credenciais inválidas. Verifique as iniciais e o PIN."));
 
-        if (account.getPin() == null || !account.getPin().equals(dto.pin())) {
+        if (account.getPin() == null || !passwordEncoder.matches(dto.pin(), account.getPin())) {
             throw new ValidationException("Credenciais inválidas. Verifique as iniciais e o PIN.");
         }
 
@@ -117,7 +117,7 @@ public class EmployeeService {
                 .setParameter("id", employee.getId())
                 .setParameter("username", normalizedInitials)
                 .setParameter("password", randomPasswordHash)
-                .setParameter("pin", pin)
+                .setParameter("pin", passwordEncoder.encode(pin))
                 .setParameter("active", true)
                 .executeUpdate();
 
