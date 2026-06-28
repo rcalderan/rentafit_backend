@@ -15,6 +15,7 @@ receita/
 
 ### Playwright ###
 .playwright*
+playwright*
 .claude
 test-results
 

@@ -2104,7 +2104,7 @@
 			"name": "Billing - NFS-e Portal Nacional",
 			"item": [
 				{
-					"name": "Emit NFS-e",
+					"name": "Emit NFS-e (BillingController)",
 					"event": [
 						{
 							"listen": "test",
@@ -2114,7 +2114,11 @@
 									"    var body = pm.response.json();",
 									"    pm.collectionVariables.set('invoice_id', body.id);",
 									"    pm.collectionVariables.set('invoice_access_key', body.accessKey);",
-									"    pm.test('NFS-e emitida com sucesso', () => pm.expect(pm.response.code).to.equal(201));",
+									"    pm.test('Status 201', () => pm.expect(pm.response.code).to.equal(201));",
+									"    pm.test('accessKey presente', () => pm.expect(body.accessKey).to.be.a('string').and.have.lengthOf(50));",
+									"    pm.test('status presente', () => pm.expect(body.status).to.be.a('string'));",
+									"    pm.test('serviceValue presente', () => pm.expect(body.serviceValue).to.be.a('number'));",
+									"    console.log('invoice_id: ' + body.id + ' | accessKey: ' + body.accessKey);",
 									"}"
 								],
 								"type": "text/javascript"
@@ -2131,7 +2135,12 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"serviceValue\": 1500.00,\n  \"nbsCode\": \"1.0501.00.00\",\n  \"serviceDescription\": \"Serviços de locação de equipamentos de fitness\",\n  \"cityCode\": \"3548708\"\n}"
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"serviceValue\": 1500.00,\n  \"nbsCode\": \"1.0501.00.00\",\n  \"serviceDescription\": \"Serviços de locação de equipamentos de fitness\",\n  \"cityCode\": \"3548906\",\n  \"ibsRate\": null,\n  \"cbsRate\": null,\n  \"isqnRate\": null,\n  \"originId\": \"{{contract_id}}\",\n  \"origin\": \"RENTAL\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
 						},
 						"url": {
 							"raw": "{{base_url}}/api/billing/invoices/emit",
@@ -2145,7 +2154,7 @@
 								"emit"
 							]
 						},
-						"description": "Emite uma NFS-e via Portal Nacional. Requer roles ADMIN ou EMPLOYEE. Retorna 201 com chave de acesso."
+						"description": "Emite NFS-e via Portal Nacional (BillingController). Requer roles ADMIN ou EMPLOYEE.\n\n**Campos obrigatórios:** customerId, serviceValue, nbsCode, serviceDescription, cityCode.\n\n**Campos opcionais:** ibsRate, cbsRate, isqnRate (calculados automaticamente se omitidos), originId (UUID da entidade de origem), origin (SALES|RENTAL|MANUAL).\n\n**cityCode São Carlos/SP:** 3548906\n\nRetorna 201 com: id, accessKey (50 chars), invoiceNumber, protocol, status, issueDate, serviceValue, taxes.\n\nSalva: invoice_id, invoice_access_key."
 					},
 					"response": []
 				},
@@ -2239,7 +2248,7 @@
 					"response": []
 				},
 				{
-					"name": "Get Invoice by Number",
+					"name": "⚠️ Get Invoice by Number (DEPRECATED — 410)",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -2256,12 +2265,72 @@
 								"1"
 							]
 						},
-						"description": "Busca NFS-e pelo número da nota fiscal no banco de dados local."
+						"description": "**OBSOLETO — retorna 410 Gone.** Use `GET /api/billing/invoices/chave/{chaveAcesso}` para consultar pelo Portal Nacional."
 					},
 					"response": []
 				}
 			],
 			"description": "Emissão e consulta de Notas Fiscais de Serviço Eletrônicas via Portal Nacional da NFS-e (SEFIN)"
+		},
+		{
+			"name": "Billing - NFS-e Nacional (NfseController)",
+			"description": "Endpoint dedicado de emissão NFS-e Nacional via NfseController (`/api/nfse`). Envia o DPS diretamente ao Portal Nacional (api.nfse.gov.br) e persiste o FiscalDocument.",
+			"item": [
+				{
+					"name": "Emit NFS-e (NfseController)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var body = pm.response.json();",
+									"    pm.collectionVariables.set('invoice_id', body.id);",
+									"    pm.collectionVariables.set('invoice_access_key', body.accessKey);",
+									"    pm.test('Status 201', () => pm.expect(pm.response.code).to.equal(201));",
+									"    pm.test('accessKey presente', () => pm.expect(body.accessKey).to.be.a('string').and.have.lengthOf(50));",
+									"    pm.test('status presente', () => pm.expect(body.status).to.be.a('string'));",
+									"    pm.test('serviceValue presente', () => pm.expect(body.serviceValue).to.be.a('number'));",
+									"    console.log('invoice_id: ' + body.id + ' | accessKey: ' + body.accessKey);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"customerId\": \"{{customer_id}}\",\n  \"serviceValue\": 1500.00,\n  \"nbsCode\": \"1.0501.00.00\",\n  \"serviceDescription\": \"Serviços de locação de equipamentos de fitness\",\n  \"cityCode\": \"3548906\",\n  \"ibsRate\": null,\n  \"cbsRate\": null,\n  \"isqnRate\": null,\n  \"originId\": \"{{contract_id}}\",\n  \"origin\": \"RENTAL\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/api/nfse/emit",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"nfse",
+								"emit"
+							]
+						},
+						"description": "Emite NFS-e via NfseController (`POST /api/nfse/emit`). Requer roles ADMIN ou EMPLOYEE.\n\n**Diferença de BillingController:** esta rota usa NfseEmissionService diretamente, montando o DPS e enviando ao Portal Nacional.\n\n**Campos obrigatórios:** customerId, serviceValue, nbsCode, serviceDescription, cityCode.\n\n**Campos opcionais:** ibsRate, cbsRate (IBS/CBS — calculados se omitidos), isqnRate (ISS se aplicável), originId, origin (SALES|RENTAL|MANUAL).\n\n**cityCode São Carlos/SP:** 3548906\n\nRetorna 201 com InvoiceEmissionResponseDTO: id, accessKey, invoiceNumber, protocol, status, issueDate, taxes.\n\nSalva: invoice_id, invoice_access_key."
+					},
+					"response": []
+				}
+			]
 		},
 		{
 			"name": "Billing - NFS-e São Carlos",
@@ -2341,7 +2410,7 @@
 					"response": []
 				}
 			],
-			"description": "Emissão de NFS-e no município de São Carlos via sistema GINFES v3.01"
+			"description": "Emissão de NFS-e no município de São Carlos via sistema GINFES v3.01. **Nota:** São Carlos aderiu ao padrão nacional — preferir NfseController (`/api/nfse/emit`) para emissões novas."
 		},
 		{
 			"name": "Billing - NFS-e Via (Serpro)",
@@ -3171,13 +3240,19 @@
 			"key": "invoice_id",
 			"value": "",
 			"type": "string",
-			"description": "UUID da nota fiscal (NFS-e) para testes"
+			"description": "UUID da nota fiscal (NFS-e / FiscalDocument) para testes"
 		},
 		{
 			"key": "invoice_access_key",
 			"value": "",
 			"type": "string",
-			"description": "Chave de acesso da NFS-e (50 caracteres)"
+			"description": "Chave de acesso da NFS-e (50 caracteres) — usada em /chave/{chaveAcesso}, /pdf e /xml"
+		},
+		{
+			"key": "nfe_access_key",
+			"value": "",
+			"type": "string",
+			"description": "Chave de acesso da NF-e (44 dígitos) retornada pela SEFAZ-SP após transmissão"
 		},
 		{
 			"key": "sc_protocolo",

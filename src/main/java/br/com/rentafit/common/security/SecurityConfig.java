@@ -72,7 +72,10 @@ public class SecurityConfig {
                         // Vendas: EMPLOYEE, MANAGER, ADMIN
                         .requestMatchers("/api/v1/sales/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
-                        // Faturamento/NFS-e (já tem @PreAuthorize, defense-in-depth)
+                        // Faturamento/NF-e e NFS-e — autorizacao centralizada aqui
+                        .requestMatchers("/api/nfe/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers("/api/nfse/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers("/api/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
                         // Admin de usuários (já tem @PreAuthorize, defense-in-depth)

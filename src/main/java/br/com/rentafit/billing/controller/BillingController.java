@@ -42,7 +42,6 @@ public class BillingController {
     private final NfsePortalService nfsePortalService;
 
     @PostMapping("/emit")
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(
         summary = "Emitir NFS-e",
         description = "Emite uma Nota Fiscal de Serviço Eletrônica para um cliente através do Portal Nacional da NFS-e. " +

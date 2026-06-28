@@ -29,7 +29,6 @@ public class NfseController {
 
     @PostMapping("/emit")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('ADMIN', 'EMPLOYEE')")
     @Operation(summary = "Emitir NFS-e", description = "Envia o DPS ao Portal Nacional e persiste o documento fiscal")
     public Mono<ResponseEntity<InvoiceEmissionResponseDTO>> emitir(
             @Valid @RequestBody InvoiceEmissionRequestDTO request) {

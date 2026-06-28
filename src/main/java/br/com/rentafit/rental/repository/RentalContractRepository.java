@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,5 +27,13 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
     Optional<String> findMaxLegacyIdByPrefix(@Param("prefix") String prefix);
 
     Optional<RentalContract> findByParentContractIdAndStatusNot(UUID parentContractId, ContractStatus excludeStatus);
+
+    /**
+     * Contratos com eventDate exato e status na lista, ordenados por nome do cliente.
+     * Itens e metadata são carregados via @Fetch(SUBSELECT) nas entidades (evita N+1
+     * sem causar MultipleBagFetchException).
+     */
+    List<RentalContract> findByEventDateAndStatusInOrderByCustomerNameAsc(
+            LocalDate eventDate, List<ContractStatus> statuses);
 }
 
