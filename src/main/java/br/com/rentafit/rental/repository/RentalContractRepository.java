@@ -35,5 +35,12 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
      */
     List<RentalContract> findByEventDateAndStatusInOrderByCustomerNameAsc(
             LocalDate eventDate, List<ContractStatus> statuses);
+
+    /**
+     * Contratos cujo eventDate está entre startDate e endDate (ambos inclusivos),
+     * com status na lista, ordenados por data do evento e depois por nome do cliente.
+     */
+    List<RentalContract> findByEventDateBetweenAndStatusInOrderByEventDateAscCustomerNameAsc(
+            LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses);
 }
 

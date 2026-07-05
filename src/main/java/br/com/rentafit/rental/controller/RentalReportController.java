@@ -28,18 +28,21 @@ public class RentalReportController {
     private final DailyRentalReportService reportService;
 
     @GetMapping("/daily")
-    @Operation(summary = "Relatório diário de locação (checklist por tipo de roupa)",
-            description = "Lista os itens de locação com eventDate na data informada, agrupados por tipo de roupa, "
-                    + "com seus ajustes/observações. Status padrão: SIGNED e FINALIZED.")
+    @Operation(summary = "Relatório de locação por período (checklist por tipo de roupa)",
+            description = "Lista os itens de locação com eventDate no intervalo informado, agrupados por tipo de roupa, "
+                    + "com seus ajustes/observações. Se endDate for omitido, equivale a um relatório de dia único. "
+                    + "Status padrão: SIGNED e FINALIZED.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Relatório gerado com sucesso"),
-            @ApiResponse(responseCode = "400", description = "Parâmetro 'date' ausente ou inválido")
+            @ApiResponse(responseCode = "400", description = "Parâmetro 'date' ausente ou período inválido")
     })
     public ResponseEntity<DailyRentalReportDTO> daily(
-            @Parameter(description = "Data do evento (YYYY-MM-DD)", required = true)
+            @Parameter(description = "Data inicial do período (YYYY-MM-DD)", required = true)
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Parameter(description = "Data final do período (YYYY-MM-DD); omitir para dia único")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @Parameter(description = "Status a incluir (default: SIGNED, FINALIZED)")
             @RequestParam(required = false) List<ContractStatus> statuses) {
-        return ResponseEntity.ok(reportService.generate(date, statuses));
+        return ResponseEntity.ok(reportService.generate(date, endDate, statuses));
     }
 }

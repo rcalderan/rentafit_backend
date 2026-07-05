@@ -48,12 +48,26 @@ public class DailyRentalReportService {
     private final RentalContractRepository contractRepository;
     private final RentalItemPort rentalItemPort;
 
+    /**
+     * Gera o relatório para um único dia. Delega para {@link #generate(LocalDate, LocalDate, List)}.
+     */
     public DailyRentalReportDTO generate(LocalDate eventDate, List<ContractStatus> statuses) {
+        return generate(eventDate, eventDate, statuses);
+    }
+
+    /**
+     * Gera o relatório para um período (startDate a endDate, ambos inclusivos).
+     * Se endDate for nulo, assume o mesmo que startDate.
+     */
+    public DailyRentalReportDTO generate(LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses) {
+        LocalDate effectiveEnd = (endDate == null) ? startDate : endDate;
         List<ContractStatus> effectiveStatuses =
                 (statuses == null || statuses.isEmpty()) ? DEFAULT_STATUSES : statuses;
 
-        List<RentalContract> contracts =
-                contractRepository.findByEventDateAndStatusInOrderByCustomerNameAsc(eventDate, effectiveStatuses);
+        List<RentalContract> contracts = startDate.isEqual(effectiveEnd)
+                ? contractRepository.findByEventDateAndStatusInOrderByCustomerNameAsc(startDate, effectiveStatuses)
+                : contractRepository.findByEventDateBetweenAndStatusInOrderByEventDateAscCustomerNameAsc(
+                        startDate, effectiveEnd, effectiveStatuses);
 
         Map<UUID, RentalItemSnapshot> snapshots = resolveSnapshots(contracts);
         List<ClothingTypeGroupDTO> groups = buildGroups(contracts, snapshots);
@@ -64,11 +78,12 @@ public class DailyRentalReportService {
                 .mapToInt(i -> i.adjustments().size())
                 .sum();
 
-        log.info("Daily rental report for {} ({} contracts, {} items, {} adjustments)",
-                eventDate, contracts.size(), itemCount, adjustmentCount);
+        log.info("Rental report for {} to {} ({} contracts, {} items, {} adjustments)",
+                startDate, effectiveEnd, contracts.size(), itemCount, adjustmentCount);
 
         return new DailyRentalReportDTO(
-                eventDate, OffsetDateTime.now(), contracts.size(), itemCount, adjustmentCount, groups);
+                startDate, effectiveEnd, OffsetDateTime.now(),
+                contracts.size(), itemCount, adjustmentCount, groups);
     }
 
     private Map<UUID, RentalItemSnapshot> resolveSnapshots(List<RentalContract> contracts) {

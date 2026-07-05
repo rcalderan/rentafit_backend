@@ -34,14 +34,14 @@ class RentalReportControllerTest {
     void dailyReturnsReport() {
         LocalDate date = LocalDate.of(2026, 6, 28);
         DailyRentalReportDTO dto = new DailyRentalReportDTO(
-                date, OffsetDateTime.now(), 0, 0, 0, List.of());
-        when(reportService.generate(date, null)).thenReturn(dto);
+                date, date, OffsetDateTime.now(), 0, 0, 0, List.of());
+        when(reportService.generate(date, null, null)).thenReturn(dto);
 
-        ResponseEntity<DailyRentalReportDTO> response = controller.daily(date, null);
+        ResponseEntity<DailyRentalReportDTO> response = controller.daily(date, null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isSameAs(dto);
-        verify(reportService).generate(date, null);
+        verify(reportService).generate(date, null, null);
     }
 
     @Test
@@ -50,11 +50,11 @@ class RentalReportControllerTest {
         LocalDate date = LocalDate.of(2026, 6, 28);
         List<ContractStatus> statuses = List.of(ContractStatus.FINALIZED);
         DailyRentalReportDTO dto = new DailyRentalReportDTO(
-                date, OffsetDateTime.now(), 0, 0, 0, List.of());
-        when(reportService.generate(date, statuses)).thenReturn(dto);
+                date, date, OffsetDateTime.now(), 0, 0, 0, List.of());
+        when(reportService.generate(date, null, statuses)).thenReturn(dto);
 
-        controller.daily(date, statuses);
+        controller.daily(date, null, statuses);
 
-        verify(reportService).generate(date, statuses);
+        verify(reportService).generate(date, null, statuses);
     }
 }
