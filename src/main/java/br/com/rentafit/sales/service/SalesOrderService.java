@@ -142,6 +142,9 @@ public class SalesOrderService {
                                                        OffsetDateTime dateFrom,
                                                        OffsetDateTime dateTo,
                                                        Pageable pageable) {
+        if (status != null && dateFrom == null && dateTo == null) {
+            return orderRepository.findByStatus(status, pageable).map(mapper::toSummaryDTO);
+        }
         return orderRepository.findWithFilters(status, dateFrom, dateTo, pageable)
                 .map(mapper::toSummaryDTO);
     }
