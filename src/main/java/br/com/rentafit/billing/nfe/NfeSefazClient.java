@@ -3,8 +3,10 @@ package br.com.rentafit.billing.nfe;
 import br.com.rentafit.billing.dto.NfeResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
@@ -26,10 +28,20 @@ public class NfeSefazClient {
     /** cStat que indicam autorização (uso autorizado / autorizado fora de prazo). */
     private static final Set<String> AUTHORIZED_CODES = Set.of("100", "150");
 
-    private final WebClient nfeSefazWebClient;
+    private static final String SOAP_NS = "http://www.w3.org/2003/05/soap-envelope";
+    private static final String NFE_WSDL_NS = "http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4";
+    private static final String NFE_DATA_NS = "http://www.portalfiscal.inf.br/nfe";
+    private static final String NFE_VERSAO = "4.00";
 
-    public NfeSefazClient(@Qualifier("nfeSefazWebClient") WebClient nfeSefazWebClient) {
+    private final WebClient nfeSefazWebClient;
+    private final String ufCode;
+
+    public NfeSefazClient(
+            @Qualifier("nfeSefazWebClient") WebClient nfeSefazWebClient,
+            @Value("${nf-e.emit.uf-code:35}") String ufCode
+    ) {
         this.nfeSefazWebClient = nfeSefazWebClient;
+        this.ufCode = ufCode;
     }
 
     /**
@@ -43,14 +55,52 @@ public class NfeSefazClient {
             throw new IllegalArgumentException("XML assinado nao pode ser nulo ou vazio");
         }
         log.debug("Transmitindo NF-e para SEFAZ-SP");
-        String retorno = nfeSefazWebClient.post()
-                .uri("/ws/nfeautorizacao4.asmx")
-                .header("Content-Type", "application/soap+xml;charset=UTF-8")
-                .bodyValue(signedXml)
-                .retrieve()
-                .bodyToMono(String.class)
-                .block();
-        return parseResponse(retorno);
+        String soapEnvelope = buildSoapEnvelope(signedXml);
+        try {
+            String retorno = nfeSefazWebClient.post()
+                    .uri("/ws/nfeautorizacao4.asmx")
+                    .header("Content-Type",
+                            "application/soap+xml;charset=UTF-8;action=\""
+                                    + NFE_WSDL_NS + "/nfeAutorizacaoLote\"")
+                    .bodyValue(soapEnvelope)
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
+            return parseResponse(retorno);
+        } catch (WebClientResponseException e) {
+            String body = e.getResponseBodyAsString();
+            log.error("SEFAZ retornou HTTP {}: {}", e.getStatusCode().value(), body);
+            throw new NfeValidationException(
+                    "SEFAZ retornou HTTP " + e.getStatusCode().value() + ": " + body, e);
+        }
+    }
+
+    /**
+     * Monta o envelope SOAP 1.2 exigido pelo endpoint nfeautorizacao4.asmx:
+     * Header com nfeCabecMsg (cUF + versaoDados) e Body com nfeDadosMsg/enviNFe.
+     *
+     * @param signedNfeXml XML da NF-e já assinado
+     * @return envelope SOAP completo
+     */
+    private String buildSoapEnvelope(String signedNfeXml) {
+        return "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<soap12:Envelope xmlns:soap12=\"" + SOAP_NS + "\">"
+                + "<soap12:Header>"
+                + "<nfeCabecMsg xmlns=\"" + NFE_WSDL_NS + "\">"
+                + "<cUF>" + ufCode + "</cUF>"
+                + "<versaoDados>" + NFE_VERSAO + "</versaoDados>"
+                + "</nfeCabecMsg>"
+                + "</soap12:Header>"
+                + "<soap12:Body>"
+                + "<nfeDadosMsg xmlns=\"" + NFE_WSDL_NS + "\">"
+                + "<enviNFe xmlns=\"" + NFE_DATA_NS + "\" versao=\"" + NFE_VERSAO + "\">"
+                + "<idLote>1</idLote>"
+                + "<indSinc>1</indSinc>"
+                + signedNfeXml
+                + "</enviNFe>"
+                + "</nfeDadosMsg>"
+                + "</soap12:Body>"
+                + "</soap12:Envelope>";
     }
 
     /**

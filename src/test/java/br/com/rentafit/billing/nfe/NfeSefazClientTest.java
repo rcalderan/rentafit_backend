@@ -39,7 +39,7 @@ class NfeSefazClientTest {
 
     @BeforeEach
     void setUp() {
-        client = new NfeSefazClient(webClient);
+        client = new NfeSefazClient(webClient, "35");
     }
 
     private String retornoComStatus(String cStat, String xMotivo) {
@@ -118,8 +118,8 @@ class NfeSefazClientTest {
     }
 
     @Test
-    @DisplayName("transmit() envia XML e retorna resposta parseada")
-    void transmit_enviaXmlERetornaResposta() {
+    @DisplayName("transmit() envia envelope SOAP e retorna resposta parseada")
+    void transmit_enviaEnvelopeSoapERetornaResposta() {
         String signedXml = "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
         String retorno = retornoComStatus("100", "Autorizado");
 
@@ -134,6 +134,37 @@ class NfeSefazClientTest {
 
         assertThat(resp.getStatus()).isEqualTo("AUTHORIZED");
         assertThat(resp.getCStat()).isEqualTo("100");
+    }
+
+    @Test
+    @DisplayName("transmit() envia body contendo envelope SOAP com nfeCabecMsg e enviNFe")
+    void transmit_enviaEnvelopeSoapComCabecalhoELote() {
+        String signedXml = "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
+        String retorno = retornoComStatus("100", "Autorizado");
+
+        when(webClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.just(retorno));
+
+        client.transmit(signedXml);
+
+        org.mockito.ArgumentCaptor<String> bodyCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(requestBodySpec).bodyValue(bodyCaptor.capture());
+        String body = bodyCaptor.getValue();
+        assertThat(body).contains("soap12:Envelope");
+        assertThat(body).contains("nfeCabecMsg");
+        assertThat(body).contains("<cUF>35</cUF>");
+        assertThat(body).contains("versaoDados>4.00");
+        assertThat(body).contains("enviNFe");
+        assertThat(body).contains("<indSinc>1</indSinc>");
+        assertThat(body).contains(signedXml);
+
+        org.mockito.ArgumentCaptor<String> headerValueCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(requestBodySpec).header(org.mockito.ArgumentMatchers.eq("Content-Type"), headerValueCaptor.capture());
+        assertThat(headerValueCaptor.getValue()).contains("action=\"http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote\"");
     }
 
     @Test

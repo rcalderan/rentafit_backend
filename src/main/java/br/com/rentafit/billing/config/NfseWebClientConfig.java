@@ -12,6 +12,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import reactor.netty.http.client.HttpClient;
 
 import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
 import java.security.KeyStore;
 
 @Configuration
@@ -20,6 +21,7 @@ import java.security.KeyStore;
 public class NfseWebClientConfig {
 
     private final FiscalCertificateProvider certificateProvider;
+    private final SefazTruststoreProvider truststoreProvider;
 
     @Value("${nfs-e.api.url}")
     private String nfseBaseUrl;
@@ -76,9 +78,16 @@ public class NfseWebClientConfig {
             KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
             kmf.init(keyStore, certificatePassword.toCharArray());
 
-            SslContext sslContext = SslContextBuilder.forClient()
-                    .keyManager(kmf)
-                    .build();
+            SslContextBuilder sslBuilder = SslContextBuilder.forClient()
+                    .keyManager(kmf);
+
+            TrustManagerFactory tmf = truststoreProvider.trustManagerFactory();
+            if (tmf != null) {
+                sslBuilder.trustManager(tmf);
+                log.debug("{} usando truststore dedicado para validação do servidor.", nomeCliente);
+            }
+
+            SslContext sslContext = sslBuilder.build();
 
             HttpClient httpClient = HttpClient.create()
                     .secure(sslContextSpec -> sslContextSpec.sslContext(sslContext));
