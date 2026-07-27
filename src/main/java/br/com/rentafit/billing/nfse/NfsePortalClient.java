@@ -1,8 +1,10 @@
 package br.com.rentafit.billing.nfse;
 
 import br.com.rentafit.billing.dto.DpsResponse;
+import br.com.rentafit.billing.service.StsTokenService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.MediaType;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -20,22 +22,37 @@ public class NfsePortalClient {
 
     @Qualifier("nfseWebClient")
     private final WebClient nfseWebClient;
+    private final StsTokenService stsTokenService;
+    private final NfseDpsPayloadEncoder payloadEncoder;
 
-    /**
-     * Envia o XML DPS assinado para o portal e retorna a resposta.
-     *
-     * @param signedXml XML DPS já assinado
-     * @return Mono com dados da nota emitida
-     */
     public Mono<DpsResponse> sendDps(String signedXml) {
-        log.debug("Enviando DPS para o Portal Nacional NFS-e");
-        return nfseWebClient.post()
-                .uri("/v1/dps")
-                .header("Content-Type", "application/xml;charset=UTF-8")
-                .bodyValue(signedXml)
-                .retrieve()
-                .bodyToMono(DpsResponse.class)
-                .doOnSuccess(r -> log.info("DPS aceito pelo portal: chave={}", r.getAccessKey()))
-                .doOnError(e -> log.error("Erro ao enviar DPS ao portal: {}", e.getMessage()));
+        NfseDpsPayload payload = payloadEncoder.encode(signedXml);
+        return stsTokenService.obterToken()
+                .flatMap(token -> nfseWebClient.post()
+                        .uri("/nfse")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .headers(headers -> headers.setBearerAuth(token))
+                        .bodyValue(payload)
+                        .retrieve()
+                        .bodyToMono(DpsResponse.class))
+                .doOnSuccess(response -> log.info("DPS aceita pelo portal: chave={}", response.getAccessKey()))
+                .doOnError(error -> log.error("Erro ao enviar DPS ao portal: {}", error.getMessage()));
+    }
+
+    public Mono<Boolean> hasNfseForDps(String dpsId) {
+        if (dpsId == null || dpsId.isBlank()) {
+            return Mono.error(new IllegalArgumentException("Identificador DPS deve conter texto não vazio"));
+        }
+        return nfseWebClient.head()
+                .uri("/dps/{id}", dpsId)
+                .exchangeToMono(response -> {
+                    if (response.statusCode().value() == 404) {
+                        return Mono.just(false);
+                    }
+                    if (response.statusCode().is2xxSuccessful()) {
+                        return Mono.just(true);
+                    }
+                    return response.createException().flatMap(Mono::error);
+                });
     }
 }

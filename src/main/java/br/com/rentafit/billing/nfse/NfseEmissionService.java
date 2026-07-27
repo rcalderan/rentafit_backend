@@ -75,13 +75,13 @@ public class NfseEmissionService {
                     TaxInfo taxes = (TaxInfo) parts[1];
                     String signedXml = (String) parts[2];
                     return portalClient.sendDps(signedXml)
-                            .map(response -> persistirEMapear(customer, request, taxes, response));
+                            .map(response -> persistirEMapear(customer, request, taxes, signedXml, response));
                 });
     }
 
     private InvoiceEmissionResponseDTO persistirEMapear(
             Customer customer, InvoiceEmissionRequestDTO request,
-            TaxInfo taxes, DpsResponse response) {
+            TaxInfo taxes, String signedXml, DpsResponse response) {
 
         FiscalOrigin origin = parseOrigin(request.getOrigin());
 
@@ -94,6 +94,8 @@ public class NfseEmissionService {
                 .customer(customer)
                 .issueDate(OffsetDateTime.now())
                 .totalValue(request.getServiceValue())
+                .serviceDescription(request.getServiceDescription())
+                .signedXml(signedXml)
                 .taxes(taxes)
                 .origin(origin)
                 .originId(request.getOriginId())

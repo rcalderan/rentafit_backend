@@ -77,6 +77,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/nfse/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers("/api/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers("/api/v1/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers("/api/fiscal-documents/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
                         // Admin de usuários (já tem @PreAuthorize, defense-in-depth)
                         .requestMatchers("/api/auth/users/**").hasAnyRole("MANAGER", "ADMIN")

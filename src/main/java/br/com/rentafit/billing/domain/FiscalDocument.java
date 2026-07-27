@@ -88,6 +88,18 @@ public class FiscalDocument {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    @Column(name = "service_description", length = 500)
+    private String serviceDescription;
+
+    @Column(name = "cancel_reason", length = 500)
+    private String cancelReason;
+
+    @Column(name = "cancelled_at")
+    private OffsetDateTime cancelledAt;
+
+    @Column(name = "cancel_protocol", length = 50)
+    private String cancelProtocol;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private OffsetDateTime createdAt;
