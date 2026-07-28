@@ -90,6 +90,7 @@ public class NfseWebClientConfig {
             SslContext sslContext = sslBuilder.build();
 
             HttpClient httpClient = HttpClient.create()
+                    .compress(true)
                     .secure(sslContextSpec -> sslContextSpec.sslContext(sslContext));
 
             log.info("{} configurado com mTLS para: {}", nomeCliente, baseUrl);

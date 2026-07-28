@@ -7,8 +7,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,9 +35,6 @@ class NfeSefazClientTest {
 
     @Mock
     private WebClient.RequestHeadersSpec requestHeadersSpec;
-
-    @Mock
-    private WebClient.ResponseSpec responseSpec;
 
     private NfeSefazClient client;
 
@@ -117,18 +118,31 @@ class NfeSefazClientTest {
         assertThat(resp.getStatus()).isEqualTo("AUTHORIZED");
     }
 
+    @SuppressWarnings("unchecked")
+    private void stubTransmitChain(int httpStatus, String responseBody) {
+        when(webClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
+        when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
+        when(requestHeadersSpec.exchangeToMono(any(Function.class))).thenAnswer(invocation -> {
+            Function<ClientResponse, Mono<String[]>> handler = invocation.getArgument(0);
+            ClientResponse mockResponse = org.mockito.Mockito.mock(ClientResponse.class);
+            ClientResponse.Headers mockHeaders = org.mockito.Mockito.mock(ClientResponse.Headers.class);
+            when(mockResponse.statusCode()).thenReturn(HttpStatusCode.valueOf(httpStatus));
+            when(mockResponse.bodyToMono(byte[].class))
+                    .thenReturn(Mono.just(responseBody.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+            when(mockResponse.headers()).thenReturn(mockHeaders);
+            when(mockHeaders.asHttpHeaders()).thenReturn(new org.springframework.http.HttpHeaders());
+            return handler.apply(mockResponse);
+        });
+    }
+
     @Test
     @DisplayName("transmit() envia envelope SOAP e retorna resposta parseada")
     void transmit_enviaEnvelopeSoapERetornaResposta() {
         String signedXml = "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
         String retorno = retornoComStatus("100", "Autorizado");
-
-        when(webClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
-        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.just(retorno));
+        stubTransmitChain(200, retorno);
 
         NfeResponse resp = client.transmit(signedXml);
 
@@ -141,13 +155,7 @@ class NfeSefazClientTest {
     void transmit_enviaEnvelopeSoapComCabecalhoELote() {
         String signedXml = "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
         String retorno = retornoComStatus("100", "Autorizado");
-
-        when(webClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri(anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.header(anyString(), anyString())).thenReturn(requestBodySpec);
-        when(requestBodySpec.bodyValue(any())).thenReturn(requestHeadersSpec);
-        when(requestHeadersSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.bodyToMono(String.class)).thenReturn(Mono.just(retorno));
+        stubTransmitChain(200, retorno);
 
         client.transmit(signedXml);
 
@@ -165,6 +173,19 @@ class NfeSefazClientTest {
         org.mockito.ArgumentCaptor<String> headerValueCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(requestBodySpec).header(org.mockito.ArgumentMatchers.eq("Content-Type"), headerValueCaptor.capture());
         assertThat(headerValueCaptor.getValue()).contains("action=\"http://www.portalfiscal.inf.br/nfe/wsdl/NFeAutorizacao4/nfeAutorizacaoLote\"");
+    }
+
+    @Test
+    @DisplayName("transmit() lança NfeValidationException com body da SEFAZ quando HTTP 400")
+    void transmit_lancaExcecaoComBody_quandoHttp400() {
+        String signedXml = "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
+        String sefazError = "<soap:Fault><faultstring>Erro de validação no XML</faultstring></soap:Fault>";
+        stubTransmitChain(400, sefazError);
+
+        assertThatThrownBy(() -> client.transmit(signedXml))
+                .isInstanceOf(NfeValidationException.class)
+                .hasMessageContaining("SEFAZ retornou HTTP 400")
+                .hasMessageContaining("Erro de validação no XML");
     }
 
     @Test

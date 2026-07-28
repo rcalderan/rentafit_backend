@@ -5,8 +5,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.web.reactive.function.client.WebClient;
-import org.springframework.web.reactive.function.client.WebClientResponseException;
 import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 
@@ -56,23 +56,39 @@ public class NfeSefazClient {
         }
         log.debug("Transmitindo NF-e para SEFAZ-SP");
         String soapEnvelope = buildSoapEnvelope(signedXml);
-        try {
-            String retorno = nfeSefazWebClient.post()
-                    .uri("/ws/nfeautorizacao4.asmx")
-                    .header("Content-Type",
-                            "application/soap+xml;charset=UTF-8;action=\""
-                                    + NFE_WSDL_NS + "/nfeAutorizacaoLote\"")
-                    .bodyValue(soapEnvelope)
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-            return parseResponse(retorno);
-        } catch (WebClientResponseException e) {
-            String body = e.getResponseBodyAsString();
-            log.error("SEFAZ retornou HTTP {}: {}", e.getStatusCode().value(), body);
+        log.trace("Envelope SOAP enviado:\n{}", soapEnvelope);
+
+        String[] retorno = nfeSefazWebClient.post()
+                .uri("/ws/nfeautorizacao4.asmx")
+                .header("Content-Type",
+                        "application/soap+xml;charset=UTF-8;action=\""
+                                + NFE_WSDL_NS + "/nfeAutorizacaoLote\"")
+                .bodyValue(soapEnvelope)
+                .exchangeToMono(response -> {
+                    HttpStatusCode status = response.statusCode();
+                    return response.bodyToMono(byte[].class)
+                            .defaultIfEmpty(new byte[0])
+                            .map(bytes -> {
+                                String bodyStr = new String(bytes, StandardCharsets.UTF_8);
+                                log.debug("SEFAZ response: HTTP {} | {} bytes | headers: {}",
+                                        status.value(), bytes.length,
+                                        response.headers().asHttpHeaders().toSingleValueMap());
+                                return new String[]{String.valueOf(status.value()), bodyStr};
+                            });
+                })
+                .block();
+
+        String httpStatus = retorno[0];
+        String body = retorno[1];
+
+        if (!httpStatus.startsWith("2")) {
+            log.error("SEFAZ retornou HTTP {}. Resposta:\n{}", httpStatus, body);
             throw new NfeValidationException(
-                    "SEFAZ retornou HTTP " + e.getStatusCode().value() + ": " + body, e);
+                    "SEFAZ retornou HTTP " + httpStatus + ": " + body);
         }
+
+        log.debug("SEFAZ retornou HTTP {}. Tamanho da resposta: {} chars", httpStatus, body.length());
+        return parseResponse(body);
     }
 
     /**

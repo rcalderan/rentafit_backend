@@ -4,9 +4,9 @@ import br.com.rentafit.billing.domain.FiscalDocument;
 import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
 import br.com.rentafit.billing.dto.InvoiceEmissionResponseDTO;
 import br.com.rentafit.billing.dto.NfseConsultaResponse;
-import br.com.rentafit.billing.service.BillingService;
+import br.com.rentafit.billing.nfse.NfseEmissionService;
+import br.com.rentafit.billing.nfse.NfsePortalClient;
 import br.com.rentafit.billing.service.FiscalDocumentService;
-import br.com.rentafit.billing.service.NfsePortalService;
 import br.com.rentafit.common.security.CertificateAuthentication;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -37,9 +37,9 @@ import java.util.UUID;
 @SecurityRequirement(name = "bearerAuth")
 public class BillingController {
 
-    private final BillingService billingService;
+    private final NfseEmissionService emissionService;
     private final FiscalDocumentService fiscalDocumentService;
-    private final NfsePortalService nfsePortalService;
+    private final NfsePortalClient nfsePortalClient;
 
     @PostMapping("/emit")
     @Operation(
@@ -69,7 +69,7 @@ public class BillingController {
             log.info("Emissão sem certificado mTLS - usando configuração padrão do sistema");
         }
 
-        return billingService.emitInvoice(request)
+        return emissionService.emit(request)
                 .map(response -> ResponseEntity
                         .status(HttpStatus.CREATED)
                         .body(response))
@@ -131,7 +131,7 @@ public class BillingController {
             @PathVariable String chaveAcesso) {
         log.info("Consultando NFS-e no Portal Nacional: {}", chaveAcesso);
 
-        return nfsePortalService.consultarNfse(chaveAcesso)
+        return nfsePortalClient.consultarNfse(chaveAcesso)
                 .map(ResponseEntity::ok)
                 .onErrorResume(err -> {
                     log.error("Erro ao consultar NFS-e no portal: {}", err.getMessage());
@@ -155,7 +155,7 @@ public class BillingController {
             @PathVariable String chaveAcesso) {
         log.info("Download de PDF solicitado para NFS-e: {}", chaveAcesso);
 
-        return nfsePortalService.downloadPdf(chaveAcesso)
+        return nfsePortalClient.downloadPdf(chaveAcesso)
                 .map(pdfBytes -> {
                     HttpHeaders headers = new HttpHeaders();
                     headers.setContentType(MediaType.APPLICATION_PDF);
@@ -190,7 +190,7 @@ public class BillingController {
             @PathVariable String chaveAcesso) {
         log.info("Download de XML solicitado para NFS-e: {}", chaveAcesso);
 
-        return nfsePortalService.downloadXml(chaveAcesso)
+        return nfsePortalClient.downloadXml(chaveAcesso)
                 .map(xml -> {
                     HttpHeaders headers = new HttpHeaders();
                     headers.setContentType(MediaType.APPLICATION_XML);
