@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.xml.security.Init;
 import org.apache.xml.security.algorithms.MessageDigestAlgorithm;
+import org.apache.xml.security.c14n.Canonicalizer;
 import org.apache.xml.security.signature.XMLSignature;
 import org.apache.xml.security.transforms.Transforms;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import javax.xml.transform.stream.StreamResult;
 import java.io.ByteArrayInputStream;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
+import java.security.cert.X509Certificate;
 
 /**
  * Assina o elemento {@code infNFe} usando XMLDSig envelopado (Apache Santuario).
@@ -73,25 +75,27 @@ public class NfeXmlSigner {
         }
         infNFe.setIdAttribute("Id", true);
 
-        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA1);
+        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA256,
+                Canonicalizer.ALGO_ID_C14N_OMIT_COMMENTS);
         infNFe.getParentNode().appendChild(sig.getElement());
 
         Transforms transforms = new Transforms(doc);
         transforms.addTransform(Transforms.TRANSFORM_ENVELOPED_SIGNATURE);
         transforms.addTransform(Transforms.TRANSFORM_C14N_OMIT_COMMENTS);
-        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA1);
+        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA256);
 
-        sig.addKeyInfo(certificateProvider.certificate());
+        X509Certificate cert = certificateProvider.certificate();
+        if (cert == null) {
+            throw new IllegalStateException("Certificado final (X509Certificate) nao encontrado no PKCS12");
+        }
+        if (cert.getBasicConstraints() != -1) {
+            throw new IllegalStateException("Certificado selecionado e uma Autoridade Certificadora (CA) e nao pode assinar a NF-e");
+        }
+        sig.addKeyInfo(cert);
 
-        // Clean all whitespace text nodes in DOM BEFORE signing
         removeWhitespaceTextNodes(doc.getDocumentElement());
 
         sig.sign(certificateProvider.privateKey());
-
-        // Clean any whitespace introduced in KeyInfo or post-signing
-        removeWhitespaceTextNodes(sig.getElement());
-        stripLineBreaksFromElement(doc, "SignatureValue");
-        stripLineBreaksFromElement(doc, "X509Certificate");
 
         Transformer transformer = TransformerFactory.newInstance().newTransformer();
         transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "no");
@@ -99,21 +103,8 @@ public class NfeXmlSigner {
         StringWriter writer = new StringWriter();
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
 
-        String result = writer.toString()
-                .replace("\r", "")
-                .replace("\n", "")
-                .replace("\t", "")
-                .replaceAll(">\\s+<", "><");
-
-        if (log.isTraceEnabled()) {
-            java.util.regex.Matcher ws = java.util.regex.Pattern.compile(">\\s+<").matcher(result);
-            if (ws.find()) {
-                log.warn("XML assinado ainda contem whitespace entre tags apos strip! Posicao: {}, trecho: [{}]",
-                        ws.start(), result.substring(Math.max(0, ws.start() - 30), ws.end() + 30));
-            }
-        }
         log.debug("NF-e assinada com sucesso (Id={})", id);
-        return result;
+        return writer.toString();
     }
 
     private void removeWhitespaceTextNodes(org.w3c.dom.Node node) {
@@ -131,14 +122,4 @@ public class NfeXmlSigner {
         }
     }
 
-    private void stripLineBreaksFromElement(Document doc, String localName) {
-        var nodes = doc.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", localName);
-        for (int i = 0; i < nodes.getLength(); i++) {
-            var node = nodes.item(i);
-            String text = node.getTextContent();
-            if (text != null && (text.contains("\r") || text.contains("\n"))) {
-                node.setTextContent(text.replace("\r", "").replace("\n", ""));
-            }
-        }
-    }
 }

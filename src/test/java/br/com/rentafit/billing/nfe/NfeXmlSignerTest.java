@@ -8,8 +8,13 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.cert.X509Certificate;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -107,5 +112,29 @@ class NfeXmlSignerTest {
 
         assertThatThrownBy(() -> signer.sign(xmlSemNs))
                 .isInstanceOf(Exception.class); // Vai falhar na assinatura sem certificado
+    }
+
+    @Test
+    @DisplayName("sign() produz XML com algoritmo RSA-SHA256 e digest SHA256 (NT2016.002)")
+    void sign_usaAlgoritmoSha256() throws Exception {
+        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+        kpg.initialize(2048);
+        KeyPair keyPair = kpg.generateKeyPair();
+
+        X509Certificate cert = mock(X509Certificate.class);
+        when(cert.getBasicConstraints()).thenReturn(-1);
+        when(cert.getEncoded()).thenReturn(new byte[]{0x30, 0x00});
+
+        when(certificateProvider.isAvailable()).thenReturn(true);
+        when(certificateProvider.certificate()).thenReturn(cert);
+        when(certificateProvider.privateKey()).thenReturn(keyPair.getPrivate());
+
+        String signedXml = signer.sign(XML_NFE);
+
+        assertThat(signedXml)
+                .contains("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
+                .contains("http://www.w3.org/2001/04/xmlenc#sha256")
+                .doesNotContain("rsa-sha1")
+                .doesNotContain("#sha1");
     }
 }
