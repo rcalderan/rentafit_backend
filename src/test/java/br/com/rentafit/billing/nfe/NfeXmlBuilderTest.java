@@ -3,8 +3,10 @@ package br.com.rentafit.billing.nfe;
 import br.com.rentafit.billing.dto.NfeEmissionRequest;
 import br.com.rentafit.billing.dto.NfeItemRequest;
 import br.com.rentafit.people.domain.Customer;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,51 +15,104 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-@DisplayName("NfeXmlBuilder - montagem do XML infNFe (modelo 55)")
+@DisplayName("NfeXmlBuilder - montagem do XML NF-e v4.00 (modelo 55)")
 class NfeXmlBuilderTest {
 
-    private final NfeXmlBuilder builder = new NfeXmlBuilder();
+    private NfeXmlBuilder builder;
+
+    @BeforeEach
+    void setUp() {
+        builder = new NfeXmlBuilder();
+        ReflectionTestUtils.setField(builder, "emitCnpj", "00000000000191");
+        ReflectionTestUtils.setField(builder, "ufCode", "35");
+        ReflectionTestUtils.setField(builder, "serie", "1");
+        ReflectionTestUtils.setField(builder, "tpAmb", "2");
+        ReflectionTestUtils.setField(builder, "emitRazaoSocial", "Emitente Homologacao");
+        ReflectionTestUtils.setField(builder, "emitIe", "123456789");
+        ReflectionTestUtils.setField(builder, "emitCrt", "3");
+        ReflectionTestUtils.setField(builder, "emitLogradouro", "Rua Teste");
+        ReflectionTestUtils.setField(builder, "emitNumero", "0");
+        ReflectionTestUtils.setField(builder, "emitBairro", "Centro");
+        ReflectionTestUtils.setField(builder, "emitMunicipioCodigo", "3550308");
+        ReflectionTestUtils.setField(builder, "emitMunicipioNome", "Sao Paulo");
+        ReflectionTestUtils.setField(builder, "emitUf", "SP");
+        ReflectionTestUtils.setField(builder, "emitCep", "00000000");
+        ReflectionTestUtils.setField(builder, "emitPaisCodigo", "1058");
+        ReflectionTestUtils.setField(builder, "emitPaisNome", "BRASIL");
+        ReflectionTestUtils.setField(builder, "verProc", "1.0");
+    }
 
     @Test
-    @DisplayName("buildXml() gera XML com elemento infNFe")
-    void buildXml_contemInfNFe() {
+    @DisplayName("buildXml() gera XML com elemento infNFe e Id=NFe{chave}")
+    void buildXml_contemInfNFeEId() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("infNFe");
-    }
-
-    @Test
-    @DisplayName("buildXml() inclui atributo Id no formato NFe{chave}")
-    void buildXml_contemIdComPrefixoNFe() {
-        String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("Id=\"NFe");
-    }
-
-    @Test
-    @DisplayName("buildXml() define modelo 55")
-    void buildXml_contemModelo55() {
-        String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("<mod>55</mod>");
     }
 
     @Test
-    @DisplayName("buildXml() inclui CNPJ do emitente")
-    void buildXml_contemCnpjEmitente() {
+    @DisplayName("buildXml() preenche ide com campos obrigatórios")
+    void buildXml_contemIdeCompleta() {
+        String xml = builder.buildXml(requestPadrao(), clientePadrao());
+        assertThat(xml).contains("<cUF>35</cUF>");
+        assertThat(xml).contains("<nNF>");
+        assertThat(xml).contains("<cNF>");
+        assertThat(xml).contains("<tpAmb>2</tpAmb>");
+        assertThat(xml).contains("<finNFe>1</finNFe>");
+        assertThat(xml).contains("<indFinal>0</indFinal>");
+        assertThat(xml).contains("<indPres>0</indPres>");
+        assertThat(xml).contains("<procEmi>0</procEmi>");
+        assertThat(xml).contains("<verProc>1.0</verProc>");
+    }
+
+    @Test
+    @DisplayName("buildXml() preenche emit com CNPJ, razão social, endereço, IE e CRT")
+    void buildXml_contemEmitCompleto() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("00000000000191");
+        assertThat(xml).contains("<xNome>Emitente Homologacao</xNome>");
+        assertThat(xml).contains("<enderEmit>");
+        assertThat(xml).contains("<IE>123456789</IE>");
+        assertThat(xml).contains("<CRT>3</CRT>");
     }
 
     @Test
-    @DisplayName("buildXml() inclui documento do destinatário")
-    void buildXml_contemDocumentoDestinatario() {
+    @DisplayName("buildXml() preenche dest com documento, nome, endereço e indIEDest")
+    void buildXml_contemDestCompleto() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("12345678901");
+        assertThat(xml).contains("<xNome>Cliente Teste</xNome>");
+        assertThat(xml).contains("<enderDest>");
+        assertThat(xml).contains("<indIEDest>9</indIEDest>");
     }
 
     @Test
-    @DisplayName("buildXml() inclui NCM e CFOP do item")
-    void buildXml_contemNcmCfop() {
+    @DisplayName("buildXml() gera det com prod, imposto ICMS00, PIS e COFINS")
+    void buildXml_contemDetComImpostos() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
-        assertThat(xml).contains("61091000").contains("5102");
+        assertThat(xml).contains("<det nItem=\"1\">");
+        assertThat(xml).contains("<ICMS00>");
+        assertThat(xml).contains("<PISNT>");
+        assertThat(xml).contains("<COFINSNT>");
+    }
+
+    @Test
+    @DisplayName("buildXml() gera total com ICMSTot e vNF igual ao total dos produtos")
+    void buildXml_contemTotal() {
+        String xml = builder.buildXml(requestPadrao(), clientePadrao());
+        assertThat(xml).contains("<ICMSTot>");
+        assertThat(xml).contains("<vProd>100.00</vProd>");
+        assertThat(xml).contains("<vNF>100.00</vNF>");
+    }
+
+    @Test
+    @DisplayName("buildXml() gera transp e pag")
+    void buildXml_contemTranspEPag() {
+        String xml = builder.buildXml(requestPadrao(), clientePadrao());
+        assertThat(xml).contains("<transp><modFrete>9</modFrete></transp>");
+        assertThat(xml).contains("<pag>");
+        assertThat(xml).contains("<detPag>");
     }
 
     @Test
@@ -71,6 +126,13 @@ class NfeXmlBuilderTest {
     @DisplayName("buildXml() lança IllegalArgumentException quando request é null")
     void buildXml_lancaExcecao_requestNull() {
         assertThatThrownBy(() -> builder.buildXml(null, clientePadrao()))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("buildXml() lança IllegalArgumentException quando customer é null")
+    void buildXml_lancaExcecao_customerNull() {
+        assertThatThrownBy(() -> builder.buildXml(requestPadrao(), null))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 

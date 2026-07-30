@@ -6,13 +6,20 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
+/**
+ * DTO para construção do XML DPS conforme XSD oficial NFS-e Nacional v1.01.
+ *
+ * <p>Exemplo: {@code DpsRequest.builder().versao("1.01").infDPS(...).build()}</p>
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class DpsRequest {
+    private String versao;
     private InfDPS infDPS;
 
     @Data
@@ -20,14 +27,19 @@ public class DpsRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class InfDPS {
-        private OffsetDateTime dhEmi;
-        private String pEmi;
+        private String id;
         private String tpAmb;
-        private String verAtu;
+        private OffsetDateTime dhEmi;
+        private String verAplic;
+        private String serie;
+        private String nDPS;
+        private LocalDate dCompet;
+        private String tpEmit;
+        private String cLocEmi;
         private Prestador prest;
         private Tomador toma;
         private Servico serv;
-        private Valores vals;
+        private Valores valores;
     }
 
     @Data
@@ -36,7 +48,18 @@ public class DpsRequest {
     @AllArgsConstructor
     public static class Prestador {
         private String CNPJ;
+        private String CPF;
         private String IM;
+        private RegTrib regTrib;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class RegTrib {
+        private String opSimpNac;
+        private String regEspTrib;
     }
 
     @Data
@@ -44,8 +67,9 @@ public class DpsRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Tomador {
-        private Identificacao identif;
-        private String nNome;
+        private String CNPJ;
+        private String CPF;
+        private String xNome;
         private Endereco end;
     }
 
@@ -53,21 +77,12 @@ public class DpsRequest {
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Identificacao {
-        private String CNPJ;
-        private String CPF;
-    }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class Endereco {
-        private String lograd;
-        private String nNum;
         private String cMun;
-        private String UF;
         private String CEP;
+        private String xLgr;
+        private String nro;
+        private String xBairro;
     }
 
     @Data
@@ -75,25 +90,26 @@ public class DpsRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Servico {
-        private LocServ locServ;
-        private IdServ idServ;
+        private LocPrest locPrest;
+        private CServ cServ;
     }
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class LocServ {
-        private String cMunServ;
+    public static class LocPrest {
+        private String cLocPrestacao;
     }
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class IdServ {
+    public static class CServ {
+        private String cTribNac;
+        private String xDescServ;
         private String cNBS;
-        private String desc;
     }
 
     @Data
@@ -101,34 +117,41 @@ public class DpsRequest {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Valores {
+        private VServPrest vServPrest;
+        private Trib trib;
+    }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class VServPrest {
         private BigDecimal vServ;
-        private Tributos tribut;
     }
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Tributos {
-        private Ibs ibs;
-        private Cbs cbs;
+    public static class Trib {
+        private TribMun tribMun;
+        private TotTrib totTrib;
     }
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Ibs {
-        private BigDecimal pAliq;
-        private BigDecimal vIBS;
+    public static class TribMun {
+        private String tribISSQN;
+        private String tpRetISSQN;
     }
 
     @Data
     @Builder
     @NoArgsConstructor
     @AllArgsConstructor
-    public static class Cbs {
-        private BigDecimal pAliq;
-        private BigDecimal vCBS;
+    public static class TotTrib {
+        private String indTotTrib;
     }
 }

@@ -40,7 +40,7 @@ class NfeSefazClientTest {
 
     @BeforeEach
     void setUp() {
-        client = new NfeSefazClient(webClient, "35");
+        client = new NfeSefazClient(webClient, "35", "https://homologacao.nfe.fazenda.sp.gov.br");
     }
 
     private String retornoComStatus(String cStat, String xMotivo) {
@@ -110,6 +110,27 @@ class NfeSefazClientTest {
     }
 
     @Test
+    @DisplayName("parseResponse() prioriza cStat do infProt sobre cStat do lote")
+    void parseResponse_priorizaInfProt_sobreLote() {
+        String retorno = "<retEnviNFe xmlns=\"http://www.portalfiscal.inf.br/nfe\">"
+                + "<cStat>104</cStat>"
+                + "<xMotivo>Lote processado</xMotivo>"
+                + "<protNFe><infProt>"
+                + "<chNFe>35200000000000000191550010000000011000000010</chNFe>"
+                + "<cStat>100</cStat>"
+                + "<xMotivo>Autorizado o uso da NF-e</xMotivo>"
+                + "<nProt>135200000000001</nProt>"
+                + "</infProt></protNFe></retEnviNFe>";
+
+        NfeResponse resp = client.parseResponse(retorno);
+
+        assertThat(resp.getCStat()).isEqualTo("100");
+        assertThat(resp.getXMotivo()).contains("Autorizado");
+        assertThat(resp.getStatus()).isEqualTo("AUTHORIZED");
+        assertThat(resp.getProtocol()).isEqualTo("135200000000001");
+    }
+
+    @Test
     @DisplayName("parseResponse() mapeia cStat 150 para status AUTHORIZED (fora de prazo)")
     void parseResponse_cStat150_autorizado() {
         NfeResponse resp = client.parseResponse(retornoComStatus("150", "Autorizado fora de prazo"));
@@ -153,7 +174,8 @@ class NfeSefazClientTest {
     @Test
     @DisplayName("transmit() envia body contendo envelope SOAP com nfeCabecMsg e enviNFe")
     void transmit_enviaEnvelopeSoapComCabecalhoELote() {
-        String signedXml = "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
+        String signedXml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                + "<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>";
         String retorno = retornoComStatus("100", "Autorizado");
         stubTransmitChain(200, retorno);
 
@@ -168,7 +190,13 @@ class NfeSefazClientTest {
         assertThat(body).contains("versaoDados>4.00");
         assertThat(body).contains("enviNFe");
         assertThat(body).contains("<indSinc>1</indSinc>");
-        assertThat(body).contains(signedXml);
+        assertThat(body).contains("<NFe xmlns=\"http://www.portalfiscal.inf.br/nfe\"><infNFe>test</infNFe></NFe>");
+        assertThat(body).doesNotContain("<enviNFe" + System.lineSeparator());
+        assertThat(body).doesNotContain("<?xml version=\"1.0\" encoding=\"UTF-8\"?><enviNFe");
+        int enviNFeIdx = body.indexOf("<enviNFe");
+        assertThat(enviNFeIdx).isGreaterThan(0);
+        String afterEnviNFe = body.substring(enviNFeIdx);
+        assertThat(afterEnviNFe).doesNotContain("<?xml version");
 
         org.mockito.ArgumentCaptor<String> headerValueCaptor = org.mockito.ArgumentCaptor.forClass(String.class);
         org.mockito.Mockito.verify(requestBodySpec).header(org.mockito.ArgumentMatchers.eq("Content-Type"), headerValueCaptor.capture());

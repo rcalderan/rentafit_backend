@@ -12,6 +12,7 @@ receita/
 .copilot
 .devin
 .QA
+*sefaz-cacerts*
 
 ### Playwright ###
 .playwright*

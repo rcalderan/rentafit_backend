@@ -21,6 +21,7 @@ import reactor.core.publisher.Mono;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 /**
@@ -35,6 +36,7 @@ import java.time.OffsetDateTime;
 public class NfseEmissionService {
 
     private final NfseDpsXmlBuilder dpsXmlBuilder;
+    private final NfseDpsXsdValidator xsdValidator;
     private final NfseXmlSigner xmlSigner;
     private final NfsePortalClient portalClient;
     private final FiscalDocumentService fiscalDocumentService;
@@ -48,6 +50,15 @@ public class NfseEmissionService {
 
     @Value("${nfs-e.ambiente:2}")
     private String ambiente;
+
+    @Value("${nfs-e.prestador.cLocEmi:3550308}")
+    private String cLocEmi;
+
+    @Value("${nfs-e.dps.serie:1}")
+    private String serieDps;
+
+    @Value("${nfs-e.dps.cTribNac:140201}")
+    private String cTribNacPadrao;
 
     @Value("${nfs-e.tributos.ibs.aliquota:0.025}")
     private BigDecimal ibsAliquotaPadrao;
@@ -64,10 +75,13 @@ public class NfseEmissionService {
                     TaxInfo taxes = calcularTributos(request);
                     DpsRequest dpsReq = buildDpsRequest(c, request, taxes);
                     String rawXml = dpsXmlBuilder.buildXml(dpsReq);
+                    xsdValidator.validate(rawXml);
                     String signedXml = xmlSigner.sign(rawXml);
                     return new Object[]{c, taxes, signedXml};
                 })
-                .onErrorMap(e -> !(e instanceof ResourceNotFoundException) && !(e instanceof IllegalStateException)
+                .onErrorMap(e -> !(e instanceof ResourceNotFoundException)
+                                && !(e instanceof IllegalStateException)
+                                && !(e instanceof br.com.rentafit.common.exception.ValidationException)
                                 ? new IllegalStateException("Falha ao preparar emissão: " + e.getMessage(), e)
                                 : e)
                 .flatMap(parts -> {
@@ -126,43 +140,66 @@ public class NfseEmissionService {
     }
 
     private DpsRequest buildDpsRequest(Customer customer, InvoiceEmissionRequestDTO req, TaxInfo taxes) {
-        DpsRequest.Identificacao identif = customer.getDocument().length() == 14
-                ? DpsRequest.Identificacao.builder().CNPJ(customer.getDocument()).build()
-                : DpsRequest.Identificacao.builder().CPF(customer.getDocument()).build();
+        String doc = customer.getDocument();
+        boolean isCnpj = doc.length() == 14;
+        String tpInsc = isCnpj ? "1" : "2";
+        String inscFed = isCnpj ? doc : String.format("%14s", doc).replace(' ', '0');
+        String serie = String.format("%05d", Integer.parseInt(serieDps));
+        String nDPS = String.format("%015d", System.currentTimeMillis() % 1000000000000000L);
+        String dpsId = "DPS" + cLocEmi + tpInsc + inscFed + serie + nDPS;
+
+        DpsRequest.Prestador prest = DpsRequest.Prestador.builder()
+                .CNPJ(prestadorCnpj)
+                .IM(prestadorIm != null && !prestadorIm.isBlank() ? prestadorIm : null)
+                .regTrib(DpsRequest.RegTrib.builder()
+                        .opSimpNac("1")
+                        .regEspTrib("0")
+                        .build())
+                .build();
+
+        DpsRequest.Tomador.TomadorBuilder tomaBuilder = DpsRequest.Tomador.builder()
+                .xNome(customer.getName());
+        if (isCnpj) {
+            tomaBuilder.CNPJ(doc);
+        } else {
+            tomaBuilder.CPF(doc);
+        }
 
         return DpsRequest.builder()
+                .versao("1.01")
                 .infDPS(DpsRequest.InfDPS.builder()
-                        .dhEmi(OffsetDateTime.now())
-                        .pEmi("1")
+                        .id(dpsId)
                         .tpAmb(ambiente)
-                        .verAtu("1.00")
-                        .prest(DpsRequest.Prestador.builder()
-                                .CNPJ(prestadorCnpj)
-                                .IM(prestadorIm)
-                                .build())
-                        .toma(DpsRequest.Tomador.builder()
-                                .identif(identif)
-                                .nNome(customer.getName())
-                                .build())
+                        .dhEmi(OffsetDateTime.now())
+                        .verAplic("Rentafit-1.00")
+                        .serie(serie)
+                        .nDPS(nDPS)
+                        .dCompet(LocalDate.now())
+                        .tpEmit("1")
+                        .cLocEmi(cLocEmi)
+                        .prest(prest)
+                        .toma(tomaBuilder.build())
                         .serv(DpsRequest.Servico.builder()
-                                .locServ(DpsRequest.LocServ.builder()
-                                        .cMunServ(req.getCityCode())
+                                .locPrest(DpsRequest.LocPrest.builder()
+                                        .cLocPrestacao(req.getCityCode())
                                         .build())
-                                .idServ(DpsRequest.IdServ.builder()
+                                .cServ(DpsRequest.CServ.builder()
+                                        .cTribNac(cTribNacPadrao)
+                                        .xDescServ(req.getServiceDescription())
                                         .cNBS(req.getNbsCode())
-                                        .desc(req.getServiceDescription())
                                         .build())
                                 .build())
-                        .vals(DpsRequest.Valores.builder()
-                                .vServ(req.getServiceValue())
-                                .tribut(DpsRequest.Tributos.builder()
-                                        .ibs(DpsRequest.Ibs.builder()
-                                                .pAliq(taxes.getIbsRate())
-                                                .vIBS(taxes.getIbsValue())
+                        .valores(DpsRequest.Valores.builder()
+                                .vServPrest(DpsRequest.VServPrest.builder()
+                                        .vServ(req.getServiceValue())
+                                        .build())
+                                .trib(DpsRequest.Trib.builder()
+                                        .tribMun(DpsRequest.TribMun.builder()
+                                                .tribISSQN("1")
+                                                .tpRetISSQN("1")
                                                 .build())
-                                        .cbs(DpsRequest.Cbs.builder()
-                                                .pAliq(taxes.getCbsRate())
-                                                .vCBS(taxes.getCbsValue())
+                                        .totTrib(DpsRequest.TotTrib.builder()
+                                                .indTotTrib("0")
                                                 .build())
                                         .build())
                                 .build())

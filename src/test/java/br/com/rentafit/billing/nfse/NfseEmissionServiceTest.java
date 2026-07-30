@@ -10,6 +10,7 @@ import br.com.rentafit.billing.dto.InvoiceEmissionRequestDTO;
 import br.com.rentafit.billing.dto.InvoiceEmissionResponseDTO;
 import br.com.rentafit.billing.service.FiscalDocumentService;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
+import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.repository.CustomerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +37,7 @@ import static org.mockito.Mockito.*;
 class NfseEmissionServiceTest {
 
     @Mock NfseDpsXmlBuilder dpsXmlBuilder;
+    @Mock NfseDpsXsdValidator xsdValidator;
     @Mock NfseXmlSigner xmlSigner;
     @Mock NfsePortalClient portalClient;
     @Mock FiscalDocumentService fiscalDocumentService;
@@ -54,6 +56,12 @@ class NfseEmissionServiceTest {
                 emissionService, "prestadorCnpj", "00000000000000");
         org.springframework.test.util.ReflectionTestUtils.setField(
                 emissionService, "ambiente", "2");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                emissionService, "cLocEmi", "3550308");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                emissionService, "serieDps", "1");
+        org.springframework.test.util.ReflectionTestUtils.setField(
+                emissionService, "cTribNacPadrao", "140201");
     }
 
     @Test
@@ -135,6 +143,27 @@ class NfseEmissionServiceTest {
                 .assertNext(resp -> assertThat(resp.getTaxes().getIbsRate())
                         .isEqualByComparingTo(new BigDecimal("0.025")))
                 .verifyComplete();
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("emit() lança ValidationException quando XSD rejeita o XML")
+    void emit_lancaValidationException_quandoXsdFalha() throws Exception {
+        UUID customerId = UUID.randomUUID();
+        when(customerRepository.findById(customerId)).thenReturn(Optional.of(clienteBase(customerId)));
+        when(dpsXmlBuilder.buildXml(any(DpsRequest.class))).thenReturn("<invalid/>");
+        doThrow(new ValidationException("XSD falhou: elemento ausente"))
+                .when(xsdValidator).validate("<invalid/>");
+
+        Mono<InvoiceEmissionResponseDTO> result = emissionService.emit(requestPadrao(customerId, UUID.randomUUID()));
+
+        StepVerifier.create(result)
+                .expectError(ValidationException.class)
+                .verify();
+
+        verify(xmlSigner, never()).sign(any());
+        verify(portalClient, never()).sendDps(any());
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────

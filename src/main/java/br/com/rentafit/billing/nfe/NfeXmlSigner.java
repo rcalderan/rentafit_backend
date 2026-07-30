@@ -73,22 +73,72 @@ public class NfeXmlSigner {
         }
         infNFe.setIdAttribute("Id", true);
 
-        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA256);
+        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA1);
         infNFe.getParentNode().appendChild(sig.getElement());
 
         Transforms transforms = new Transforms(doc);
         transforms.addTransform(Transforms.TRANSFORM_ENVELOPED_SIGNATURE);
-        transforms.addTransform(Transforms.TRANSFORM_C14N_EXCL_OMIT_COMMENTS);
-        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA256);
+        transforms.addTransform(Transforms.TRANSFORM_C14N_OMIT_COMMENTS);
+        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA1);
 
         sig.addKeyInfo(certificateProvider.certificate());
+
+        // Clean all whitespace text nodes in DOM BEFORE signing
+        removeWhitespaceTextNodes(doc.getDocumentElement());
+
         sig.sign(certificateProvider.privateKey());
 
+        // Clean any whitespace introduced in KeyInfo or post-signing
+        removeWhitespaceTextNodes(sig.getElement());
+        stripLineBreaksFromElement(doc, "SignatureValue");
+        stripLineBreaksFromElement(doc, "X509Certificate");
+
         Transformer transformer = TransformerFactory.newInstance().newTransformer();
+        transformer.setOutputProperty(javax.xml.transform.OutputKeys.INDENT, "no");
+        transformer.setOutputProperty(javax.xml.transform.OutputKeys.OMIT_XML_DECLARATION, "yes");
         StringWriter writer = new StringWriter();
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
 
+        String result = writer.toString()
+                .replace("\r", "")
+                .replace("\n", "")
+                .replace("\t", "")
+                .replaceAll(">\\s+<", "><");
+
+        if (log.isTraceEnabled()) {
+            java.util.regex.Matcher ws = java.util.regex.Pattern.compile(">\\s+<").matcher(result);
+            if (ws.find()) {
+                log.warn("XML assinado ainda contem whitespace entre tags apos strip! Posicao: {}, trecho: [{}]",
+                        ws.start(), result.substring(Math.max(0, ws.start() - 30), ws.end() + 30));
+            }
+        }
         log.debug("NF-e assinada com sucesso (Id={})", id);
-        return writer.toString();
+        return result;
+    }
+
+    private void removeWhitespaceTextNodes(org.w3c.dom.Node node) {
+        var children = node.getChildNodes();
+        for (int i = children.getLength() - 1; i >= 0; i--) {
+            var child = children.item(i);
+            if (child.getNodeType() == org.w3c.dom.Node.TEXT_NODE) {
+                String text = child.getTextContent();
+                if (text != null && text.isBlank()) {
+                    node.removeChild(child);
+                }
+            } else {
+                removeWhitespaceTextNodes(child);
+            }
+        }
+    }
+
+    private void stripLineBreaksFromElement(Document doc, String localName) {
+        var nodes = doc.getElementsByTagNameNS("http://www.w3.org/2000/09/xmldsig#", localName);
+        for (int i = 0; i < nodes.getLength(); i++) {
+            var node = nodes.item(i);
+            String text = node.getTextContent();
+            if (text != null && (text.contains("\r") || text.contains("\n"))) {
+                node.setTextContent(text.replace("\r", "").replace("\n", ""));
+            }
+        }
     }
 }

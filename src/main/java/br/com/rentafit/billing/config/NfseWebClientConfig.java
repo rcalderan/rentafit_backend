@@ -35,6 +35,9 @@ public class NfseWebClientConfig {
     @Value("${nf-e.sefaz.url:https://homologacao.nfe.fazenda.sp.gov.br}")
     private String sefazBaseUrl;
 
+    @Value("${nfs-e.http.wiretap:false}")
+    private boolean wiretapEnabled;
+
     /**
      * WebClient para chamadas à API NFS-e (DPS, consultas, eventos).
      * Usa mTLS com certificado ICP-Brasil.
@@ -91,7 +94,16 @@ public class NfseWebClientConfig {
 
             HttpClient httpClient = HttpClient.create()
                     .compress(true)
-                    .secure(sslContextSpec -> sslContextSpec.sslContext(sslContext));
+                    .responseTimeout(java.time.Duration.ofSeconds(60))
+                    .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 60000)
+                    .secure(sslContextSpec -> sslContextSpec
+                            .sslContext(sslContext)
+                            .handshakeTimeout(java.time.Duration.ofSeconds(60)));
+
+            if (wiretapEnabled) {
+                httpClient = httpClient.wiretap(true);
+                log.warn("{} com wiretap HABILITADO - trafego HTTP/TLS completo sera logado (uso apenas local).", nomeCliente);
+            }
 
             log.info("{} configurado com mTLS para: {}", nomeCliente, baseUrl);
 
