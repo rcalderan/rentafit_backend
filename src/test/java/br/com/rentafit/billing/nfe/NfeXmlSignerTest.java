@@ -115,8 +115,8 @@ class NfeXmlSignerTest {
     }
 
     @Test
-    @DisplayName("sign() produz XML com algoritmo RSA-SHA256 e digest SHA256 (NT2016.002)")
-    void sign_usaAlgoritmoSha256() throws Exception {
+    @DisplayName("sign() produz XML com algoritmo RSA-SHA1 e digest SHA1 (schema PL_010)")
+    void sign_usaAlgoritmoSha1() throws Exception {
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
         kpg.initialize(2048);
         KeyPair keyPair = kpg.generateKeyPair();
@@ -132,9 +132,9 @@ class NfeXmlSignerTest {
         String signedXml = signer.sign(XML_NFE);
 
         assertThat(signedXml)
-                .contains("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
-                .contains("http://www.w3.org/2001/04/xmlenc#sha256")
-                .doesNotContain("rsa-sha1")
-                .doesNotContain("#sha1");
+                .contains("http://www.w3.org/2000/09/xmldsig#rsa-sha1")
+                .contains("http://www.w3.org/2000/09/xmldsig#sha1")
+                .doesNotContain("rsa-sha256")
+                .doesNotContain("#sha256");
     }
 }

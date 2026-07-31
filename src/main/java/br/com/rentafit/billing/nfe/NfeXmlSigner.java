@@ -75,14 +75,14 @@ public class NfeXmlSigner {
         }
         infNFe.setIdAttribute("Id", true);
 
-        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA256,
+        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA1,
                 Canonicalizer.ALGO_ID_C14N_OMIT_COMMENTS);
         infNFe.getParentNode().appendChild(sig.getElement());
 
         Transforms transforms = new Transforms(doc);
         transforms.addTransform(Transforms.TRANSFORM_ENVELOPED_SIGNATURE);
         transforms.addTransform(Transforms.TRANSFORM_C14N_OMIT_COMMENTS);
-        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA256);
+        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA1);
 
         X509Certificate cert = certificateProvider.certificate();
         if (cert == null) {
