@@ -47,4 +47,10 @@ public class NfeItemRequest {
     @DecimalMin(value = "0.01", message = "Valor unitário deve ser maior que zero")
     @Schema(description = "Valor unitário comercial")
     private BigDecimal unitValue;
+
+    @Schema(description = "CEST (Código Especificador da Substituição Tributária)")
+    private String cest;
+
+    @Schema(description = "Indicador de escala relevante (S/N)", allowableValues = {"S", "N"})
+    private String indEscala;
 }

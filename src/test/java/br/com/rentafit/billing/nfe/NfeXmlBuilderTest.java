@@ -116,6 +116,14 @@ class NfeXmlBuilderTest {
     }
 
     @Test
+    @DisplayName("buildXml() gera vPag 0.00 quando meio de pagamento for sem pagamento (tPag=90)")
+    void buildXml_vPagZero_quandoSemPagamento() {
+        String xml = builder.buildXml(requestPadrao(), clientePadrao());
+        assertThat(xml).contains("<tPag>90</tPag>");
+        assertThat(xml).contains("<vPag>0.00</vPag>");
+    }
+
+    @Test
     @DisplayName("buildXml() inclui natureza da operação")
     void buildXml_contemNaturezaOperacao() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());

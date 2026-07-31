@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.HttpProtocol;
 import reactor.netty.http.client.HttpClient;
 
 import javax.net.ssl.KeyManagerFactory;
@@ -93,6 +94,7 @@ public class NfseWebClientConfig {
             SslContext sslContext = sslBuilder.build();
 
             HttpClient httpClient = HttpClient.create()
+                    .protocol(HttpProtocol.HTTP11)
                     .compress(true)
                     .responseTimeout(java.time.Duration.ofSeconds(60))
                     .option(io.netty.channel.ChannelOption.CONNECT_TIMEOUT_MILLIS, 60000)

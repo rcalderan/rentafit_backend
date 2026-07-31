@@ -43,6 +43,12 @@ public class NfeXmlBuilder {
     @Value("${nf-e.emit.razao-social:Emitente Homologacao}")
     private String emitRazaoSocial;
 
+    @Value("${nf-e.emit.nome-fantasia:}")
+    private String emitNomeFantasia;
+
+    @Value("${nf-e.emit.fone:}")
+    private String emitFone;
+
     @Value("${nf-e.emit.ie:123456789}")
     private String emitIe;
 
@@ -122,6 +128,7 @@ public class NfeXmlBuilder {
 
         sb.append(buildTotal(request.getItems()));
         sb.append("<transp><modFrete>9</modFrete></transp>");
+        sb.append(buildCobr(nNF, request.getItems()));
         sb.append(buildPag(request.getItems()));
 
         sb.append("</infNFe>");
@@ -139,6 +146,7 @@ public class NfeXmlBuilder {
         sb.append("<serie>").append(esc(serie)).append("</serie>");
         sb.append("<nNF>").append(nNF).append("</nNF>");
         sb.append("<dhEmi>").append(ISO_FMT.format(dhEmi)).append("</dhEmi>");
+        sb.append("<dhSaiEnt>").append(ISO_FMT.format(dhEmi)).append("</dhSaiEnt>");
         sb.append("<tpNF>1</tpNF>");
         sb.append("<idDest>1</idDest>");
         sb.append("<cMunFG>").append(esc(emitMunicipioCodigo)).append("</cMunFG>");
@@ -147,7 +155,7 @@ public class NfeXmlBuilder {
         sb.append("<cDV>").append(cDV).append("</cDV>");
         sb.append("<tpAmb>").append(esc(tpAmb)).append("</tpAmb>");
         sb.append("<finNFe>1</finNFe>");
-        sb.append("<indFinal>0</indFinal>");
+        sb.append("<indFinal>1</indFinal>");
         sb.append("<indPres>0</indPres>");
         sb.append("<procEmi>0</procEmi>");
         sb.append("<verProc>").append(esc(verProc)).append("</verProc>");
@@ -160,6 +168,9 @@ public class NfeXmlBuilder {
         sb.append("<emit>");
         sb.append("<CNPJ>").append(somenteDigitos(emitCnpj, 14)).append("</CNPJ>");
         sb.append("<xNome>").append(esc(emitRazaoSocial)).append("</xNome>");
+        if (emitNomeFantasia != null && !emitNomeFantasia.isBlank()) {
+            sb.append("<xFant>").append(esc(emitNomeFantasia)).append("</xFant>");
+        }
         sb.append("<enderEmit>");
         sb.append("<xLgr>").append(esc(emitLogradouro)).append("</xLgr>");
         sb.append("<nro>").append(esc(emitNumero)).append("</nro>");
@@ -170,6 +181,9 @@ public class NfeXmlBuilder {
         sb.append("<CEP>").append(somenteDigitos(emitCep, 8)).append("</CEP>");
         sb.append("<cPais>").append(esc(emitPaisCodigo)).append("</cPais>");
         sb.append("<xPais>").append(esc(emitPaisNome)).append("</xPais>");
+        if (emitFone != null && !emitFone.isBlank()) {
+            sb.append("<fone>").append(somenteDigitos(emitFone)).append("</fone>");
+        }
         sb.append("</enderEmit>");
         sb.append("<IE>").append(esc(emitIe)).append("</IE>");
         sb.append("<CRT>").append(esc(emitCrt)).append("</CRT>");
@@ -222,6 +236,12 @@ public class NfeXmlBuilder {
         sb.append("<qCom>").append(formatarDecimal(qCom)).append("</qCom>");
         sb.append("<vUnCom>").append(formatarDecimal(vUnCom)).append("</vUnCom>");
         sb.append("<vProd>").append(formatarDecimal(vProd)).append("</vProd>");
+        if (item.getCest() != null && !item.getCest().isBlank()) {
+            sb.append("<CEST>").append(esc(item.getCest())).append("</CEST>");
+            if (item.getIndEscala() != null && !item.getIndEscala().isBlank()) {
+                sb.append("<indEscala>").append(esc(item.getIndEscala())).append("</indEscala>");
+            }
+        }
         sb.append("<cEANTrib>SEM GTIN</cEANTrib>");
         sb.append("<uTrib>").append(esc(item.getUnit())).append("</uTrib>");
         sb.append("<qTrib>").append(formatarDecimal(qCom)).append("</qTrib>");
@@ -279,12 +299,26 @@ public class NfeXmlBuilder {
         return sb.toString();
     }
 
+    private String buildCobr(String nNF, List<NfeItemRequest> items) {
+        BigDecimal vNF = totalProdutos(items);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("<cobr>");
+        sb.append("<fat>");
+        sb.append("<nFat>").append(nNF).append("</nFat>");
+        sb.append("<vOrig>").append(formatarDecimal(vNF)).append("</vOrig>");
+        sb.append("<vLiq>").append(formatarDecimal(vNF)).append("</vLiq>");
+        sb.append("</fat>");
+        sb.append("</cobr>");
+        return sb.toString();
+    }
+
     private String buildPag(List<NfeItemRequest> items) {
         BigDecimal vPag = totalProdutos(items);
         StringBuilder sb = new StringBuilder();
         sb.append("<pag>");
         sb.append("<detPag>");
-        sb.append("<tPag>90</tPag>");
+        sb.append("<tPag>01</tPag>");
         sb.append("<vPag>").append(formatarDecimal(vPag)).append("</vPag>");
         sb.append("</detPag>");
         sb.append("</pag>");
