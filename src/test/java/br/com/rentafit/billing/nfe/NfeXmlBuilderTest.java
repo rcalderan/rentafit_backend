@@ -60,7 +60,7 @@ class NfeXmlBuilderTest {
         assertThat(xml).contains("<cNF>");
         assertThat(xml).contains("<tpAmb>2</tpAmb>");
         assertThat(xml).contains("<finNFe>1</finNFe>");
-        assertThat(xml).contains("<indFinal>0</indFinal>");
+        assertThat(xml).contains("<indFinal>1</indFinal>");
         assertThat(xml).contains("<indPres>0</indPres>");
         assertThat(xml).contains("<procEmi>0</procEmi>");
         assertThat(xml).contains("<verProc>1.0</verProc>");
@@ -78,23 +78,43 @@ class NfeXmlBuilderTest {
     }
 
     @Test
-    @DisplayName("buildXml() preenche dest com documento, nome, endereço e indIEDest")
+    @DisplayName("buildXml() preenche dest com documento, endereço e indIEDest")
     void buildXml_contemDestCompleto() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("12345678901");
-        assertThat(xml).contains("<xNome>Cliente Teste</xNome>");
         assertThat(xml).contains("<enderDest>");
         assertThat(xml).contains("<indIEDest>9</indIEDest>");
     }
 
     @Test
-    @DisplayName("buildXml() gera det com prod, imposto ICMS00, PIS e COFINS")
+    @DisplayName("buildXml() força xNome do dest com texto exigido pela SEFAZ em homologação (Rejeição 598)")
+    void buildXml_forcaXNomeDestEmHomologacao() {
+        ReflectionTestUtils.setField(builder, "tpAmb", "2");
+        String xml = builder.buildXml(requestPadrao(), clientePadrao());
+        assertThat(xml).contains("<xNome>NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL</xNome>");
+        assertThat(xml).doesNotContain("<xNome>Cliente Teste</xNome>");
+    }
+
+    @Test
+    @DisplayName("buildXml() usa o nome real do cliente no dest quando em produção")
+    void buildXml_usaNomeClienteReal_quandoProducao() {
+        ReflectionTestUtils.setField(builder, "tpAmb", "1");
+        String xml = builder.buildXml(requestPadrao(), clientePadrao());
+        assertThat(xml).contains("<xNome>Cliente Teste</xNome>");
+        assertThat(xml).doesNotContain("SEM VALOR FISCAL");
+    }
+
+    @Test
+    @DisplayName("buildXml() gera det com prod, imposto ICMS40 (Regime Normal), PIS, COFINS e IBSCBS")
     void buildXml_contemDetComImpostos() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
         assertThat(xml).contains("<det nItem=\"1\">");
-        assertThat(xml).contains("<ICMS00>");
-        assertThat(xml).contains("<PISNT>");
-        assertThat(xml).contains("<COFINSNT>");
+        assertThat(xml).contains("<ICMS40>");
+        assertThat(xml).contains("<CST>41</CST>");
+        assertThat(xml).contains("<PISOutr>");
+        assertThat(xml).contains("<COFINSOutr>");
+        assertThat(xml).contains("<IBSCBS>");
+        assertThat(xml).contains("<cClassTrib>000001</cClassTrib>");
     }
 
     @Test
@@ -116,11 +136,11 @@ class NfeXmlBuilderTest {
     }
 
     @Test
-    @DisplayName("buildXml() gera vPag 0.00 quando meio de pagamento for sem pagamento (tPag=90)")
-    void buildXml_vPagZero_quandoSemPagamento() {
+    @DisplayName("buildXml() gera pag com tPag=01 (dinheiro) e vPag igual ao total da nota")
+    void buildXml_pagDinheiro_comVPagIgualTotal() {
         String xml = builder.buildXml(requestPadrao(), clientePadrao());
-        assertThat(xml).contains("<tPag>90</tPag>");
-        assertThat(xml).contains("<vPag>0.00</vPag>");
+        assertThat(xml).contains("<tPag>01</tPag>");
+        assertThat(xml).contains("<vPag>100.00</vPag>");
     }
 
     @Test

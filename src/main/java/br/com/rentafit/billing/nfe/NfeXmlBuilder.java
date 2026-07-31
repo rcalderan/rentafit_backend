@@ -27,6 +27,9 @@ public class NfeXmlBuilder {
     /** Formato exigido pelo schema para dhEmi: sem frações de segundo. */
     private static final DateTimeFormatter ISO_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXXX");
     private static final String NFE_NS = "http://www.portalfiscal.inf.br/nfe";
+    /** Rejeição 598: em homologação (tpAmb=2) a SEFAZ exige xNome do destinatário exatamente com este texto. */
+    private static final String XNOME_DEST_HOMOLOGACAO = "NF-E EMITIDA EM AMBIENTE DE HOMOLOGACAO - SEM VALOR FISCAL";
+    private static final String TP_AMB_HOMOLOGACAO = "2";
 
     @Value("${nf-e.emit.cnpj:00000000000191}")
     private String emitCnpj;
@@ -52,7 +55,7 @@ public class NfeXmlBuilder {
     @Value("${nf-e.emit.ie:123456789}")
     private String emitIe;
 
-    @Value("${nf-e.emit.crt:3}")
+    @Value("${nf-e.emit.crt:1}")
     private String emitCrt;
 
     @Value("${nf-e.emit.endereco.logradouro:Rua Teste}")
@@ -202,7 +205,8 @@ public class NfeXmlBuilder {
         } else {
             sb.append("<idEstrangeiro>").append(esc(customer.getDocument())).append("</idEstrangeiro>");
         }
-        sb.append("<xNome>").append(esc(customer.getName())).append("</xNome>");
+        String xNomeDest = TP_AMB_HOMOLOGACAO.equals(tpAmb) ? XNOME_DEST_HOMOLOGACAO : customer.getName();
+        sb.append("<xNome>").append(esc(xNomeDest)).append("</xNome>");
         sb.append("<enderDest>");
         sb.append("<xLgr>Endereco nao informado</xLgr>");
         sb.append("<nro>S/N</nro>");
@@ -250,18 +254,35 @@ public class NfeXmlBuilder {
         sb.append("</prod>");
         sb.append("<imposto>");
         sb.append("<vTotTrib>0.00</vTotTrib>");
+
         sb.append("<ICMS>");
-        sb.append("<ICMS00>");
+        sb.append("<ICMS40>");
         sb.append("<orig>0</orig>");
-        sb.append("<CST>00</CST>");
-        sb.append("<modBC>3</modBC>");
-        sb.append("<vBC>0.00</vBC>");
-        sb.append("<pICMS>0.00</pICMS>");
-        sb.append("<vICMS>0.00</vICMS>");
-        sb.append("</ICMS00>");
+        sb.append("<CST>41</CST>");
+        sb.append("</ICMS40>");
         sb.append("</ICMS>");
-        sb.append("<PIS><PISNT><CST>07</CST></PISNT></PIS>");
-        sb.append("<COFINS><COFINSNT><CST>07</CST></COFINSNT></COFINS>");
+
+        sb.append("<PIS>");
+        sb.append("<PISOutr>");
+        sb.append("<CST>49</CST>");
+        sb.append("<vBC>0.00</vBC>");
+        sb.append("<pPIS>0.00</pPIS>");
+        sb.append("<vPIS>0.00</vPIS>");
+        sb.append("</PISOutr>");
+        sb.append("</PIS>");
+
+        sb.append("<COFINS>");
+        sb.append("<COFINSOutr>");
+        sb.append("<CST>49</CST>");
+        sb.append("<vBC>0.00</vBC>");
+        sb.append("<pCOFINS>0.00</pCOFINS>");
+        sb.append("<vCOFINS>0.00</vCOFINS>");
+        sb.append("</COFINSOutr>");
+        sb.append("</COFINS>");
+        sb.append("<IBSCBS>");
+        sb.append("<CST>000</CST>");
+        sb.append("<cClassTrib>000001</cClassTrib>");
+        sb.append("</IBSCBS>");
         sb.append("</imposto>");
         sb.append("</det>");
         return sb.toString();
