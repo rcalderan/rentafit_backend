@@ -67,10 +67,10 @@ public class NfeXmlBuilder {
     @Value("${nf-e.emit.endereco.bairro:Centro}")
     private String emitBairro;
 
-    @Value("${nf-e.emit.endereco.municipio:3550308}")
+    @Value("${nf-e.emit.endereco.municipio:3548906}")
     private String emitMunicipioCodigo;
 
-    @Value("${nf-e.emit.endereco.municipio-nome:Sao Paulo}")
+    @Value("${nf-e.emit.endereco.municipio-nome:Sao Carlos}")
     private String emitMunicipioNome;
 
     @Value("${nf-e.emit.endereco.uf:SP}")
@@ -255,37 +255,89 @@ public class NfeXmlBuilder {
         sb.append("<imposto>");
         sb.append("<vTotTrib>0.00</vTotTrib>");
 
-        sb.append("<ICMS>");
-        sb.append("<ICMS40>");
-        sb.append("<orig>0</orig>");
-        sb.append("<CST>41</CST>");
-        sb.append("</ICMS40>");
-        sb.append("</ICMS>");
-
-        sb.append("<PIS>");
-        sb.append("<PISOutr>");
-        sb.append("<CST>49</CST>");
-        sb.append("<vBC>0.00</vBC>");
-        sb.append("<pPIS>0.00</pPIS>");
-        sb.append("<vPIS>0.00</vPIS>");
-        sb.append("</PISOutr>");
-        sb.append("</PIS>");
-
-        sb.append("<COFINS>");
-        sb.append("<COFINSOutr>");
-        sb.append("<CST>49</CST>");
-        sb.append("<vBC>0.00</vBC>");
-        sb.append("<pCOFINS>0.00</pCOFINS>");
-        sb.append("<vCOFINS>0.00</vCOFINS>");
-        sb.append("</COFINSOutr>");
-        sb.append("</COFINS>");
-        sb.append("<IBSCBS>");
-        sb.append("<CST>000</CST>");
-        sb.append("<cClassTrib>000001</cClassTrib>");
-        sb.append("</IBSCBS>");
+        sb.append(buildIcms());
+        sb.append(buildPis());
+        sb.append(buildCofins());
+        sb.append(buildIbsCbs());
         sb.append("</imposto>");
         sb.append("</det>");
         return sb.toString();
+    }
+
+    private String buildIcms() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<ICMS>");
+        if (isRegimeNormal()) {
+            // CRT=3: ICMS40 cobre CST 40/41/50; 41 = Não tributada (locadora isenta)
+            sb.append("<ICMS40>");
+            sb.append("<orig>0</orig>");
+            sb.append("<CST>41</CST>");
+            sb.append("</ICMS40>");
+        } else {
+            // CRT=1/2/4: Simples Nacional, CSOSN 102 = Tributada SN sem permissão de crédito
+            sb.append("<ICMSSN102>");
+            sb.append("<orig>0</orig>");
+            sb.append("<CSOSN>102</CSOSN>");
+            sb.append("</ICMSSN102>");
+        }
+        sb.append("</ICMS>");
+        return sb.toString();
+    }
+
+    private String buildPis() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<PIS>");
+        if (isRegimeNormal()) {
+            sb.append("<PISOutr>");
+            sb.append("<CST>49</CST>");
+            sb.append("<vBC>0.00</vBC>");
+            sb.append("<pPIS>0.00</pPIS>");
+            sb.append("<vPIS>0.00</vPIS>");
+            sb.append("</PISOutr>"); 
+        } else {
+            sb.append("<PISNT>");
+            sb.append("<CST>07</CST>");
+            sb.append("</PISNT>");
+        }
+        sb.append("</PIS>");   
+        return sb.toString();
+    }
+
+    private String buildCofins() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<COFINS>");
+        if (isRegimeNormal()) {
+            sb.append("<COFINSOutr>");
+            sb.append("<CST>49</CST>");
+            sb.append("<vBC>0.00</vBC>");
+            sb.append("<pCOFINS>0.00</pCOFINS>");
+            sb.append("<vCOFINS>0.00</vCOFINS>");
+            sb.append("</COFINSOutr>");
+        } else {
+            sb.append("<COFINSNT>");
+            sb.append("<CST>07</CST>");
+            sb.append("</COFINSNT>");
+        }
+        sb.append("</COFINS>");
+        return sb.toString();
+    }
+
+    private String buildIbsCbs() {
+        // Simples Nacional (CRT=1/2/4) só tributa IBS/CBS a partir de 2027
+        // conforme Art. 348 da LC 214/25 e NT 2025.002. Orientações virão em NT futura.
+        if (!isRegimeNormal()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("<IBSCBS>");
+        sb.append("<CST>081</CST>");
+        sb.append("<cClassTrib>000001</cClassTrib>");
+        sb.append("</IBSCBS>");
+        return sb.toString();
+    }
+
+    private boolean isRegimeNormal() {
+        return "3".equals(emitCrt);
     }
 
     private String buildTotal(List<NfeItemRequest> items) {
@@ -316,6 +368,8 @@ public class NfeXmlBuilder {
         sb.append("<vNF>").append(formatarDecimal(vNF)).append("</vNF>");
         sb.append("<vTotTrib>0.00</vTotTrib>");
         sb.append("</ICMSTot>");
+        // IBSCBSTot omitido: Simples Nacional (CRT=1/2/4) só tributa IBS/CBS a partir de 2027
+        // conforme Art. 348 da LC 214/25 e NT 2025.002.
         sb.append("</total>");
         return sb.toString();
     }

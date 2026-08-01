@@ -7,6 +7,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
@@ -115,8 +116,11 @@ class NfeXmlSignerTest {
     }
 
     @Test
-    @DisplayName("sign() produz XML com algoritmo RSA-SHA1 e digest SHA1 (schema PL_010)")
-    void sign_usaAlgoritmoSha1() throws Exception {
+    @DisplayName("sign() produz XML com algoritmo RSA-SHA256 e digest SHA256 (SEFAZ-SP)")
+    void sign_usaAlgoritmoSha256() throws Exception {
+        // @InjectMocks não processa @Value; injeta manualmente o algoritmo configurado.
+        ReflectionTestUtils.setField(signer, "signatureAlgorithm", "SHA256");
+
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
         kpg.initialize(2048);
         KeyPair keyPair = kpg.generateKeyPair();
@@ -132,9 +136,9 @@ class NfeXmlSignerTest {
         String signedXml = signer.sign(XML_NFE);
 
         assertThat(signedXml)
-                .contains("http://www.w3.org/2000/09/xmldsig#rsa-sha1")
-                .contains("http://www.w3.org/2000/09/xmldsig#sha1")
-                .doesNotContain("rsa-sha256")
-                .doesNotContain("#sha256");
+                .contains("http://www.w3.org/2001/04/xmldsig-more#rsa-sha256")
+                .contains("http://www.w3.org/2001/04/xmlenc#sha256")
+                .doesNotContain("rsa-sha1")
+                .doesNotContain("#sha1");
     }
 }

@@ -8,6 +8,7 @@ import org.apache.xml.security.algorithms.MessageDigestAlgorithm;
 import org.apache.xml.security.c14n.Canonicalizer;
 import org.apache.xml.security.signature.XMLSignature;
 import org.apache.xml.security.transforms.Transforms;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -37,6 +38,10 @@ public class NfeXmlSigner {
     }
 
     private static final String NFE_NS = "http://www.portalfiscal.inf.br/nfe";
+
+    /** Algoritmo de assinatura configuravel via {@code nf-e.signature.algorithm} (SHA1 ou SHA256). */
+    @Value("${nf-e.signature.algorithm}")
+    private String signatureAlgorithm;
 
     private final FiscalCertificateProvider certificateProvider;
 
@@ -75,14 +80,16 @@ public class NfeXmlSigner {
         }
         infNFe.setIdAttribute("Id", true);
 
-        XMLSignature sig = new XMLSignature(doc, "", XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA1,
+        String sigAlgId = resolveSignatureAlgorithm(signatureAlgorithm);
+        String digestAlgId = resolveDigestAlgorithm(signatureAlgorithm);
+        XMLSignature sig = new XMLSignature(doc, "", sigAlgId,
                 Canonicalizer.ALGO_ID_C14N_OMIT_COMMENTS);
         infNFe.getParentNode().appendChild(sig.getElement());
 
         Transforms transforms = new Transforms(doc);
         transforms.addTransform(Transforms.TRANSFORM_ENVELOPED_SIGNATURE);
         transforms.addTransform(Transforms.TRANSFORM_C14N_OMIT_COMMENTS);
-        sig.addDocument("#" + id, transforms, MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA1);
+        sig.addDocument("#" + id, transforms, digestAlgId);
 
         X509Certificate cert = certificateProvider.certificate();
         if (cert == null) {
@@ -103,8 +110,48 @@ public class NfeXmlSigner {
         StringWriter writer = new StringWriter();
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
 
-        log.debug("NF-e assinada com sucesso (Id={})", id);
+        log.debug("NF-e assinada com sucesso (Id={}, algoritmo={})", id, signatureAlgorithm);
         return writer.toString();
+    }
+
+    /**
+     * Mapeia o valor da property {@code nf-e.signature.algorithm} para o identificador
+     * do algoritmo de assinatura do Apache Santuario.
+     *
+     * @param alias "SHA1" ou "SHA256" (case-insensitive)
+     * @return URI do algoritmo (ex.: {@link XMLSignature#ALGO_ID_SIGNATURE_RSA_SHA256})
+     * @throws IllegalArgumentException se o alias for diferente de SHA1/SHA256
+     */
+    private static String resolveSignatureAlgorithm(String alias) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("nf-e.signature.algorithm nao pode ser nulo ou vazio (use SHA1 ou SHA256)");
+        }
+        return switch (alias.trim().toUpperCase()) {
+            case "SHA1" -> XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA1;
+            case "SHA256" -> XMLSignature.ALGO_ID_SIGNATURE_RSA_SHA256;
+            default -> throw new IllegalArgumentException(
+                    "nf-e.signature.algorithm invalido: '" + alias + "'. Valores esperados: SHA1 ou SHA256");
+        };
+    }
+
+    /**
+     * Mapeia o valor da property {@code nf-e.signature.algorithm} para o identificador
+     * do algoritmo de digest do Apache Santuario.
+     *
+     * @param alias "SHA1" ou "SHA256" (case-insensitive)
+     * @return URI do algoritmo (ex.: {@link MessageDigestAlgorithm#ALGO_ID_DIGEST_SHA256})
+     * @throws IllegalArgumentException se o alias for diferente de SHA1/SHA256
+     */
+    private static String resolveDigestAlgorithm(String alias) {
+        if (alias == null || alias.isBlank()) {
+            throw new IllegalArgumentException("nf-e.signature.algorithm nao pode ser nulo ou vazio (use SHA1 ou SHA256)");
+        }
+        return switch (alias.trim().toUpperCase()) {
+            case "SHA1" -> MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA1;
+            case "SHA256" -> MessageDigestAlgorithm.ALGO_ID_DIGEST_SHA256;
+            default -> throw new IllegalArgumentException(
+                    "nf-e.signature.algorithm invalido: '" + alias + "'. Valores esperados: SHA1 ou SHA256");
+        };
     }
 
     private void removeWhitespaceTextNodes(org.w3c.dom.Node node) {
