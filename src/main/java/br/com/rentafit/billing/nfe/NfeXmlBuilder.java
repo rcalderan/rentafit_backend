@@ -149,7 +149,7 @@ public class NfeXmlBuilder {
         sb.append("<serie>").append(esc(serie)).append("</serie>");
         sb.append("<nNF>").append(nNF).append("</nNF>");
         sb.append("<dhEmi>").append(ISO_FMT.format(dhEmi)).append("</dhEmi>");
-        sb.append("<dhSaiEnt>").append(ISO_FMT.format(dhEmi)).append("</dhSaiEnt>");
+        // dhSaiEnt (B10) é 0-1 opcional; omitido quando não há saída física (regra 6, pág. 69-70).
         sb.append("<tpNF>1</tpNF>");
         sb.append("<idDest>1</idDest>");
         sb.append("<cMunFG>").append(esc(emitMunicipioCodigo)).append("</cMunFG>");
@@ -237,19 +237,19 @@ public class NfeXmlBuilder {
         sb.append("<NCM>").append(esc(item.getNcm())).append("</NCM>");
         sb.append("<CFOP>").append(esc(item.getCfop())).append("</CFOP>");
         sb.append("<uCom>").append(esc(item.getUnit())).append("</uCom>");
-        sb.append("<qCom>").append(formatarDecimal(qCom)).append("</qCom>");
-        sb.append("<vUnCom>").append(formatarDecimal(vUnCom)).append("</vUnCom>");
+        sb.append("<qCom>").append(formatarDecimal(qCom, 4)).append("</qCom>");
+        sb.append("<vUnCom>").append(formatarDecimal(vUnCom, 10)).append("</vUnCom>");
         sb.append("<vProd>").append(formatarDecimal(vProd)).append("</vProd>");
-        if (item.getCest() != null && !item.getCest().isBlank()) {
-            sb.append("<CEST>").append(esc(item.getCest())).append("</CEST>");
-            if (item.getIndEscala() != null && !item.getIndEscala().isBlank()) {
-                sb.append("<indEscala>").append(esc(item.getIndEscala())).append("</indEscala>");
-            }
-        }
+        // if (item.getCest() != null && !item.getCest().isBlank()) {
+        //     sb.append("<CEST>").append(esc(item.getCest())).append("</CEST>");
+        //     if (item.getIndEscala() != null && !item.getIndEscala().isBlank()) {
+        //         sb.append("<indEscala>").append(esc(item.getIndEscala())).append("</indEscala>");
+        //     }
+        // }
         sb.append("<cEANTrib>SEM GTIN</cEANTrib>");
         sb.append("<uTrib>").append(esc(item.getUnit())).append("</uTrib>");
-        sb.append("<qTrib>").append(formatarDecimal(qCom)).append("</qTrib>");
-        sb.append("<vUnTrib>").append(formatarDecimal(vUnCom)).append("</vUnTrib>");
+        sb.append("<qTrib>").append(formatarDecimal(qCom, 4)).append("</qTrib>");
+        sb.append("<vUnTrib>").append(formatarDecimal(vUnCom, 10)).append("</vUnTrib>");
         sb.append("<indTot>1</indTot>");
         sb.append("</prod>");
         sb.append("<imposto>");
@@ -258,7 +258,7 @@ public class NfeXmlBuilder {
         sb.append(buildIcms());
         sb.append(buildPis());
         sb.append(buildCofins());
-        sb.append(buildIbsCbs());
+        //sb.append(buildIbsCbs());
         sb.append("</imposto>");
         sb.append("</det>");
         return sb.toString();
@@ -277,7 +277,7 @@ public class NfeXmlBuilder {
             // CRT=1/2/4: Simples Nacional, CSOSN 102 = Tributada SN sem permissão de crédito
             sb.append("<ICMSSN102>");
             sb.append("<orig>0</orig>");
-            sb.append("<CSOSN>102</CSOSN>");
+            sb.append("<CSOSN>103</CSOSN>");
             sb.append("</ICMSSN102>");
         }
         sb.append("</ICMS>");
@@ -445,7 +445,11 @@ public class NfeXmlBuilder {
     }
 
     private String formatarDecimal(BigDecimal valor) {
-        return valor.setScale(2, RoundingMode.HALF_UP).toPlainString();
+        return formatarDecimal(valor, 2);
+    }
+
+    private String formatarDecimal(BigDecimal valor, int casas) {
+        return valor.setScale(casas, RoundingMode.HALF_UP).toPlainString();
     }
 
     private String somenteDigitos(String valor) {

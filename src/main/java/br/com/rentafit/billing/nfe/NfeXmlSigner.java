@@ -110,8 +110,21 @@ public class NfeXmlSigner {
         StringWriter writer = new StringWriter();
         transformer.transform(new DOMSource(doc), new StreamResult(writer));
 
+        // Bug do Apache Santuario + Java Transformer no Windows: o base64 do SignatureValue e
+        // X509Certificate recebe \n a cada 76 chars, o Transformer converte para \r\n, e o \r
+        // e serializado como &#13; ou mantido como CR literal. A SEFAZ-SP decodifica o base64
+        // do certificado com CR embutido e falha → rejeicao 290. O validador RS ignora os CRs.
+        // Remover \r e \n e seguro: o infNFe (conteudo assinado) nao tem quebras de linha (XML
+        // de linha unica do NfeXmlBuilder), e as unicas quebras estao no base64 do SignatureValue
+        // e X509Certificate, que nao fazem parte do conteudo assinado. Base64 sem whitespace
+        // decodifica para os mesmos bytes.
+        String signed = writer.toString()
+                .replace("&#13;", "")
+                .replace("\r", "")
+                .replace("\n", "");
+
         log.debug("NF-e assinada com sucesso (Id={}, algoritmo={})", id, signatureAlgorithm);
-        return writer.toString();
+        return signed;
     }
 
     /**
