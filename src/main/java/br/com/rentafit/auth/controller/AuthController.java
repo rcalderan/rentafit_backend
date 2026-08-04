@@ -204,4 +204,17 @@ public class AuthController {
         userAccountService.changePassword(principal, request.newPassword());
         return ResponseEntity.ok().build();
     }
+
+    // Used by Nginx auth_request to validate JWT tokens for the costume-rental-nfe gateway
+    @GetMapping("/validate-token")
+    @Operation(summary = "Valida o token JWT",
+              description = "Retorna 200 se o Bearer token é válido. Usado pelo Nginx auth_request para proteger o microsserviço NFe.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token válido"),
+        @ApiResponse(responseCode = "401", description = "Token ausente ou inválido")
+    })
+    public ResponseEntity<Void> validateToken() {
+        // Se chegou aqui, o SecurityFilter já validou o JWT com sucesso
+        return ResponseEntity.ok().build();
+    }
 }

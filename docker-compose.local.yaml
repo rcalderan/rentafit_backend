@@ -1,0 +1,101 @@
+services:
+  # --- PostgreSQL compartilhado (rentafit + costume_rental_nfe) ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: rentafit-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rentafit
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-1234567}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_local_data:/var/lib/postgresql/data
+      - ./scripts/init-databases.sql:/docker-entrypoint-initdb.d/02-init-nfe-db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # --- Rentafit (Spring Boot - porta 8080) ---
+  rentafit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rentafit-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      DB_HOST: postgres
+      DB_NAME: rentafit
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-1234567}
+      RENTFIT_JWT_SECRET: ${RENTFIT_JWT_SECRET:-local-dev-secret-change-in-prod-must-be-at-least-32-chars}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/rentafit
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-1234567}
+      NFSE_CERT_PATH: ${NFSE_CERT_PATH:?Defina NFSE_CERT_PATH no .env (ex: /certs/meu-certificado.pfx)}
+      NFSE_CERT_PASSWORD: ${NFSE_CERT_PASSWORD:-changeit}
+    volumes:
+      - ${CERT_DIR:-./.cert}:/certs:ro
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/v3/api-docs"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+
+  # --- Costume Rental NFe (Spring Boot - porta 8081) ---
+  costume-nfe:
+    build:
+      context: ../costume-rental-nfe
+      dockerfile: Dockerfile
+    container_name: costume-nfe-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      DB_HOST: postgres
+      DB_NAME: costume_rental_nfe
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-1234567}
+      NFSE_CERT_PATH: ${NFSE_CERT_PATH:-/certs/certificate.pfx}
+      NFSE_CERT_PASSWORD: ${NFSE_CERT_PASSWORD:-}
+      NFE_EMIT_CNPJ: ${NFE_EMIT_CNPJ:-00000000000000}
+    volumes:
+      - ${CERT_DIR:-./.cert}:/certs:ro
+    ports:
+      - "8081:8081"
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q -O /dev/null http://localhost:8081/swagger-ui.html || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  # --- Nginx Gateway (porta 80) ---
+  nginx:
+    image: nginx:alpine
+    container_name: rentafit-gateway
+    restart: unless-stopped
+    depends_on:
+      rentafit:
+        condition: service_healthy
+      costume-nfe:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    volumes:
+      - ./scripts/nginx/nginx-local.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  postgres_local_data:
