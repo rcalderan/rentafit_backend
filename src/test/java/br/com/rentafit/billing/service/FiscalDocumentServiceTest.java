@@ -4,8 +4,10 @@ import br.com.rentafit.billing.domain.FiscalDocument;
 import br.com.rentafit.billing.domain.enums.FiscalDocumentStatus;
 import br.com.rentafit.billing.domain.enums.FiscalDocumentType;
 import br.com.rentafit.billing.domain.enums.FiscalOrigin;
+import br.com.rentafit.billing.dto.FiscalDocumentSyncRequest;
 import br.com.rentafit.billing.repository.FiscalDocumentRepository;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
+import br.com.rentafit.people.repository.CustomerRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,6 +30,9 @@ class FiscalDocumentServiceTest {
 
     @Mock
     FiscalDocumentRepository repository;
+
+    @Mock
+    CustomerRepository customerRepository;
 
     @InjectMocks
     FiscalDocumentService service;
@@ -89,6 +94,23 @@ class FiscalDocumentServiceTest {
                 .hasMessageContaining("accessKey");
     }
 
+    @Test
+    @DisplayName("saveFromSync() persiste documento fiscal emitido externamente")
+    void saveFromSync_persisteDocumentoExterno() {
+        FiscalDocumentSyncRequest request = new FiscalDocumentSyncRequest(
+                "NFE", "SALES", UUID.randomUUID(), "12345678901234567890123456789012345678901234",
+                123L, "1", "123456789012345", "AUTHORIZED", BigDecimal.valueOf(200),
+                "Cliente Teste", "12345678901", "teste@example.com",
+                OffsetDateTime.now(), "<xml/>", null, null, null, null);
+        FiscalDocument doc = documentNfe();
+        when(repository.save(any(FiscalDocument.class))).thenReturn(doc);
+
+        FiscalDocument result = service.saveFromSync(request);
+
+        assertThat(result).isSameAs(doc);
+        verify(repository).save(any(FiscalDocument.class));
+    }
+
     // ── helper ─────────────────────────────────────────────────────────────────
 
     private FiscalDocument documentNfse() {
@@ -97,6 +119,19 @@ class FiscalDocumentServiceTest {
                 .type(FiscalDocumentType.NFSE)
                 .status(FiscalDocumentStatus.AUTHORIZED)
                 .accessKey("CHAVE-TEST")
+                .origin(FiscalOrigin.SALES)
+                .originId(UUID.randomUUID())
+                .issueDate(OffsetDateTime.now())
+                .totalValue(BigDecimal.valueOf(200))
+                .build();
+    }
+
+    private FiscalDocument documentNfe() {
+        return FiscalDocument.builder()
+                .id(UUID.randomUUID())
+                .type(FiscalDocumentType.NFE)
+                .status(FiscalDocumentStatus.AUTHORIZED)
+                .accessKey("12345678901234567890123456789012345678901234")
                 .origin(FiscalOrigin.SALES)
                 .originId(UUID.randomUUID())
                 .issueDate(OffsetDateTime.now())

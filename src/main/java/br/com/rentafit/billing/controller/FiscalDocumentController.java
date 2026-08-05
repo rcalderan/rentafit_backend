@@ -5,8 +5,12 @@ import br.com.rentafit.billing.domain.enums.FiscalDocumentType;
 import br.com.rentafit.billing.domain.enums.FiscalOrigin;
 import br.com.rentafit.billing.dto.FiscalDocumentDetailResponse;
 import br.com.rentafit.billing.dto.FiscalDocumentSummaryResponse;
+import br.com.rentafit.billing.dto.FiscalDocumentSyncRequest;
+import br.com.rentafit.billing.domain.FiscalDocument;
+import br.com.rentafit.billing.mapper.FiscalDocumentResponseMapper;
 import br.com.rentafit.billing.service.FiscalDocumentContentService;
 import br.com.rentafit.billing.service.FiscalDocumentQueryService;
+import br.com.rentafit.billing.service.FiscalDocumentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -18,14 +22,19 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
 
 import java.time.OffsetDateTime;
 import java.util.Set;
@@ -48,6 +57,20 @@ public class FiscalDocumentController {
 
     private final FiscalDocumentQueryService queryService;
     private final FiscalDocumentContentService contentService;
+    private final FiscalDocumentService fiscalDocumentService;
+    private final FiscalDocumentResponseMapper mapper;
+
+    @PostMapping
+    @Operation(summary = "Sincronizar documento fiscal", description = "Persiste/atualiza um documento fiscal emitido externamente")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Documento sincronizado com sucesso"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos")
+    })
+    public ResponseEntity<FiscalDocumentDetailResponse> sync(
+            @RequestBody @Valid FiscalDocumentSyncRequest request) {
+        FiscalDocument document = fiscalDocumentService.saveFromSync(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(mapper.toDetail(document));
+    }
 
     @GetMapping
     @Operation(summary = "Listar documentos fiscais", description = "Retorna NF-e e NFS-e paginados com filtros opcionais combináveis")
