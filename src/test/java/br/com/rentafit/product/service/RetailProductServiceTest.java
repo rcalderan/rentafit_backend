@@ -34,6 +34,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
+import org.mockito.ArgumentCaptor;
+
 /**
  * Testes unitários para RetailProductService
  */
@@ -259,6 +261,56 @@ class RetailProductServiceTest {
 
         // Assert
         verify(retailProductRepository, times(1)).deleteById(productId);
+    }
+
+    @Test
+    @DisplayName("Should not throw NPE when listing products without stock (regression: HTTP 500 on /retail)")
+    void testFindAllWithProductWithoutStock() {
+        // Arrange — produto legado sem linha de estoque no DB
+        RetailProduct productWithoutStock = RetailProduct.builder()
+                .id(UUID.randomUUID())
+                .name("Sem Estoque")
+                .category(category)
+                .value(new BigDecimal("99.00"))
+                .sku("SKU-NO-STOCK")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+        assertThat(productWithoutStock.getStock()).isNull();
+
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<RetailProduct> page = new PageImpl<>(List.of(productWithoutStock), pageable, 1);
+        when(retailProductRepository.findAll(pageable)).thenReturn(page);
+
+        // Act
+        Page<ProductRetailDetailsDTO> result = retailProductService.findAll(pageable);
+
+        // Assert — antes do fix: NullPointerException; depois: stock null no DTO
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().getFirst().stock()).isNull();
+        assertThat(result.getContent().getFirst().sku()).isEqualTo("SKU-NO-STOCK");
+    }
+
+    @Test
+    @DisplayName("Should persist product with zeroed stock when DTO does not provide stock")
+    void testCreateAssignsZeroedStock() {
+        // Arrange
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+        when(retailProductRepository.findBySku("SKU001")).thenReturn(Optional.empty());
+        when(retailProductRepository.save(any(RetailProduct.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        retailProductService.create(productRetailDTO);
+
+        // Assert — o produto passado para save() deve ter estoque zerado vinculado
+        ArgumentCaptor<RetailProduct> captor = ArgumentCaptor.forClass(RetailProduct.class);
+        verify(retailProductRepository, times(1)).save(captor.capture());
+        RetailProduct saved = captor.getValue();
+        assertThat(saved.getStock()).isNotNull();
+        assertThat(saved.getStock().getQuantityAvailable()).isZero();
+        assertThat(saved.getStock().getQuantityReserved()).isZero();
+        assertThat(saved.getStock().getQuantityTotal()).isZero();
+        assertThat(saved.getStock().getProduct()).isSameAs(saved);
     }
 }
 

@@ -4,6 +4,7 @@ import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.product.domain.Category;
 import br.com.rentafit.product.domain.RetailProduct;
+import br.com.rentafit.product.domain.Stock;
 import br.com.rentafit.product.dto.retail.ProductRetailDTO;
 import br.com.rentafit.product.dto.retail.ProductRetailDetailsDTO;
 import br.com.rentafit.product.dto.retail.ProductRetailUpdateDTO;
@@ -52,6 +53,10 @@ public class RetailProductService {
                 .details(dto.details())
                 .warrantyDays(dto.warrantyDays())
                 .build();
+        // Garante estoque zerado desde o cadastro (defensivo além do @PrePersist)
+        Stock zeroedStock = Stock.builder().build();
+        zeroedStock.setProduct(product);
+        product.setStock(zeroedStock);
         // Save product
         RetailProduct saved = retailProductRepository.save(product);
         log.info("Product created with ID: {}", saved.getId());
