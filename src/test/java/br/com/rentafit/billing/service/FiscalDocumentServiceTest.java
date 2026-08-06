@@ -22,6 +22,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -103,12 +104,51 @@ class FiscalDocumentServiceTest {
                 "Cliente Teste", "12345678901", "teste@example.com",
                 OffsetDateTime.now(), "<xml/>", null, null, null, null);
         FiscalDocument doc = documentNfe();
+        when(repository.findByAccessKey(request.accessKey())).thenReturn(Optional.empty());
         when(repository.save(any(FiscalDocument.class))).thenReturn(doc);
 
         FiscalDocument result = service.saveFromSync(request);
 
         assertThat(result).isSameAs(doc);
         verify(repository).save(any(FiscalDocument.class));
+    }
+
+    @Test
+    @DisplayName("saveFromSync() usa MANUAL quando origin não é informado")
+    void saveFromSync_originNulo_usaManual() {
+        FiscalDocumentSyncRequest request = new FiscalDocumentSyncRequest(
+                "NFE", null, UUID.randomUUID(), "12345678901234567890123456789012345678901234",
+                123L, "1", "123456789012345", "AUTHORIZED", BigDecimal.valueOf(200),
+                "Cliente Teste", "12345678901", "teste@example.com",
+                OffsetDateTime.now(), "<xml/>", null, null, null, null);
+        when(repository.findByAccessKey(request.accessKey())).thenReturn(Optional.empty());
+        when(repository.save(any(FiscalDocument.class))).thenReturn(documentNfe());
+
+        service.saveFromSync(request);
+
+        var captor = forClass(FiscalDocument.class);
+        verify(repository).save(captor.capture());
+        assertThat(captor.getValue().getOrigin()).isEqualTo(FiscalOrigin.MANUAL);
+    }
+
+    @Test
+    @DisplayName("saveFromSync() atualiza documento existente pelo accessKey")
+    void saveFromSync_atualizaExistente() {
+        FiscalDocument existing = documentNfe();
+        FiscalDocumentSyncRequest request = new FiscalDocumentSyncRequest(
+                "NFE", "SALES", UUID.randomUUID(), existing.getAccessKey(),
+                existing.getNumber(), "1", "135260007307799", "CANCELLED", existing.getTotalValue(),
+                null, null, null,
+                existing.getIssueDate(), existing.getAuthorizedXml(), null, "Erro de teste",
+                OffsetDateTime.now(), "135260007307800");
+        when(repository.findByAccessKey(existing.getAccessKey())).thenReturn(Optional.of(existing));
+        when(repository.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FiscalDocument result = service.saveFromSync(request);
+
+        assertThat(result.getStatus()).isEqualTo(FiscalDocumentStatus.CANCELLED);
+        assertThat(result.getCancelReason()).isEqualTo("Erro de teste");
+        assertThat(result.getCancelProtocol()).isEqualTo("135260007307800");
     }
 
     // ── helper ─────────────────────────────────────────────────────────────────

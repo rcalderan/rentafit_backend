@@ -27,7 +27,7 @@ public class FiscalDocumentResponseMapper {
                 .accessKey(document.getAccessKey())
                 .emissionDate(document.getIssueDate())
                 .value(document.getTotalValue())
-                .customerName(customer != null ? customer.getName() : null)
+                .customerName(resolveCustomerName(customer, document))
                 .origin(document.getOrigin() != null ? document.getOrigin().name() : null)
                 .originId(document.getOriginId())
                 .build();
@@ -52,10 +52,18 @@ public class FiscalDocumentResponseMapper {
                 .cancelReason(document.getCancelReason())
                 .cancelledAt(document.getCancelledAt())
                 .cancelProtocol(document.getCancelProtocol())
-                .customerEmail(customer != null ? customer.getEmail() : null)
-                .customerName(customer != null ? customer.getName() : null)
+                .customerEmail(resolveCustomerEmail(customer, document))
+                .customerName(resolveCustomerName(customer, document))
                 .origin(document.getOrigin() != null ? document.getOrigin().name() : null)
                 .originId(document.getOriginId())
                 .build();
+    }
+
+    private String resolveCustomerName(Customer customer, FiscalDocument document) {
+        return customer != null ? customer.getName() : document.getCustomerName();
+    }
+
+    private String resolveCustomerEmail(Customer customer, FiscalDocument document) {
+        return customer != null ? customer.getEmail() : document.getCustomerEmail();
     }
 }

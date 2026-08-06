@@ -65,6 +65,19 @@ class FiscalDocumentResponseMapperTest {
         assertThat(mapper.toDetail(null)).isNull();
     }
 
+    @Test
+    @DisplayName("toDetail() usa snapshot do cliente quando Customer não está vinculado")
+    void toDetail_semCustomer_usaSnapshot() {
+        FiscalDocument doc = document(null);
+        doc.setCustomerName("João Snapshot");
+        doc.setCustomerEmail("joao@snapshot.com");
+
+        FiscalDocumentDetailResponse result = mapper.toDetail(doc);
+
+        assertThat(result.customerName()).isEqualTo("João Snapshot");
+        assertThat(result.customerEmail()).isEqualTo("joao@snapshot.com");
+    }
+
     private FiscalDocument document(Customer customer) {
         return FiscalDocument.builder()
                 .id(UUID.randomUUID())

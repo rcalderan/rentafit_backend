@@ -28,10 +28,21 @@ public record SalesOrderDetailsDTO(
         String notes,
         BigDecimal discountValue,
 
-        // NFS-e
+        // Documento fiscal vinculado (NF-e / NFS-e)
         String invoiceStatus,
         String invoiceStatusDescription,
         String invoiceId,
+        String invoiceNumber,
+        String invoiceSeries,
+        String invoiceAccessKey,
+        OffsetDateTime invoiceEmissionDate,
+        String invoiceProtocol,
+        String invoiceCancelReason,
+        OffsetDateTime invoiceCancelledAt,
+        String invoiceCancelProtocol,
+        String invoiceXmlUrl,
+        String invoiceCustomerEmail,
+        String invoiceNatureOperation,
 
         // Valores calculados
         BigDecimal subtotal,

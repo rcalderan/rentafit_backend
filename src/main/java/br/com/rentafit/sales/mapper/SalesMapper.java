@@ -1,5 +1,9 @@
 package br.com.rentafit.sales.mapper;
 
+import br.com.rentafit.billing.domain.FiscalDocument;
+import br.com.rentafit.billing.domain.enums.FiscalDocumentStatus;
+import br.com.rentafit.billing.domain.enums.FiscalOrigin;
+import br.com.rentafit.billing.repository.FiscalDocumentRepository;
 import br.com.rentafit.rental.domain.enums.PaymentMethod;
 import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.sales.domain.SalesOrder;
@@ -15,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -22,6 +27,12 @@ import java.util.stream.Collectors;
  */
 @Component
 public class SalesMapper {
+
+    private final FiscalDocumentRepository fiscalDocumentRepository;
+
+    public SalesMapper(FiscalDocumentRepository fiscalDocumentRepository) {
+        this.fiscalDocumentRepository = fiscalDocumentRepository;
+    }
 
     // ── Order ────────────────────────────────────────────────────────────────
 
@@ -58,6 +69,8 @@ public class SalesMapper {
         BigDecimal totalValue = subtotal.subtract(order.getDiscountValue()).max(BigDecimal.ZERO);
         BigDecimal paidValue = computePaidValue(order.getPayments());
 
+        Optional<FiscalDocument> fiscalDocument = findFiscalDocument(order);
+
         return SalesOrderDetailsDTO.builder()
                 .id(order.getId())
                 .legacyId(order.getLegacyId())
@@ -69,9 +82,20 @@ public class SalesMapper {
                 .createdByEmployeeId(order.getCreatedByEmployeeId())
                 .notes(order.getNotes())
                 .discountValue(order.getDiscountValue())
-                .invoiceStatus(order.getInvoiceStatus().name())
-                .invoiceStatusDescription(order.getInvoiceStatus().getDescription())
-                .invoiceId(order.getInvoiceId())
+                .invoiceStatus(fiscalDocument.map(this::invoiceStatusFrom).orElse(order.getInvoiceStatus().name()))
+                .invoiceStatusDescription(fiscalDocument.map(this::invoiceStatusDescriptionFrom).orElse(order.getInvoiceStatus().getDescription()))
+                .invoiceId(fiscalDocument.map(d -> d.getId().toString()).orElse(order.getInvoiceId()))
+                .invoiceNumber(fiscalDocument.map(this::invoiceNumberFrom).orElse(null))
+                .invoiceSeries(fiscalDocument.map(FiscalDocument::getSeries).orElse(null))
+                .invoiceAccessKey(fiscalDocument.map(FiscalDocument::getAccessKey).orElse(null))
+                .invoiceEmissionDate(fiscalDocument.map(FiscalDocument::getIssueDate).orElse(null))
+                .invoiceProtocol(fiscalDocument.map(FiscalDocument::getProtocol).orElse(null))
+                .invoiceCancelReason(fiscalDocument.map(FiscalDocument::getCancelReason).orElse(null))
+                .invoiceCancelledAt(fiscalDocument.map(FiscalDocument::getCancelledAt).orElse(null))
+                .invoiceCancelProtocol(fiscalDocument.map(FiscalDocument::getCancelProtocol).orElse(null))
+                .invoiceXmlUrl(fiscalDocument.map(FiscalDocument::getAuthorizedXml).orElse(null))
+                .invoiceCustomerEmail(fiscalDocument.map(this::customerEmailFrom).orElse(null))
+                .invoiceNatureOperation(null)
                 .subtotal(subtotal)
                 .totalValue(totalValue)
                 .paidValue(paidValue)
@@ -86,6 +110,53 @@ public class SalesMapper {
                         .collect(Collectors.toList()))
                 .warnings(warnings)
                 .build();
+    }
+
+    private Optional<FiscalDocument> findFiscalDocument(SalesOrder order) {
+        if (order.getId() == null) {
+            return Optional.empty();
+        }
+        return fiscalDocumentRepository.findByOriginAndOriginId(FiscalOrigin.SALES, order.getId())
+                .stream()
+                .max(Comparator.comparing(FiscalDocument::getUpdatedAt, Comparator.nullsLast(Comparator.naturalOrder())));
+    }
+
+    private String invoiceStatusFrom(FiscalDocument document) {
+        return document.getStatus() != null ? mapFiscalStatus(document.getStatus()) : null;
+    }
+
+    private String invoiceStatusDescriptionFrom(FiscalDocument document) {
+        return document.getStatus() != null ? fiscalStatusDescription(document.getStatus()) : null;
+    }
+
+    private String invoiceNumberFrom(FiscalDocument document) {
+        Long number = document.getNumber();
+        return number != null ? number.toString() : null;
+    }
+
+    private String customerEmailFrom(FiscalDocument document) {
+        if (document.getCustomer() != null && document.getCustomer().getEmail() != null) {
+            return document.getCustomer().getEmail();
+        }
+        return document.getCustomerEmail();
+    }
+
+    private String mapFiscalStatus(FiscalDocumentStatus status) {
+        return switch (status) {
+            case PENDING, SIGNED, TRANSMITTED -> "PENDING_EMISSION";
+            case AUTHORIZED -> "EMITTED";
+            case REJECTED -> "DENIED";
+            case CANCELLED -> "CANCELLED";
+        };
+    }
+
+    private String fiscalStatusDescription(FiscalDocumentStatus status) {
+        return switch (status) {
+            case PENDING, SIGNED, TRANSMITTED -> "Em processamento";
+            case AUTHORIZED -> "Emitida com sucesso";
+            case REJECTED -> "Negada";
+            case CANCELLED -> "Cancelada";
+        };
     }
 
     public SalesOrderSummaryDTO toSummaryDTO(SalesOrder order) {

@@ -52,19 +52,37 @@ public class FiscalDocumentService {
 
     @Transactional
     public FiscalDocument saveFromSync(FiscalDocumentSyncRequest request) {
+        return repository.findByAccessKey(request.accessKey())
+                .map(existing -> applySyncToExisting(existing, request))
+                .orElseGet(() -> createFromSync(request));
+    }
+
+    private FiscalDocument applySyncToExisting(FiscalDocument existing, FiscalDocumentSyncRequest request) {
+        existing.setStatus(resolveStatus(request.status()));
+        existing.setProtocol(request.protocol());
+        if (request.authorizedXml() != null) {
+            existing.setAuthorizedXml(request.authorizedXml());
+        }
+        existing.setRejectionReason(request.rejectionReason());
+        existing.setCancelReason(request.cancelReason());
+        existing.setCancelledAt(request.cancelledAt());
+        existing.setCancelProtocol(request.cancelProtocol());
+        FiscalDocument saved = repository.save(existing);
+        log.info("FiscalDocument atualizado: id={} type={} status={} accessKey={}",
+                saved.getId(), saved.getType(), saved.getStatus(), saved.getAccessKey());
+        return saved;
+    }
+
+    private FiscalDocument createFromSync(FiscalDocumentSyncRequest request) {
         Customer customer = null;
         if (request.customerDocument() != null) {
             customer = customerRepository.findByDocument(request.customerDocument()).orElse(null);
         }
 
-        FiscalDocumentStatus status = request.status() != null
-                ? FiscalDocumentStatus.valueOf(request.status().toUpperCase())
-                : FiscalDocumentStatus.AUTHORIZED;
-
         FiscalDocument document = FiscalDocument.builder()
                 .type(FiscalDocumentType.valueOf(request.type().toUpperCase()))
-                .status(status)
-                .origin(FiscalOrigin.valueOf(request.origin().toUpperCase()))
+                .status(resolveStatus(request.status()))
+                .origin(resolveOrigin(request.origin()))
                 .originId(request.originId())
                 .accessKey(request.accessKey())
                 .number(request.number())
@@ -73,6 +91,8 @@ public class FiscalDocumentService {
                 .issueDate(request.issueDate() != null ? request.issueDate() : OffsetDateTime.now())
                 .totalValue(request.totalValue())
                 .customer(customer)
+                .customerName(request.customerName())
+                .customerEmail(request.customerEmail())
                 .authorizedXml(request.authorizedXml())
                 .rejectionReason(request.rejectionReason())
                 .cancelReason(request.cancelReason())
@@ -81,8 +101,21 @@ public class FiscalDocumentService {
                 .build();
 
         FiscalDocument saved = repository.save(document);
-        log.info("FiscalDocument sincronizado: id={} type={} status={} accessKey={}",
+        log.info("FiscalDocument criado: id={} type={} status={} accessKey={}",
                 saved.getId(), saved.getType(), saved.getStatus(), saved.getAccessKey());
         return saved;
+    }
+
+    private FiscalDocumentStatus resolveStatus(String status) {
+        return status != null
+                ? FiscalDocumentStatus.valueOf(status.toUpperCase())
+                : FiscalDocumentStatus.AUTHORIZED;
+    }
+
+    private FiscalOrigin resolveOrigin(String origin) {
+        if (origin == null || origin.isBlank()) {
+            return FiscalOrigin.MANUAL;
+        }
+        return FiscalOrigin.valueOf(origin.toUpperCase());
     }
 }

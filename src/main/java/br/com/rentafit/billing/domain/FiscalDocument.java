@@ -63,6 +63,12 @@ public class FiscalDocument {
     @JoinColumn(name = "customer_id")
     private Customer customer;
 
+    @Column(name = "customer_name")
+    private String customerName;
+
+    @Column(name = "customer_email")
+    private String customerEmail;
+
     @Column(name = "issue_date", nullable = false)
     private OffsetDateTime issueDate;
 
