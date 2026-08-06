@@ -73,7 +73,7 @@ services:
       NFE_EMIT_CNPJ: ${NFE_EMIT_CNPJ:-00000000000000}
       NFE_EMIT_IE: ${NFE_EMIT_IE:-}
     volumes:
-      - ${CERT_DIR:-./.cert}:/certs:ro
+      - ${CERT_DIR:-./.cert}:/certs
     ports:
       - "8081:8081"
     healthcheck:

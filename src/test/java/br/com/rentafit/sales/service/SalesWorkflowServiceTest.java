@@ -41,7 +41,6 @@ class SalesWorkflowServiceTest {
     @Mock private SalesOrderService orderService;
     @Mock private RetailProductPort productPort;
     @Mock private SalesMapper mapper;
-    @Mock private SalesBillingService billingService;
 
     @InjectMocks
     private SalesWorkflowService workflowService;
@@ -188,7 +187,6 @@ class SalesWorkflowServiceTest {
             workflowService.confirm(orderId);
 
             assertThat(draftOrder.getStatus()).isEqualTo(SalesOrderStatus.PAID);
-            verify(billingService).onOrderPaid(draftOrder);
         }
     }
 

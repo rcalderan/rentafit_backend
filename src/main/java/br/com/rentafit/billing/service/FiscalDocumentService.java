@@ -19,7 +19,9 @@ import java.util.UUID;
 
 /**
  * Responsável apenas por persistência e consulta de {@link FiscalDocument}.
- * Não contém lógica de emissão — cada serviço de emissão (NfseEmissionService, NfeEmissionService) chama este.
+ * Não contém lógica de emissão — a emissão de NF-e/NFS-e foi delegada ao
+ * microsserviço externo costume-rental-nfe, que sincroniza os documentos via
+ * {@code POST /api/fiscal-documents} (ver FiscalDocumentController).
  */
 @Service
 @RequiredArgsConstructor

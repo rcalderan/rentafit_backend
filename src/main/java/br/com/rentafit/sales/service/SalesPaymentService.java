@@ -45,7 +45,6 @@ public class SalesPaymentService {
     private final SalesPaymentRepository paymentRepository;
     private final SalesOrderRepository orderRepository;
     private final SalesOrderService orderService;
-    private final SalesBillingService billingService;
     private final SalesMapper mapper;
 
     @Transactional(readOnly = true)
@@ -151,7 +150,8 @@ public class SalesPaymentService {
 
     /**
      * Verifica se soma dos pagamentos PAID >= total e transita para PAID.
-     * Marca invoiceStatus como PENDING_EMISSION para emissão futura de NFS-e.
+     * A emissão de NFS-e foi delegada ao microsserviço externo costume-rental-nfe;
+     * o fluxo de pagamento apenas transita para PAID sem marcar PENDING_EMISSION.
      */
     private void checkAndTransitionToPaid(SalesOrder order) {
         if (order.getStatus() != SalesOrderStatus.CONFIRMED) return;
@@ -162,7 +162,6 @@ public class SalesPaymentService {
 
         if (paidValue.compareTo(totalValue) >= 0) {
             order.setStatus(SalesOrderStatus.PAID);
-            billingService.onOrderPaid(order);
             log.info("Sales order {} auto-transitioned to PAID (paid={}, total={})",
                     order.getId(), paidValue, totalValue);
         }

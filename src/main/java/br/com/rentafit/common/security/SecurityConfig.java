@@ -26,7 +26,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final SecurityFilter securityFilter;
-    private final CertificateAuthenticationFilter certificateAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
 
     @Bean
@@ -72,10 +71,7 @@ public class SecurityConfig {
                         // Vendas: EMPLOYEE, MANAGER, ADMIN
                         .requestMatchers("/api/v1/sales/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
-                        // Faturamento/NF-e e NFS-e — autorizacao centralizada aqui
-                        .requestMatchers("/api/nfe/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
-                        .requestMatchers("/api/nfse/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
-                        .requestMatchers("/api/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        // Faturamento — autorizacao centralizada aqui
                         .requestMatchers("/api/v1/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers("/api/fiscal-documents/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
@@ -88,10 +84,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().authenticated()
                 )
-                // Ordem: Certificado -> JWT
-                // CertificateFilter adiciona ROLE_CERTIFICATE_AUTH se mTLS presente
                 // SecurityFilter (JWT) adiciona roles do usuário (ADMIN/EMPLOYEE)
-                .addFilterBefore(certificateAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(securityFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

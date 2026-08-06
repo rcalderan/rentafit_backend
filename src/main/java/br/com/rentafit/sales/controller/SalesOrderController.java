@@ -2,7 +2,6 @@ package br.com.rentafit.sales.controller;
 
 import br.com.rentafit.sales.domain.enums.SalesOrderStatus;
 import br.com.rentafit.sales.dto.*;
-import br.com.rentafit.sales.service.SalesBillingService;
 import br.com.rentafit.sales.service.SalesOrderService;
 import br.com.rentafit.sales.service.SalesWorkflowService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,7 +29,6 @@ public class SalesOrderController {
 
     private final SalesOrderService orderService;
     private final SalesWorkflowService workflowService;
-    private final SalesBillingService billingService;
 
     // ── CRUD ─────────────────────────────────────────────────────────────────
 
@@ -146,17 +144,5 @@ public class SalesOrderController {
             @PathVariable UUID itemId,
             @RequestParam(required = false) UUID employeeId) {
         return ResponseEntity.ok(workflowService.deliverItem(id, itemId, employeeId));
-    }
-
-    // ── NFS-e ────────────────────────────────────────────────────────────────
-
-    @PostMapping("/{id}/emit-invoice")
-    @Operation(summary = "Emitir NFS-e manualmente")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "NFS-e emitida"),
-            @ApiResponse(responseCode = "422", description = "Pedido não pago ou NFS-e já emitida")
-    })
-    public ResponseEntity<SalesOrderDetailsDTO> emitInvoice(@PathVariable UUID id) {
-        return ResponseEntity.ok(billingService.emitInvoice(id));
     }
 }

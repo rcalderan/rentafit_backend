@@ -4,7 +4,6 @@ import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.sales.domain.enums.SalesOrderStatus;
 import br.com.rentafit.sales.dto.*;
-import br.com.rentafit.sales.service.SalesBillingService;
 import br.com.rentafit.sales.service.SalesOrderService;
 import br.com.rentafit.sales.service.SalesWorkflowService;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,7 +34,6 @@ class SalesOrderControllerTest {
 
     @Mock private SalesOrderService orderService;
     @Mock private SalesWorkflowService workflowService;
-    @Mock private SalesBillingService billingService;
 
     @InjectMocks
     private SalesOrderController controller;
@@ -233,16 +231,6 @@ class SalesOrderControllerTest {
         when(workflowService.deliverItem(orderId, itemId, employeeId)).thenReturn(detailsDTO);
 
         ResponseEntity<SalesOrderDetailsDTO> response = controller.deliverItem(orderId, itemId, employeeId);
-
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-    }
-
-    @Test
-    @DisplayName("POST /{id}/emit-invoice deve retornar 200")
-    void testEmitInvoice_retorna200() {
-        when(billingService.emitInvoice(orderId)).thenReturn(detailsDTO);
-
-        ResponseEntity<SalesOrderDetailsDTO> response = controller.emitInvoice(orderId);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
