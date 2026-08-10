@@ -190,8 +190,9 @@ public class SalesWorkflowService {
             return userAccount.getId();
         }
         // Fallback: nunca deve ocorrer em produção com JWT configurado corretamente
+        Object principal = auth != null ? auth.getPrincipal() : null;
         log.warn("Authenticated principal is not a UserAccount — principal type: {}",
-                auth != null ? auth.getPrincipal().getClass().getSimpleName() : "null");
+                principal != null ? principal.getClass().getSimpleName() : "null");
         throw new ValidationException("Usuário autenticado não identificado. Faça login novamente.");
     }
 
