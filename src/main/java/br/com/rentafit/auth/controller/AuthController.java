@@ -216,8 +216,8 @@ public class AuthController {
     public ResponseEntity<UserProfileResponseDTO> setupIssuerCnpj(
             @AuthenticationPrincipal UserAccount principal,
             @Valid @RequestBody SetupIssuerCnpjRequestDTO request) {
-        userAccountService.setupIssuerCnpj(principal, request.issuerCnpj());
-        return ResponseEntity.ok(new UserProfileResponseDTO(principal, userAccountService.getPasswordExpiryDays()));
+        UserAccount updated = userAccountService.setupIssuerCnpj(principal, request.issuerCnpj());
+        return ResponseEntity.ok(new UserProfileResponseDTO(updated, userAccountService.getPasswordExpiryDays()));
     }
 
     // Used by Nginx auth_request to validate JWT tokens for the costume-rental-nfe gateway

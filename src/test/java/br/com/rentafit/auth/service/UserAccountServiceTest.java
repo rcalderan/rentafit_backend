@@ -230,9 +230,13 @@ class UserAccountServiceTest {
     @Test
     @DisplayName("Should link issuer CNPJ to user")
     void testSetupIssuerCnpj_Success() {
-        userAccountService.setupIssuerCnpj(userAccount, "08299621000120");
+        when(userAccountRepository.findByUsernameWithDetails(username)).thenReturn(Optional.of(userAccount));
+        when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
 
-        assertThat(userAccount.getIssuerCnpj()).isEqualTo("08299621000120");
+        UserAccount updated = userAccountService.setupIssuerCnpj(userAccount, "08299621000120");
+
+        assertThat(updated.getIssuerCnpj()).isEqualTo("08299621000120");
+        verify(userAccountRepository).findByUsernameWithDetails(username);
         verify(userAccountRepository).save(userAccount);
     }
 

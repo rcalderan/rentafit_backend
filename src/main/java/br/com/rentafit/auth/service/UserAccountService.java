@@ -75,12 +75,14 @@ public class UserAccountService implements UserDetailsService {
      * Vincula o emitente (CNPJ) ao usuário autenticado.
      */
     @Transactional
-    public void setupIssuerCnpj(UserAccount user, String issuerCnpj) {
+    public UserAccount setupIssuerCnpj(UserAccount user, String issuerCnpj) {
         if (issuerCnpj == null || !issuerCnpj.matches("\\d{14}")) {
             throw new ValidationException("CNPJ deve conter exatamente 14 dígitos numéricos.");
         }
-        user.setIssuerCnpj(issuerCnpj);
-        userAccountRepository.save(user);
+        UserAccount managed = userAccountRepository.findByUsernameWithDetails(user.getUsername())
+                .orElseThrow(() -> new ValidationException("Usuário não encontrado: " + user.getUsername()));
+        managed.setIssuerCnpj(issuerCnpj);
+        return userAccountRepository.save(managed);
     }
 }
 
