@@ -70,5 +70,17 @@ public class UserAccountService implements UserDetailsService {
         user.setPasswordChangedAt(OffsetDateTime.now());
         userAccountRepository.save(user);
     }
+
+    /**
+     * Vincula o emitente (CNPJ) ao usuário autenticado.
+     */
+    @Transactional
+    public void setupIssuerCnpj(UserAccount user, String issuerCnpj) {
+        if (issuerCnpj == null || !issuerCnpj.matches("\\d{14}")) {
+            throw new ValidationException("CNPJ deve conter exatamente 14 dígitos numéricos.");
+        }
+        user.setIssuerCnpj(issuerCnpj);
+        userAccountRepository.save(user);
+    }
 }
 

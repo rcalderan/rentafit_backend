@@ -40,6 +40,9 @@ public class UserProfileResponseDTO {
     @Schema(description = "Whether the password has expired and must be changed", example = "false")
     private boolean passwordExpired;
 
+    @Schema(description = "CNPJ do emitente vinculado ao usuário", example = "08299621000120")
+    private String issuerCnpj;
+
     public UserProfileResponseDTO(UserAccount user){
         this(user, 90);
     }
@@ -55,6 +58,7 @@ public class UserProfileResponseDTO {
                 .toList() : List.of();
         this.isActive = Boolean.TRUE.equals(user.getIsActive());
         this.passwordExpired = isPasswordExpired(user.getPasswordChangedAt(), passwordExpiryDays);
+        this.issuerCnpj = user.getIssuerCnpj();
     }
 
     private static boolean isPasswordExpired(java.time.OffsetDateTime passwordChangedAt, long expiryDays) {

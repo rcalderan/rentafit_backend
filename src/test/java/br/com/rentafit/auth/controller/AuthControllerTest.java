@@ -6,6 +6,7 @@ import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
+import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import org.springframework.security.core.context.SecurityContext;
@@ -194,6 +195,20 @@ class AuthControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(userAccountService).setupCredentials(principal, "NewP@ss1", "1234");
+    }
+
+    @Test
+    @DisplayName("Should setup issuer CNPJ successfully")
+    void setupIssuerCnpj_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+
+        SetupIssuerCnpjRequestDTO request = new SetupIssuerCnpjRequestDTO("08299621000120");
+
+        ResponseEntity<UserProfileResponseDTO> response = authController.setupIssuerCnpj(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(userAccountService).setupIssuerCnpj(principal, "08299621000120");
     }
 
     @Test
