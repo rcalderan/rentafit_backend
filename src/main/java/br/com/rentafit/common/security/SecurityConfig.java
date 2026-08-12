@@ -41,7 +41,10 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
                                 "/actuator/health",
-                                "/actuator/info"
+                                "/actuator/info",
+                                // Mesmos endpoints via prefixo /api (roteados pelo Caddy gateway)
+                                "/api/actuator/health",
+                                "/api/actuator/info"
                         ).permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
