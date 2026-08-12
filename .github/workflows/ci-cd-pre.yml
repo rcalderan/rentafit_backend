@@ -112,7 +112,6 @@ jobs:
             ghcr.io/rcalderan/rentafit-api:${{ github.sha }}
             ghcr.io/rcalderan/rentafit-api:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
           provenance: false
 
       - name: Set image output
@@ -167,7 +166,6 @@ jobs:
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
             ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
           cache-from: type=gha
-          cache-to: type=gha,mode=max
           provenance: false
 
       - name: Set image output
