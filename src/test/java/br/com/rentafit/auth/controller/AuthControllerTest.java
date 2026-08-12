@@ -6,6 +6,7 @@ import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
+import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import org.springframework.security.core.context.SecurityContext;
@@ -14,6 +15,7 @@ import br.com.rentafit.auth.service.RefreshTokenService;
 import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
 import br.com.rentafit.common.security.TokenService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,6 +41,11 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 
     @Mock
     private AuthenticationManager authenticationManager;
@@ -188,6 +195,29 @@ class AuthControllerTest {
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         verify(userAccountService).setupCredentials(principal, "NewP@ss1", "1234");
+    }
+
+    @Test
+    @DisplayName("Should setup issuer CNPJ successfully")
+    void setupIssuerCnpj_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+        principal.setId(UUID.randomUUID());
+
+        UserAccount updated = new UserAccount();
+        updated.setUsername("user");
+        updated.setId(principal.getId());
+        updated.setIssuerCnpj("08299621000120");
+        when(userAccountService.setupIssuerCnpj(principal, "08299621000120")).thenReturn(updated);
+
+        SetupIssuerCnpjRequestDTO request = new SetupIssuerCnpjRequestDTO("08299621000120");
+
+        ResponseEntity<UserProfileResponseDTO> response = authController.setupIssuerCnpj(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getIssuerCnpj()).isEqualTo("08299621000120");
+        verify(userAccountService).setupIssuerCnpj(principal, "08299621000120");
     }
 
     @Test

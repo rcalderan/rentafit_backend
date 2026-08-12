@@ -12,6 +12,7 @@ import br.com.rentafit.sales.mapper.SalesMapper;
 import br.com.rentafit.sales.port.RetailProductPort;
 import br.com.rentafit.sales.port.RetailProductPort.RetailProductSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -21,7 +22,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.context.SecurityContextImpl;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -41,7 +44,6 @@ class SalesWorkflowServiceTest {
     @Mock private SalesOrderService orderService;
     @Mock private RetailProductPort productPort;
     @Mock private SalesMapper mapper;
-    @Mock private SalesBillingService billingService;
 
     @InjectMocks
     private SalesWorkflowService workflowService;
@@ -105,12 +107,20 @@ class SalesWorkflowServiceTest {
                 .discountValue(BigDecimal.ZERO).items(List.of()).payments(List.of())
                 .build();
 
-        // Simula usuário autenticado no SecurityContext
+        // Simula usuário autenticado no SecurityContext.
+        // Usa setContext(new SecurityContextImpl(auth)) em vez de getContext().setAuthentication()
+        // para garantir que um mock de SecurityContext deixado por outro teste não sobreviva.
         UserAccount userAccount = new UserAccount();
         userAccount.setId(userId);
         userAccount.setUsername("test@test.com");
         var auth = new UsernamePasswordAuthenticationToken(userAccount, null, List.of());
-        SecurityContextHolder.getContext().setAuthentication(auth);
+        SecurityContext context = new SecurityContextImpl(auth);
+        SecurityContextHolder.setContext(context);
+    }
+
+    @AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
     }
 
     // ── confirm ───────────────────────────────────────────────────────────────
@@ -188,7 +198,6 @@ class SalesWorkflowServiceTest {
             workflowService.confirm(orderId);
 
             assertThat(draftOrder.getStatus()).isEqualTo(SalesOrderStatus.PAID);
-            verify(billingService).onOrderPaid(draftOrder);
         }
     }
 

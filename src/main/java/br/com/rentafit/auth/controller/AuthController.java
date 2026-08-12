@@ -6,6 +6,7 @@ import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
+import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import br.com.rentafit.auth.service.RefreshTokenService;
@@ -18,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -37,6 +39,7 @@ import java.util.regex.Pattern;
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
+@Slf4j
 @Tag(name = "Autenticação", description = "Endpoints para login e gerenciamento de tokens")
 public class AuthController {
 
@@ -56,7 +59,6 @@ public class AuthController {
             return ResponseEntity.status(403).build();
         }
         var publicKey = cryptoService.getPublicKeyBase64();
-        System.out.println("Chave pública RSA fornecida: " + publicKey);
         return ResponseEntity.ok(Map.of("publicKey", publicKey));
     }
 
@@ -66,19 +68,16 @@ public class AuthController {
     public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid LoginRequestDTO data) {
 
         try{
-            System.out.println("=== Tentativa de Login ===");
-            System.out.println("Username: " + data.username());
-            System.out.println("Password recebido: " + data.password().substring(0, Math.min(20, data.password().length())) + "...");
+            log.info("Tentativa de login para username: {}", data.username());
             if (BCRYPT_PATTERN.matcher(data.password()).matches()) {
-                System.out.println("AVISO: Senha recebida já está em formato BCrypt hash. Login negado por segurança.");
+                log.warn("Login negado: senha recebida em formato BCrypt hash para username: {}", data.username());
                 return ResponseEntity.status(403).build();
             }
             var autenticationToken = new UsernamePasswordAuthenticationToken(data.username(), data.password());
             var authentication = authenticationManager.authenticate(autenticationToken);
 
             var user = (UserAccount)authentication.getPrincipal();
-            System.out.println("Usuário autenticado: " + user.getUsername());
-            System.out.println("Roles do usuário: " + user.getAuthorities());
+            log.info("Usuário autenticado: {} com roles: {}", user.getUsername(), user.getAuthorities());
 
             var accessToken = tokenService.generateToken(user.getUsername());
             var refreshToken = refreshTokenService.createRefreshToken(user);
@@ -141,7 +140,7 @@ public class AuthController {
 //            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
 
         } catch (Exception e) {
-            System.out.println("Erro na autenticação: " + e.getMessage());
+            log.warn("Falha na autenticação para username: {} - {}", data.username(), e.getMessage());
             return ResponseEntity.status(403).build();
         }
     }
@@ -174,8 +173,7 @@ public class AuthController {
                     .map(ResponseEntity::ok)
                     .orElse(ResponseEntity.notFound().build());
         } catch (Exception e) {
-            System.out.println("Erro ao buscar perfil do usuário: " + e.getMessage());
-            e.printStackTrace();
+            log.error("Erro ao buscar perfil do usuário", e);
             return ResponseEntity.internalServerError().build();
         }
     }
@@ -205,6 +203,33 @@ public class AuthController {
             @AuthenticationPrincipal UserAccount principal,
             @Valid @RequestBody ChangePasswordRequestDTO request) {
         userAccountService.changePassword(principal, request.newPassword());
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/setup-issuer-cnpj")
+    @Operation(summary = "Vincular CNPJ do emitente",
+              description = "Vincula o usuário autenticado ao CNPJ do emitente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "CNPJ vinculado com sucesso"),
+        @ApiResponse(responseCode = "422", description = "Validation error")
+    })
+    public ResponseEntity<UserProfileResponseDTO> setupIssuerCnpj(
+            @AuthenticationPrincipal UserAccount principal,
+            @Valid @RequestBody SetupIssuerCnpjRequestDTO request) {
+        UserAccount updated = userAccountService.setupIssuerCnpj(principal, request.issuerCnpj());
+        return ResponseEntity.ok(new UserProfileResponseDTO(updated, userAccountService.getPasswordExpiryDays()));
+    }
+
+    // Used by Nginx auth_request to validate JWT tokens for the costume-rental-nfe gateway
+    @GetMapping("/validate-token")
+    @Operation(summary = "Valida o token JWT",
+              description = "Retorna 200 se o Bearer token é válido. Usado pelo Nginx auth_request para proteger o microsserviço NFe.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Token válido"),
+        @ApiResponse(responseCode = "401", description = "Token ausente ou inválido")
+    })
+    public ResponseEntity<Void> validateToken() {
+        // Se chegou aqui, o SecurityFilter já validou o JWT com sucesso
         return ResponseEntity.ok().build();
     }
 }

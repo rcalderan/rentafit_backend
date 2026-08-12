@@ -55,6 +55,13 @@ public class RetailProductController {
     public ResponseEntity<Page<ProductRetailDetailsDTO>> findAll(@Valid Pageable pageable) {
         return ResponseEntity.ok(retailProductService.findAll(pageable));
     }
+    
+    // @GetMapping("by-name/{name}")
+    // @Operation(summary = "List all products by name")
+    // @ApiResponse(responseCode = "200", description = "Products retrieved successfully")
+    // public ResponseEntity<Page<ProductRetailDetailsDTO>> findAllByName(@PathVariable String name, @Valid Pageable pageable) {
+    //     return ResponseEntity.ok(retailProductService.findAllByName(name, pageable));
+    // }
 
 
     @PutMapping("/{id}")

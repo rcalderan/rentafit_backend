@@ -13,6 +13,8 @@ import br.com.rentafit.sales.port.SalesCustomerPort;
 import br.com.rentafit.sales.port.SalesCustomerPort.CustomerSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -330,6 +332,27 @@ class SalesOrderServiceTest {
             assertThatThrownBy(() -> orderService.findByLegacyId("V-INEXISTENTE"))
                     .isInstanceOf(ResourceNotFoundException.class)
                     .hasMessageContaining("V-INEXISTENTE");
+        }
+    }
+
+    @Nested
+    @DisplayName("findWithFilters")
+    class FindWithFilters {
+
+        @Test
+        @DisplayName("Deve consultar por status quando não há filtro de data")
+        void deveConsultarPorStatusSemFiltroDeData() {
+            var pageable = PageRequest.of(0, 20);
+            when(orderRepository.findByStatus(SalesOrderStatus.CANCELLED, pageable))
+                    .thenReturn(new PageImpl<>(List.of(draftOrder), pageable, 1));
+            when(mapper.toSummaryDTO(draftOrder)).thenReturn(SalesOrderSummaryDTO.builder()
+                    .id(orderId).status("CANCELLED").build());
+
+            var result = orderService.findWithFilters(SalesOrderStatus.CANCELLED, null, null, pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            verify(orderRepository).findByStatus(SalesOrderStatus.CANCELLED, pageable);
+            verify(orderRepository, never()).findWithFilters(any(), any(), any(), any());
         }
     }
 

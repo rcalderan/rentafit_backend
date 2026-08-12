@@ -1,6 +1,7 @@
 HELP.md
 target/
 receita/
+scripts/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -9,9 +10,24 @@ receita/
 .legado
 .prompt
 .docs
-.copilot/*
-.windsurf/*
-.QA/*
+.copilot
+.devin
+.QA
+*sefaz-cacerts*
+
+### Playwright ###
+.playwright*
+playwright*
+.claude
+test-results
+
+
+### Graphify ###
+graphify-out/
+.kiro/
+.agents
+CLAUDE.md
+graphify*
 
 ### STS ###
 .apt_generated

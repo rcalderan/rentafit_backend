@@ -244,11 +244,12 @@ class EmployeeServiceTest {
     void shouldCheckEmployeeCredentials() {
         UserAccount account = new UserAccount();
         account.setId(employeeId);
-        account.setPin("1234");
+        account.setPin("$2a$10$hashedPin");
         account.setRoles(Collections.singletonList(employeeRole));
 
         when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
         when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
+        when(passwordEncoder.matches("1234", "$2a$10$hashedPin")).thenReturn(true);
 
         EmployeeCheckRequestDTO requestDTO = new EmployeeCheckRequestDTO("js", "1234");
         EmployeeCheckResponseDTO result = employeeService.check(requestDTO);
@@ -262,10 +263,11 @@ class EmployeeServiceTest {
     void shouldThrowExceptionWhenPinIsInvalid() {
         UserAccount account = new UserAccount();
         account.setId(employeeId);
-        account.setPin("9999");
+        account.setPin("$2a$10$otherHashedPin");
 
         when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
         when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
+        when(passwordEncoder.matches("1234", "$2a$10$otherHashedPin")).thenReturn(false);
 
         EmployeeCheckRequestDTO requestDTO = new EmployeeCheckRequestDTO("js", "1234");
 

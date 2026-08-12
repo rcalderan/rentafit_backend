@@ -228,6 +228,27 @@ class UserAccountServiceTest {
     }
 
     @Test
+    @DisplayName("Should link issuer CNPJ to user")
+    void testSetupIssuerCnpj_Success() {
+        when(userAccountRepository.findByUsernameWithDetails(username)).thenReturn(Optional.of(userAccount));
+        when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
+
+        UserAccount updated = userAccountService.setupIssuerCnpj(userAccount, "08299621000120");
+
+        assertThat(updated.getIssuerCnpj()).isEqualTo("08299621000120");
+        verify(userAccountRepository).findByUsernameWithDetails(username);
+        verify(userAccountRepository).save(userAccount);
+    }
+
+    @Test
+    @DisplayName("Should reject invalid issuer CNPJ")
+    void testSetupIssuerCnpj_InvalidCnpj() {
+        assertThatThrownBy(() -> userAccountService.setupIssuerCnpj(userAccount, "123"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("14 dígitos");
+    }
+
+    @Test
     @DisplayName("isEnabled deve retornar false quando isActive=false")
     void testIsEnabled_ReturnsFalseWhenInactive() {
         userAccount.setIsActive(false);
@@ -278,12 +299,13 @@ class UserAccountServiceTest {
         void testSetupCredentials_Success() {
             userAccount.setPin(null);
             when(passwordEncoder.encode("NewP@ss1")).thenReturn("$2a$10$encodedHash");
+            when(passwordEncoder.encode("1234")).thenReturn("$2a$10$encodedPinHash");
             when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
 
             userAccountService.setupCredentials(userAccount, "NewP@ss1", "1234");
 
             assertThat(userAccount.getPassword()).isEqualTo("$2a$10$encodedHash");
-            assertThat(userAccount.getPin()).isEqualTo("1234");
+            assertThat(userAccount.getPin()).isEqualTo("$2a$10$encodedPinHash");
             assertThat(userAccount.getPasswordChangedAt()).isNotNull();
             assertThat(userAccount.getPasswordChangedAt()).isBefore(OffsetDateTime.now().plusSeconds(1));
             verify(userAccountRepository).save(userAccount);

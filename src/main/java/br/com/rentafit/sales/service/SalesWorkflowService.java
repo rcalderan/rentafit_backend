@@ -4,7 +4,6 @@ import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.sales.domain.SalesOrder;
 import br.com.rentafit.sales.domain.SalesOrderItem;
-import br.com.rentafit.sales.domain.enums.InvoiceStatus;
 import br.com.rentafit.sales.domain.enums.SalesItemStatus;
 import br.com.rentafit.sales.domain.enums.SalesOrderStatus;
 import br.com.rentafit.sales.dto.CancelSalesOrderDTO;
@@ -40,7 +39,6 @@ public class SalesWorkflowService {
     private final SalesOrderService orderService;
     private final RetailProductPort productPort;
     private final SalesMapper mapper;
-    private final SalesBillingService billingService;
 
     /**
      * DRAFT → CONFIRMED: valida estoque e reserva.
@@ -192,8 +190,9 @@ public class SalesWorkflowService {
             return userAccount.getId();
         }
         // Fallback: nunca deve ocorrer em produção com JWT configurado corretamente
+        Object principal = auth != null ? auth.getPrincipal() : null;
         log.warn("Authenticated principal is not a UserAccount — principal type: {}",
-                auth != null ? auth.getPrincipal().getClass().getSimpleName() : "null");
+                principal != null ? principal.getClass().getSimpleName() : "null");
         throw new ValidationException("Usuário autenticado não identificado. Faça login novamente.");
     }
 
@@ -217,7 +216,6 @@ public class SalesWorkflowService {
         BigDecimal paidValue = mapper.computePaidValue(order.getPayments());
         if (paidValue.compareTo(totalValue) >= 0) {
             order.setStatus(SalesOrderStatus.PAID);
-            billingService.onOrderPaid(order);
             log.info("Sales order {} transitioned CONFIRMED→PAID during confirm (paid={}, total={})",
                     order.getId(), paidValue, totalValue);
         }

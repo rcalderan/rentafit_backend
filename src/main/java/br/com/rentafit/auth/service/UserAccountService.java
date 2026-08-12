@@ -56,7 +56,7 @@ public class UserAccountService implements UserDetailsService {
             throw new ValidationException("Credentials already configured. Use change-password to update your password.");
         }
         user.setPassword(passwordEncoder.encode(newPassword));
-        user.setPin(pin);
+        user.setPin(passwordEncoder.encode(pin));
         user.setPasswordChangedAt(OffsetDateTime.now());
         userAccountRepository.save(user);
     }
@@ -69,6 +69,20 @@ public class UserAccountService implements UserDetailsService {
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setPasswordChangedAt(OffsetDateTime.now());
         userAccountRepository.save(user);
+    }
+
+    /**
+     * Vincula o emitente (CNPJ) ao usuário autenticado.
+     */
+    @Transactional
+    public UserAccount setupIssuerCnpj(UserAccount user, String issuerCnpj) {
+        if (issuerCnpj == null || !issuerCnpj.matches("\\d{14}")) {
+            throw new ValidationException("CNPJ deve conter exatamente 14 dígitos numéricos.");
+        }
+        UserAccount managed = userAccountRepository.findByUsernameWithDetails(user.getUsername())
+                .orElseThrow(() -> new ValidationException("Usuário não encontrado: " + user.getUsername()));
+        managed.setIssuerCnpj(issuerCnpj);
+        return userAccountRepository.save(managed);
     }
 }
 

@@ -10,8 +10,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Adapter que implementa RentalItemPort usando RentalItemRepository do componente Product.
@@ -33,6 +37,17 @@ public class RentalItemAdapter implements RentalItemPort {
     @Override
     public Optional<RentalItemSnapshot> findByLegacyId(String legacyId) {
         return rentalItemRepository.findByLegacyId(legacyId).map(this::toSnapshot);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<UUID, RentalItemSnapshot> findByIds(Collection<UUID> rentalItemIds) {
+        if (rentalItemIds == null || rentalItemIds.isEmpty()) {
+            return Map.of();
+        }
+        return rentalItemRepository.findAllById(rentalItemIds).stream()
+                .map(this::toSnapshot)
+                .collect(Collectors.toMap(RentalItemSnapshot::id, Function.identity()));
     }
 
     @Override

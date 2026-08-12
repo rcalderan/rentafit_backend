@@ -2,6 +2,8 @@ package br.com.rentafit.rental.domain;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -69,6 +71,7 @@ public class RentalContractItem {
     private String returnedByName;
 
     @OneToMany(mappedBy = "contractItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Fetch(FetchMode.SUBSELECT)
     @Builder.Default
     private List<RentalContractItemMeta> metadata = new ArrayList<>();
 }

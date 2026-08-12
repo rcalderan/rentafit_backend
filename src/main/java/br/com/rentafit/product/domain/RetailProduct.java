@@ -71,7 +71,7 @@ public class RetailProduct extends Product {
                 .updatedAt(this.getUpdatedAt())
                 .sku(this.getSku())
                 .warrantyDays(this.getWarrantyDays())
-                .stock(this.getStock().toDTO())
+                .stock(this.getStock() != null ? this.getStock().toDTO() : null)
                 .build();
     }
 

@@ -1,4 +1,4 @@
-name: CI/CD Pipeline
+name: CI/CD Pipeline - Pro
 
 on:
   pull_request:
@@ -20,178 +20,133 @@ jobs:
         java-version: ['21']
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0  # Full history needed for SonarQube analysis
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history needed for SonarQube analysis
 
-    - name: Setup Java ${{ matrix.java-version }}
-      uses: actions/setup-java@v4
-      with:
-        java-version: ${{ matrix.java-version }}
-        distribution: 'temurin'
-        cache: maven
+      - name: Setup Java ${{ matrix.java-version }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ matrix.java-version }}
+          distribution: 'temurin'
+          cache: maven
 
-    - name: Display Java version
-      run: java -version
+      - name: Display Java version
+        run: java -version
 
-    - name: Build with Maven (compile only)
-      run: mvn clean compile -DskipTests
+      - name: Build with Maven (compile only)
+        run: mvn clean compile -DskipTests
 
-    - name: Run Unit Tests
-      run: mvn test
+      - name: Run Unit Tests
+        run: mvn test
 
-    - name: Generate Test Report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-reports-${{ matrix.java-version }}
-        path: target/surefire-reports/
-        retention-days: 7
+      - name: Generate Test Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ matrix.java-version }}
+          path: target/surefire-reports/
+          retention-days: 7
 
-    - name: Run Integration Tests
-      run: mvn verify -DskipUnitTests=false
+      - name: Run Integration Tests
+        run: mvn verify -DskipUnitTests=false
 
-#    - name: Code Quality Analysis (SonarQube)
-#      if: github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/master'
-#      run: |
-#        mvn sonar:sonar \
-#          -Dsonar.projectKey=rentafit \
-#          -Dsonar.projectName=Rentafit \
-#          -Dsonar.sources=src/main/java \
-#          -Dsonar.tests=src/test/java
-#      env:
-#        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-#        SONAR_LOGIN: ${{ secrets.SONAR_LOGIN }}
-#      continue-on-error: true  # Don't fail the pipeline if SonarQube fails
-
-    - name: Check Code Coverage
-      run: mvn jacoco:report
-      continue-on-error: true
+      - name: Check Code Coverage
+        run: mvn jacoco:report
+        continue-on-error: true
 
   security-check:
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Setup Java
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: maven
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
 
-    - name: Run Dependency Check (OWASP)
-      run: mvn org.owasp:dependency-check-maven:check -DskipProvidedScope=true
-      continue-on-error: true
+      - name: Run Dependency Check (OWASP)
+        run: mvn org.owasp:dependency-check-maven:check -DskipProvidedScope=true
+        continue-on-error: true
 
-    - name: Upload Dependency Check Report
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: dependency-check-report
-        path: target/dependency-check-report.*
-        retention-days: 7
+      - name: Upload Dependency Check Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-report
+          path: target/dependency-check-report.*
+          retention-days: 7
 
-  # ─── PRO PIPELINE ───────────────────────────────────────────────────────────
-  # The HK pipeline jobs (security-check, deploy-hk) are in ci-cd-pre.yml
-  # (triggered on PRs to develop). This file manages PRO deploy only
-  # (PRs to master).
-
-  deploy-pro:
-    needs: build
+  publish-pro:
+    needs: [build]
     runs-on: ubuntu-latest
-    environment: production
     if: github.event.action == 'closed' && github.event.pull_request.merged == true && github.base_ref == 'master'
+    environment: production
     env:
       ECR_REPOSITORY: rentafit-api-pro
-      ECR_STACK_NAME: rentafit-pro-ecr
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Configure AWS credentials for PRO
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      - name: Configure AWS credentials for PRO
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Ensure ECR repository (PRO)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: ${{ env.ECR_STACK_NAME }}
-        template: .infrastructure/cloudformation/ecr-pro.yaml
-        parameter-overrides: >-
-          RepositoryName=${{ env.ECR_REPOSITORY }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
 
-    - name: Build, tag, and push image to Amazon ECR
-      id: build-image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: |
-          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-          ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        provenance: false
+      - name: Set image output
+        id: set-output
+        run: |
+          echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
-    - name: Set image output
-      id: set-output
-      run: |
-        echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
-
-    # C3: Separate RDS stack with --no-fail-on-empty-changeset to avoid
-    # recreating the database on every merge (only applies if template changes).
-    - name: Ensure RDS Stack (PRO) — idempotent
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: rentafit-pro-rds
-        template: .infrastructure/cloudformation/rds-pro.yaml
-        no-fail-on-empty-changeset: "1"
-        parameter-overrides: >-
-          VpcId=${{ secrets.AWS_VPC_ID }},
-          PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
-          DBPassword=${{ secrets.PRO_DB_PASSWORD }}
-
-    - name: Deploy ECS Stack (PRO)
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: rentafit-pro-stack
-        template: .infrastructure/cloudformation/ecs-pro.yaml
-        no-fail-on-empty-changeset: "1"
-        parameter-overrides: >-
-          ImageUri=${{ steps.set-output.outputs.image }},
-          VpcId=${{ secrets.AWS_VPC_ID }},
-          PrivateSubnets=${{ secrets.AWS_PRIVATE_SUBNETS }},
-          DbPasswordSecretArn=${{ secrets.PRO_DB_PASSWORD_SECRET_ARN }}
-
-  # ─── NOTIFY ─────────────────────────────────────────────────────────────────
+      - name: Trigger deploy in costume-rental-infra
+        continue-on-error: true
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
+            -H "Accept: application/vnd.github.everest-preview+json" \
+            https://api.github.com/repos/rcalderan/costume-rental-infra/dispatches \
+            -d "{\"event_type\":\"deploy-pro\",\"client_payload\":{\"image_uri\":\"${{ steps.set-output.outputs.image }}\"}}"
 
   notify:
-    needs: [build, deploy-pro]
+    needs: [build, publish-pro]
     runs-on: ubuntu-latest
     if: always()
     steps:
-    - name: Notify on Success
-      if: success()
-      run: |
-        echo "✅ Pipeline completed successfully!"
-        echo "Branch: ${{ github.ref }}"
-        echo "Commit: ${{ github.sha }}"
+      - name: Notify on Success
+        if: success()
+        run: |
+          echo "✅ Pipeline completed successfully!"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"
 
-    - name: Notify on Failure
-      if: failure()
-      run: |
-        echo "❌ Pipeline failed!"
-        echo "Branch: ${{ github.ref }}"
-        echo "Commit: ${{ github.sha }}"
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          echo "❌ Pipeline failed!"
+          echo "Branch: ${{ github.ref }}"
+          echo "Commit: ${{ github.sha }}"

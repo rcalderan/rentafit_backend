@@ -32,8 +32,8 @@ public class UserAccount implements UserDetails {
     @Schema(description = "Hashed password")
     private String password;
 
-    @Column(length = 4)
-    @Schema(description = "4-digit security PIN", example = "1234")
+    @Column(length = 255)
+    @Schema(description = "BCrypt hash of the 4-digit security PIN")
     private String pin;
 
 
@@ -44,6 +44,10 @@ public class UserAccount implements UserDetails {
     @Column(name = "is_active")
     @Schema(description = "Whether the account is active")
     private Boolean isActive = true;
+
+    @Column(name = "issuer_cnpj", length = 14)
+    @Schema(description = "CNPJ do emitente vinculado ao usuário", example = "08299621000120")
+    private String issuerCnpj;
 
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId

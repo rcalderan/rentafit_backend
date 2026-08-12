@@ -39,15 +39,16 @@ docker ps
 
 Você deve ver o container `dev-postgresql` rodando na **porta 5433**.
 
-Se o container não estiver rodando, inicie-o:
+Se o container não estiver rodando, inicie o compose no repo de infra:
 
 ```bash
-docker-compose up -d
+cd ../costume-rental-infra/local
+docker compose up -d
 ```
 
 ### 2. Configuração do Docker Compose
 
-O arquivo `docker-compose.yaml` está configurado para usar:
+O arquivo `costume-rental-infra/local/docker-compose.yml` está configurado para usar:
 
 ```yaml
 Container: dev-postgresql
@@ -439,7 +440,7 @@ Role: ROLE_ADMIN
 
 **Solução:**
 1. Verifique o `application-local.properties`
-2. Confirme senha no `docker-compose.yaml`
+2. Confirme senha no `costume-rental-infra/local/docker-compose.yml`
 3. Reinicie o container: `docker restart dev-postgresql`
 
 ### ❌ Erro: "Connection refused"

@@ -40,7 +40,6 @@ class SalesPaymentServiceTest {
     @Mock private SalesPaymentRepository paymentRepository;
     @Mock private SalesOrderRepository orderRepository;
     @Mock private SalesOrderService orderService;
-    @Mock private SalesBillingService billingService;
     @Mock private SalesMapper mapper;
 
     @InjectMocks
@@ -201,7 +200,6 @@ class SalesPaymentServiceTest {
             paymentService.addPayment(orderId, paidDTO);
 
             assertThat(confirmedOrder.getStatus()).isEqualTo(SalesOrderStatus.PAID);
-            verify(billingService).onOrderPaid(confirmedOrder);
         }
 
         @Test

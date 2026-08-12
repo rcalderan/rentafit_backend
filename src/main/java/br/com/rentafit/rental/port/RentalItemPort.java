@@ -3,6 +3,8 @@ package br.com.rentafit.rental.port;
 import br.com.rentafit.product.domain.enums.ProductStatus;
 
 import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,6 +19,12 @@ public interface RentalItemPort {
     Optional<RentalItemSnapshot> findById(UUID rentalItemId);
 
     Optional<RentalItemSnapshot> findByLegacyId(String legacyId);
+
+    /**
+     * Resolve múltiplos snapshots de uma vez (batch) para evitar N+1.
+     * IDs não encontrados são simplesmente omitidos do mapa retornado.
+     */
+    Map<UUID, RentalItemSnapshot> findByIds(Collection<UUID> rentalItemIds);
 
     /**
      * Atualiza o ProductStatus do RentalItem.

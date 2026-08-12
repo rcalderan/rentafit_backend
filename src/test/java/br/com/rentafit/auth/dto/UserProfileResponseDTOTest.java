@@ -65,20 +65,20 @@ class UserProfileResponseDTOTest {
     }
 
     @Test
-    @DisplayName("pin field is preserved from UserAccount")
-    void testPinField() {
-        userAccount.setPin("4321");
+    @DisplayName("pinConfigured is true when UserAccount has a PIN hash")
+    void testPinConfiguredTrue() {
+        userAccount.setPin("$2a$10$someBcryptHashValue");
         userAccount.setPasswordChangedAt(OffsetDateTime.now());
         var dto = new UserProfileResponseDTO(userAccount, 90);
-        assertThat(dto.getPin()).isEqualTo("4321");
+        assertThat(dto.isPinConfigured()).isTrue();
     }
 
     @Test
-    @DisplayName("pin is null when not set")
-    void testPinNull() {
+    @DisplayName("pinConfigured is false when PIN not set")
+    void testPinConfiguredFalse() {
         userAccount.setPin(null);
         userAccount.setPasswordChangedAt(OffsetDateTime.now());
         var dto = new UserProfileResponseDTO(userAccount, 90);
-        assertThat(dto.getPin()).isNull();
+        assertThat(dto.isPinConfigured()).isFalse();
     }
 }

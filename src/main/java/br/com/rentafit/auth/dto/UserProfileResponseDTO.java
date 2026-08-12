@@ -28,8 +28,8 @@ public class UserProfileResponseDTO {
     @Schema(description = "FullName", example = "JOHN DOE")
     private String name;
     
-    @Schema(description = "USER PIN", example = "XSEA")
-    private String pin;
+    @Schema(description = "Whether the user has already configured a PIN", example = "true")
+    private boolean pinConfigured;
     
     @Schema(description = "User access role", example = "ROLE_MANAGER")
     private List<String> roles;
@@ -40,6 +40,9 @@ public class UserProfileResponseDTO {
     @Schema(description = "Whether the password has expired and must be changed", example = "false")
     private boolean passwordExpired;
 
+    @Schema(description = "CNPJ do emitente vinculado ao usuário", example = "08299621000120")
+    private String issuerCnpj;
+
     public UserProfileResponseDTO(UserAccount user){
         this(user, 90);
     }
@@ -48,13 +51,14 @@ public class UserProfileResponseDTO {
         this.id = user.getId();
         this.username = user.getUsername();
         this.name = user.getPerson() != null ? user.getPerson().getName() : null;
-        this.pin = user.getPin();
+        this.pinConfigured = user.getPin() != null;
         this.legacyId = user.getPerson() != null ? user.getPerson().getLegacyId() : null;
         this.roles = user.getRoles() != null ? user.getRoles().stream()
                 .map(role -> role.getRole().name())
                 .toList() : List.of();
         this.isActive = Boolean.TRUE.equals(user.getIsActive());
         this.passwordExpired = isPasswordExpired(user.getPasswordChangedAt(), passwordExpiryDays);
+        this.issuerCnpj = user.getIssuerCnpj();
     }
 
     private static boolean isPasswordExpired(java.time.OffsetDateTime passwordChangedAt, long expiryDays) {

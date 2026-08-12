@@ -4,6 +4,8 @@ import br.com.rentafit.rental.domain.enums.ContractStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import java.time.OffsetDateTime;
 import java.time.LocalDate;
@@ -99,10 +101,12 @@ public class RentalContract {
 
     // ── Relacionamentos ────────────────────────────────────────────────────────
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Fetch(FetchMode.SUBSELECT)
     @Builder.Default
     private List<RentalContractItem> items = new ArrayList<>();
 
     @OneToMany(mappedBy = "contract", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Fetch(FetchMode.SUBSELECT)
     @Builder.Default
     private List<RentalPayment> payments = new ArrayList<>();
 }
