@@ -228,6 +228,27 @@ class UserAccountServiceTest {
     }
 
     @Test
+    @DisplayName("Should link issuer CNPJ to user")
+    void testSetupIssuerCnpj_Success() {
+        when(userAccountRepository.findByUsernameWithDetails(username)).thenReturn(Optional.of(userAccount));
+        when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
+
+        UserAccount updated = userAccountService.setupIssuerCnpj(userAccount, "08299621000120");
+
+        assertThat(updated.getIssuerCnpj()).isEqualTo("08299621000120");
+        verify(userAccountRepository).findByUsernameWithDetails(username);
+        verify(userAccountRepository).save(userAccount);
+    }
+
+    @Test
+    @DisplayName("Should reject invalid issuer CNPJ")
+    void testSetupIssuerCnpj_InvalidCnpj() {
+        assertThatThrownBy(() -> userAccountService.setupIssuerCnpj(userAccount, "123"))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("14 dígitos");
+    }
+
+    @Test
     @DisplayName("isEnabled deve retornar false quando isActive=false")
     void testIsEnabled_ReturnsFalseWhenInactive() {
         userAccount.setIsActive(false);

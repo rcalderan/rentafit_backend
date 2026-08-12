@@ -29,9 +29,7 @@ src/main/resources/db/migration/ @rcalderan
 
 # === DOCKER ===
 
-# Docker Compose
-docker-compose.yaml @rcalderan
-docker-compose.yml @rcalderan
+# Dockerfile da aplicação
 Dockerfile @rcalderan
 
 # === CONTROLE DE VERSÃO ===

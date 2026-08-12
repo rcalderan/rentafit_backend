@@ -45,6 +45,10 @@ public class UserAccount implements UserDetails {
     @Schema(description = "Whether the account is active")
     private Boolean isActive = true;
 
+    @Column(name = "issuer_cnpj", length = 14)
+    @Schema(description = "CNPJ do emitente vinculado ao usuário", example = "08299621000120")
+    private String issuerCnpj;
+
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")

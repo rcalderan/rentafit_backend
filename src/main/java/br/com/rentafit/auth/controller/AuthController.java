@@ -6,6 +6,7 @@ import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.dto.LoginRequestDTO;
 import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
+import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import br.com.rentafit.auth.service.RefreshTokenService;
@@ -203,6 +204,20 @@ public class AuthController {
             @Valid @RequestBody ChangePasswordRequestDTO request) {
         userAccountService.changePassword(principal, request.newPassword());
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/setup-issuer-cnpj")
+    @Operation(summary = "Vincular CNPJ do emitente",
+              description = "Vincula o usuário autenticado ao CNPJ do emitente.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "CNPJ vinculado com sucesso"),
+        @ApiResponse(responseCode = "422", description = "Validation error")
+    })
+    public ResponseEntity<UserProfileResponseDTO> setupIssuerCnpj(
+            @AuthenticationPrincipal UserAccount principal,
+            @Valid @RequestBody SetupIssuerCnpjRequestDTO request) {
+        UserAccount updated = userAccountService.setupIssuerCnpj(principal, request.issuerCnpj());
+        return ResponseEntity.ok(new UserProfileResponseDTO(updated, userAccountService.getPasswordExpiryDays()));
     }
 
     // Used by Nginx auth_request to validate JWT tokens for the costume-rental-nfe gateway
