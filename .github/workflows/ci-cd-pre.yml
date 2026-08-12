@@ -2,7 +2,7 @@ name: CI/CD Pipeline - Pre (HK)
 
 on:
   pull_request:
-    branches: [ develop ]
+    branches: [ develop, main ]
     types: [ opened, synchronize, reopened, closed ]
     paths:
       - 'src/**'
@@ -81,10 +81,62 @@ jobs:
           path: target/dependency-check-report.*
           retention-days: 7
 
-  publish-hk:
+  publish-ghcr:
     needs: [build]
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true && github.base_ref == 'develop'
+    if: github.event.pull_request.merged == true && (github.base_ref == 'develop' || github.base_ref == 'main')
+    environment: develop
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build, tag, and push image to GHCR
+        id: build-image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/rcalderan/rentafit-api:${{ github.sha }}
+            ghcr.io/rcalderan/rentafit-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+      - name: Set image output
+        id: set-output
+        run: |
+          echo "image=ghcr.io/rcalderan/rentafit-api:${{ github.sha }}" >> $GITHUB_OUTPUT
+
+  trigger-deploy:
+    needs: [publish-ghcr]
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && github.base_ref == 'main' && (vars.DEPLOY_TARGET == '' || vars.DEPLOY_TARGET == 'HOSTINGER')
+    steps:
+      - name: Trigger Hostinger deploy
+        run: |
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.INFRA_REPO_PAT }}" \
+            -H "Accept: application/vnd.github.everest-preview+json" \
+            https://api.github.com/repos/rcalderan/costume-rental-infra/dispatches \
+            -d "{\"event_type\":\"deploy-hostinger-pro\",\"client_payload\":{\"rentafit_image\":\"ghcr.io/rcalderan/rentafit-api:${{ github.sha }}\"}}"
+
+  publish-ecr-legacy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true && github.base_ref == 'develop' && vars.DEPLOY_TARGET == 'AWS'
     environment: develop
     env:
       ECR_REPOSITORY: rentafit-api-hk
@@ -123,7 +175,7 @@ jobs:
         run: |
           echo "image=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}" >> $GITHUB_OUTPUT
 
-      - name: Trigger deploy in costume-rental-infra
+      - name: Trigger deploy in costume-rental-infra (AWS legacy)
         continue-on-error: true
         run: |
           curl -X POST \
@@ -133,7 +185,7 @@ jobs:
             -d "{\"event_type\":\"deploy-hk\",\"client_payload\":{\"image_uri\":\"${{ steps.set-output.outputs.image }}\"}}"
 
   notify:
-    needs: [build, publish-hk]
+    needs: [build, publish-ghcr, publish-ecr-legacy]
     runs-on: ubuntu-latest
     if: always()
     steps:
