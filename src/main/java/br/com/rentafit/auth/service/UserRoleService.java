@@ -8,6 +8,7 @@ import br.com.rentafit.auth.repository.RoleRepository;
 import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.people.service.EmployeeService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -43,6 +44,7 @@ public class UserRoleService {
 
     private final UserAccountRepository userAccountRepository;
     private final RoleRepository roleRepository;
+    private final EmployeeService employeeService;
 
     @Transactional(readOnly = true)
     public Page<UserSummaryDTO> listUsers(Pageable pageable) {
@@ -51,6 +53,18 @@ public class UserRoleService {
 
     @Transactional
     public UserSummaryDTO setRole(UserAccount actor, UUID targetUserId, RoleName newRole) {
+        return setRole(actor, targetUserId, newRole, null, null);
+    }
+
+    /**
+     * Changes a user's role. When elevating to EMPLOYEE or MANAGER, ensures an Employee row
+     * exists for the Person (creating one with the provided initials when missing).
+     *
+     * Usage: {@code userRoleService.setRole(actor, targetId, RoleName.EMPLOYEE, "JD", 1)}
+     */
+    @Transactional
+    public UserSummaryDTO setRole(UserAccount actor, UUID targetUserId, RoleName newRole,
+                                   String initials, Integer roleLevel) {
         if (actor == null) {
             throw new ValidationException("Authenticated actor is required to change roles");
         }
@@ -64,6 +78,10 @@ public class UserRoleService {
         RoleName targetCurrentRole = target.getRole();
 
         validateChangeAllowed(actorRole, targetCurrentRole, newRole);
+
+        if (newRole == RoleName.EMPLOYEE || newRole == RoleName.MANAGER) {
+            employeeService.ensureEmployeeForPerson(targetUserId, initials, roleLevel);
+        }
 
         applyRole(target, newRole);
         UserAccount saved = userAccountRepository.save(target);

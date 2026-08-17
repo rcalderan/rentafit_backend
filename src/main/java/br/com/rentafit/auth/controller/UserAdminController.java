@@ -54,6 +54,7 @@ public class UserAdminController {
             @AuthenticationPrincipal UserAccount actor,
             @PathVariable UUID id,
             @Valid @RequestBody UpdateUserRoleRequestDTO request) {
-        return ResponseEntity.ok(userRoleService.setRole(actor, id, request.role()));
+        return ResponseEntity.ok(userRoleService.setRole(actor, id, request.role(),
+                request.initials(), request.roleLevel()));
     }
 }
