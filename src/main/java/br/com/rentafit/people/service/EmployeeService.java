@@ -17,6 +17,7 @@ import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.EmployeeRepository;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -28,6 +29,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EmployeeService {
 
     private final EmployeeRepository employeeRepository;
@@ -64,6 +66,46 @@ public class EmployeeService {
         createUserAccount(savedEmployee, dto.pin(), normalizedInitials);
 
         return toCheckResponseDTO(savedEmployee);
+    }
+
+    /**
+     * Ensures an Employee row exists for an existing Person (e.g. when elevating a CUSTOMER
+     * to EMPLOYEE/MANAGER). Does NOT touch the people/customers/user_accounts rows.
+     *
+     * Usage: {@code employeeService.ensureEmployeeForPerson(personId, "JD", 1)}
+     *
+     * @param personId  id of an already-persisted Person (also the UserAccount id)
+     * @param initials  required when no Employee row exists yet; normalized to uppercase
+     * @param roleLevel defaults to 1 when null
+     */
+    @Transactional
+    public void ensureEmployeeForPerson(UUID personId, String initials, Integer roleLevel) {
+        if (personId == null) {
+            throw new ValidationException("personId is required to ensure an Employee row");
+        }
+        if (employeeRepository.existsById(personId)) {
+            return;
+        }
+        if (initials == null || initials.isBlank()) {
+            throw new ValidationException(
+                    "Initials are required to register Employee for person " + personId
+                            + " (expected 2-10 uppercase letters, e.g. 'JD')");
+        }
+        String normalizedInitials = normalizeInitials(initials);
+        employeeRepository.findByInitials(normalizedInitials).ifPresent(existing -> {
+            throw new ValidationException(
+                    "Initials '" + normalizedInitials + "' already in use by employee " + existing.getId());
+        });
+
+        int level = roleLevel != null ? roleLevel : 1;
+        entityManager.createNativeQuery(
+                        "INSERT INTO employees (id, initials, role_level) VALUES (:id, :initials, :level)")
+                .setParameter("id", personId)
+                .setParameter("initials", normalizedInitials)
+                .setParameter("level", level)
+                .executeUpdate();
+        log.info("Employee row created for person {} with initials '{}' roleLevel={}",
+                personId, normalizedInitials, level);
     }
 
     @Transactional

@@ -55,8 +55,14 @@ public class SecurityConfig {
                         // Área self-service do cliente autenticado (qualquer role autenticada)
                         .requestMatchers("/api/v1/account/**").authenticated()
 
-                        // Employees: somente ADMIN (hierarquia não é auto-aplicada aqui — listar explicitamente)
-                        .requestMatchers("/api/v1/employees/**").hasRole("ADMIN")
+                        // Employees: /check (initials+PIN) e /initials/** usados no fluxo de rental/sales
+                        .requestMatchers(HttpMethod.POST, "/api/v1/employees/check").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET,  "/api/v1/employees/initials/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        // Demais endpoints: leitura (MANAGER/ADMIN) para fluxo de user-roles; escrita/delete ADMIN
+                        .requestMatchers(HttpMethod.GET,    "/api/v1/employees/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,   "/api/v1/employees/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT,    "/api/v1/employees/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/employees/**").hasRole("ADMIN")
 
                         // Customers: EMPLOYEE, MANAGER, ADMIN gerenciam; CUSTOMER não acessa dados de outros
                         .requestMatchers(HttpMethod.GET,    "/api/v1/customers/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
