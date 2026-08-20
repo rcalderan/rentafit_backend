@@ -132,6 +132,23 @@ class FiscalDocumentServiceTest {
     }
 
     @Test
+    @DisplayName("saveFromSync() persiste NFC-e com modelo 65")
+    void saveFromSync_persisteNfceComModelo65() {
+        FiscalDocumentSyncRequest request = new FiscalDocumentSyncRequest(
+                "NFCE", "SALES", UUID.randomUUID(), "12345678901234567890123456789012345678901234",
+                123L, "1", "123456789012345", "AUTHORIZED", BigDecimal.valueOf(200),
+                "Cliente Teste", "12345678901", "teste@example.com",
+                OffsetDateTime.now(), "<xml/>", null, null, null, null);
+        when(repository.findByAccessKey(request.accessKey())).thenReturn(Optional.empty());
+        when(repository.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FiscalDocument result = service.saveFromSync(request);
+
+        assertThat(result.getType()).isEqualTo(FiscalDocumentType.NFCE);
+        assertThat(result.getModel()).isEqualTo(65);
+    }
+
+    @Test
     @DisplayName("saveFromSync() atualiza documento existente pelo accessKey")
     void saveFromSync_atualizaExistente() {
         FiscalDocument existing = documentNfe();
