@@ -76,7 +76,8 @@ public class FiscalDocumentService {
     private FiscalDocument createFromSync(FiscalDocumentSyncRequest request) {
         Customer customer = null;
         if (request.customerDocument() != null) {
-            customer = customerRepository.findByDocument(request.customerDocument()).orElse(null);
+            String normalized = request.customerDocument().replaceAll("\\D", "");
+            customer = customerRepository.findByDocument(normalized).orElse(null);
         }
 
         FiscalDocument document = FiscalDocument.builder()
