@@ -39,7 +39,7 @@ public class FiscalDocument {
     @Column(nullable = false)
     private FiscalDocumentStatus status;
 
-    /** Modelo fiscal: 55 = NF-e, 99 = NFS-e nacional */
+    /** Modelo fiscal: 55 = NF-e, 65 = NFC-e, 99 = NFS-e nacional */
     @Column
     private Integer model;
 

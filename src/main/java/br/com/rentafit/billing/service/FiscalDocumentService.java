@@ -76,11 +76,13 @@ public class FiscalDocumentService {
     private FiscalDocument createFromSync(FiscalDocumentSyncRequest request) {
         Customer customer = null;
         if (request.customerDocument() != null) {
-            customer = customerRepository.findByDocument(request.customerDocument()).orElse(null);
+            String normalized = request.customerDocument().replaceAll("\\D", "");
+            customer = customerRepository.findByDocument(normalized).orElse(null);
         }
 
         FiscalDocument document = FiscalDocument.builder()
                 .type(FiscalDocumentType.valueOf(request.type().toUpperCase()))
+                .model(resolveModel(request.type()))
                 .status(resolveStatus(request.status()))
                 .origin(resolveOrigin(request.origin()))
                 .originId(request.originId())
@@ -117,5 +119,17 @@ public class FiscalDocumentService {
             return FiscalOrigin.MANUAL;
         }
         return FiscalOrigin.valueOf(origin.toUpperCase());
+    }
+
+    private Integer resolveModel(String type) {
+        if (type == null) {
+            return null;
+        }
+        return switch (type.toUpperCase()) {
+            case "NFE" -> 55;
+            case "NFCE" -> 65;
+            case "NFSE" -> 99;
+            default -> null;
+        };
     }
 }

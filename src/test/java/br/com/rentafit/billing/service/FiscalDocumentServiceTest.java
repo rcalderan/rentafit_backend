@@ -132,6 +132,23 @@ class FiscalDocumentServiceTest {
     }
 
     @Test
+    @DisplayName("saveFromSync() persiste NFC-e com modelo 65")
+    void saveFromSync_persisteNfceComModelo65() {
+        FiscalDocumentSyncRequest request = new FiscalDocumentSyncRequest(
+                "NFCE", "SALES", UUID.randomUUID(), "12345678901234567890123456789012345678901234",
+                123L, "1", "123456789012345", "AUTHORIZED", BigDecimal.valueOf(200),
+                "Cliente Teste", "12345678901", "teste@example.com",
+                OffsetDateTime.now(), "<xml/>", null, null, null, null);
+        when(repository.findByAccessKey(request.accessKey())).thenReturn(Optional.empty());
+        when(repository.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FiscalDocument result = service.saveFromSync(request);
+
+        assertThat(result.getType()).isEqualTo(FiscalDocumentType.NFCE);
+        assertThat(result.getModel()).isEqualTo(65);
+    }
+
+    @Test
     @DisplayName("saveFromSync() atualiza documento existente pelo accessKey")
     void saveFromSync_atualizaExistente() {
         FiscalDocument existing = documentNfe();
@@ -149,6 +166,28 @@ class FiscalDocumentServiceTest {
         assertThat(result.getStatus()).isEqualTo(FiscalDocumentStatus.CANCELLED);
         assertThat(result.getCancelReason()).isEqualTo("Erro de teste");
         assertThat(result.getCancelProtocol()).isEqualTo("135260007307800");
+    }
+
+    @Test
+    @DisplayName("saveFromSync() reproduz request real de NFC-e em produção")
+    void saveFromSync_reproduzNfceProducao() {
+        FiscalDocumentSyncRequest request = new FiscalDocumentSyncRequest(
+                "NFCE", "SALES", UUID.fromString("4f256a54-775c-4a2b-ae2e-e2457c6c0ea1"),
+                "35260808299621000120650015537722991305519557",
+                553772299L, "1", "13526000011249345", "AUTHORIZED", BigDecimal.valueOf(200),
+                "Joao Bolão", "657.003.260-78", null,
+                OffsetDateTime.parse("2026-08-22T11:22:36.408Z"),
+                "<nfeProc/>", null, null, null, null);
+
+        when(repository.findByAccessKey(request.accessKey())).thenReturn(Optional.empty());
+        when(repository.save(any(FiscalDocument.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        FiscalDocument result = service.saveFromSync(request);
+
+        assertThat(result.getType()).isEqualTo(FiscalDocumentType.NFCE);
+        assertThat(result.getModel()).isEqualTo(65);
+        assertThat(result.getStatus()).isEqualTo(FiscalDocumentStatus.AUTHORIZED);
+        assertThat(result.getTotalValue()).isEqualByComparingTo(BigDecimal.valueOf(200));
     }
 
     // ── helper ─────────────────────────────────────────────────────────────────
