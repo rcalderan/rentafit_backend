@@ -34,6 +34,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleResourceNotFound(ResourceNotFoundException ex,
                                                                HttpServletRequest request) {
+        log.warn("ResourceNotFoundException at {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
@@ -47,6 +48,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex,
                                                           HttpServletRequest request) {
+        log.warn("MethodArgumentNotValidException at {}: {}", request.getRequestURI(), ex.getMessage());
         List<ErrorResponse.FieldError> fieldErrors = ex.getBindingResult()
                 .getFieldErrors()
                 .stream()
@@ -72,6 +74,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadable(HttpMessageNotReadableException ex,
                                                                       HttpServletRequest request) {
+        log.error("HttpMessageNotReadableException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         List<ErrorResponse.FieldError> fieldErrors = new ArrayList<>();
         String message = "Invalid JSON format or type mismatch";
 
@@ -119,7 +122,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex,
                                                               HttpServletRequest request) {
-        log.warn("IllegalArgumentException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
+        log.error("IllegalArgumentException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
@@ -138,6 +141,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException ex,
                                                                           HttpServletRequest request) {
+        log.error("MethodArgumentTypeMismatchException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         String paramName  = ex.getName();
         Object rejected   = ex.getValue();
         String targetType = ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown";
@@ -168,6 +172,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MissingServletRequestParameterException.class)
     public ResponseEntity<ErrorResponse> handleMissingServletRequestParameter(MissingServletRequestParameterException ex,
                                                                                HttpServletRequest request) {
+        log.warn("MissingServletRequestParameterException at {}: {}", request.getRequestURI(), ex.getMessage());
         String message = String.format("Parâmetro obrigatório '%s' (tipo: %s) está ausente",
                 ex.getParameterName(), ex.getParameterType());
 
@@ -190,6 +195,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ErrorResponse> handleUnauthorized(UnauthorizedException ex,
                                                            HttpServletRequest request) {
+        log.warn("UnauthorizedException at {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.UNAUTHORIZED.value())
@@ -204,6 +210,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
     public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex,
                                                                HttpServletRequest request) {
+        log.warn("HttpRequestMethodNotSupportedException at {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.METHOD_NOT_ALLOWED.value())
@@ -218,6 +225,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NoHandlerFoundException ex,
                                                        HttpServletRequest request) {
+        log.warn("NoHandlerFoundException at {}: {}", request.getRequestURI(), ex.getMessage());
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.NOT_FOUND.value())
@@ -234,6 +242,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ErrorResponse> handleBusinessValidation(ValidationException ex,
                                                                   HttpServletRequest request) {
+        log.warn("ValidationException at {}: {}", request.getRequestURI(), ex.getMessage());
         // ValidationException carrega mensagens de negócio controladas (não stack traces).
         // A mensagem é sempre exposta para que o frontend possa exibi-la ao usuário.
         ErrorResponse body = ErrorResponse.builder()
@@ -252,6 +261,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExternalServiceTimeoutException.class)
     public ResponseEntity<ErrorResponse> handleExternalServiceTimeout(ExternalServiceTimeoutException ex,
                                                                       HttpServletRequest request) {
+        log.error("ExternalServiceTimeoutException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.GATEWAY_TIMEOUT.value())
@@ -265,6 +275,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ExternalServiceException.class)
     public ResponseEntity<ErrorResponse> handleExternalServiceError(ExternalServiceException ex,
                                                                    HttpServletRequest request) {
+        log.error("ExternalServiceException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.BAD_GATEWAY.value())
@@ -279,6 +290,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> handleDataAccessException(DataAccessException ex,
                                                                    HttpServletRequest request) {
+        log.error("DataAccessException at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
@@ -294,6 +306,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleInternal(Exception ex,
                                                         HttpServletRequest request) {
+        log.error("Unexpected exception at {}: {}", request.getRequestURI(), ex.getMessage(), ex);
         ErrorResponse body = ErrorResponse.builder()
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
