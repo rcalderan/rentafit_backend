@@ -76,7 +76,7 @@ public class RentalItemController {
             @ApiResponse(responseCode = "404", description = "Product not found"),
             @ApiResponse(responseCode = "422", description = "Unprocessable Entity")
     })
-    public ResponseEntity<RentalItemDetailsDTO> findByLegacyId(@PathVariable String id) {
+    public ResponseEntity<RentalItemDetailsDTO> findByLegacyId(@PathVariable Integer id) {
         return ResponseEntity.ok(rentalItemService.findByLegacyId(id));
     }
 

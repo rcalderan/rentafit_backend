@@ -9,8 +9,8 @@ import java.util.UUID;
 @Builder
 public record RentalItemDTO(
     UUID id,
-    @Size(max = 50)
-    String legacyId,
+    @Positive(message = "Legacy ID must be a positive number")
+    Integer legacyId,
 
     @NotBlank(message = "Name is required")
     @Size(max = 255, message = "Name must not exceed 255 characters")

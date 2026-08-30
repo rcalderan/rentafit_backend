@@ -200,11 +200,11 @@ class DailyRentalReportServiceTest {
 
     private RentalItemSnapshot snapshot(UUID id, String categoryName, String size, String color) {
         return new RentalItemSnapshot(
-                id, "L-" + code(id), "Item", categoryName, size, color,
+                id, code(id), "Item", categoryName, size, color,
                 BigDecimal.TEN, ProductStatus.AVAILABLE);
     }
 
-    private String code(UUID id) {
-        return id.toString().substring(0, 4);
+    private Integer code(UUID id) {
+        return Math.floorMod(id.hashCode(), Integer.MAX_VALUE) + 1;
     }
 }

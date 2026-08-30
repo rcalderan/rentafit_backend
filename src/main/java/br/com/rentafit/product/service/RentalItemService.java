@@ -10,23 +10,17 @@ import br.com.rentafit.product.repository.RentalItemRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class RentalItemService {
-    @Value("${rentafit.legacy-id.pattern:yyMMdd}")
-    private String legacyIdPattern;
-
     private static final Logger log = LoggerFactory.getLogger(RentalItemService.class);
 
     private final RentalItemRepository rentalItemRepository;
@@ -34,7 +28,7 @@ public class RentalItemService {
 
     public RentalItemDetailsDTO create(RentalItemDTO dto) {
         log.debug("Creating product: {}", dto.name());
-        boolean idExists = dto.legacyId() != null && !dto.legacyId().isEmpty();
+        boolean idExists = dto.legacyId() != null;
 
         Category category = categoryRepository.findById(dto.categoryId())
                 .orElseThrow(()-> new ValidationException("Category not found"));
@@ -61,20 +55,12 @@ public class RentalItemService {
 
         return saved.toDTO();
     }
-        /**
-     * Gera legacyId no formato YYMMDD-N, onde N é sequencial no dia.
-     * <p>IDs legados importados futuramente serão inteiros simples (ex: "1", "2"),
-     * sem conflito com este formato.</p>
-     */
-    String generateLegacyId() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern(legacyIdPattern);
-        String prefix = LocalDate.now().format(formatter) + "-";
-        return rentalItemRepository.findMaxLegacyIdByPrefix(prefix)
-                .map(max -> {
-                    int lastN = Integer.parseInt(max.substring(prefix.length()));
-                    return prefix + (lastN + 1);
-                })
-                .orElse(prefix + "1");
+    /** Gera o próximo legacyId numérico no backend, serializando criações concorrentes. */
+    Integer generateLegacyId() {
+        rentalItemRepository.lockLegacyIdGeneration();
+        return rentalItemRepository.findMaxLegacyId()
+                .map(Math::incrementExact)
+                .orElse(1);
     }
 
     public RentalItemDetailsDTO findById(UUID id) {
@@ -101,14 +87,14 @@ public class RentalItemService {
         return saved.toDTO();
     }
 
-    public RentalItemDetailsDTO findByLegacyId(String legacyId) {
+    public RentalItemDetailsDTO findByLegacyId(Integer legacyId) {
         RentalItem product = rentalItemRepository.findByLegacyId(legacyId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "Rental lecacyId", legacyId));
 
         return product.toDTO();
     }
 
-    public boolean checkLegacyIdExists(String legacyId) {
+    public boolean checkLegacyIdExists(Integer legacyId) {
         return legacyId != null && rentalItemRepository.findByLegacyId(legacyId).isPresent();
     }
 

@@ -18,7 +18,7 @@ public record RentalItemDetailsDTO(
         String description,
         LocalDateTime createdAt,
         LocalDateTime updatedAt,
-        String legacyId,
+        Integer legacyId,
         String status,
         String notes,
         String condition,

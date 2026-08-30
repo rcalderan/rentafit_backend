@@ -59,7 +59,7 @@ class RentalItemControllerTest {
                 .brand("Vera Wang")
                 .value(new BigDecimal("500.00"))
                 .description("Vestido de noiva para aluguel")
-                .legacyId("VEST001")
+                .legacyId(1001)
                 .notes("Em excelente estado")
                 .build();
 
@@ -72,7 +72,7 @@ class RentalItemControllerTest {
                 .brand("Vera Wang")
                 .value(new BigDecimal("500.00"))
                 .description("Vestido de noiva para aluguel")
-                .legacyId("VEST001")
+                .legacyId(1001)
                 .status("AVAILABLE")
                 .notes("Em excelente estado")
                 .condition("EXCELLENT")
@@ -109,7 +109,7 @@ class RentalItemControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().id()).isEqualTo(productId);
         assertThat(response.getBody().name()).isEqualTo("Vestido de Noiva");
-        assertThat(response.getBody().legacyId()).isEqualTo("VEST001");
+        assertThat(response.getBody().legacyId()).isEqualTo(1001);
 
         verify(rentalItemService, times(1)).create(any(RentalItemDTO.class));
     }
@@ -180,7 +180,7 @@ class RentalItemControllerTest {
     @DisplayName("Should find rental item by legacy ID")
     void testFindByLegacyId() {
         // Arrange
-        String legacyId = "VEST001";
+        Integer legacyId = 1001;
         when(rentalItemService.findByLegacyId(legacyId)).thenReturn(rentalItemDetailsDTO);
 
         // Act
@@ -189,7 +189,7 @@ class RentalItemControllerTest {
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
-        assertThat(response.getBody().legacyId()).isEqualTo("VEST001");
+        assertThat(response.getBody().legacyId()).isEqualTo(1001);
 
         verify(rentalItemService, times(1)).findByLegacyId(legacyId);
     }

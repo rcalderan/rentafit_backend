@@ -13,7 +13,6 @@ import br.com.rentafit.product.dto.rental.RentalItemUpdateDTO;
 import br.com.rentafit.product.repository.CategoryRepository;
 import br.com.rentafit.product.repository.RentalItemRepository;
 import org.junit.jupiter.api.BeforeEach;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -60,7 +59,6 @@ class RentalItemServiceTest {
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(rentalItemService, "legacyIdPattern", "yyMMdd");
         productId = UUID.randomUUID();
         categoryId = UUID.randomUUID();
 
@@ -81,7 +79,7 @@ class RentalItemServiceTest {
                 .brand("Vera Wang")
                 .value(new BigDecimal("500.00"))
                 .description("Vestido de noiva para aluguel")
-                .legacyId("VEST001")
+                .legacyId(1001)
                 .status(ProductStatus.AVAILABLE)
                 .notes("Em excelente estado")
                 .condition(ProductCondition.EXCELLENT)
@@ -98,7 +96,7 @@ class RentalItemServiceTest {
                 .brand("Vera Wang")
                 .value(new BigDecimal("500.00"))
                 .description("Vestido de noiva para aluguel")
-                .legacyId("VEST001")
+                .legacyId(1001)
                 .notes("Em excelente estado")
                 .build();
     }
@@ -108,7 +106,7 @@ class RentalItemServiceTest {
     void testCreate() {
         // Arrange
         when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
-        when(rentalItemRepository.findByLegacyId("VEST001")).thenReturn(Optional.empty());
+        when(rentalItemRepository.findByLegacyId(1001)).thenReturn(Optional.empty());
         when(rentalItemRepository.save(any(RentalItem.class))).thenReturn(rentalItem);
 
         // Act
@@ -117,10 +115,32 @@ class RentalItemServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.name()).isEqualTo("Vestido de Noiva");
-        assertThat(result.legacyId()).isEqualTo("VEST001");
+        assertThat(result.legacyId()).isEqualTo(1001);
 
         verify(categoryRepository, times(1)).findById(categoryId);
         verify(rentalItemRepository, times(1)).save(any(RentalItem.class));
+    }
+
+    @Test
+    @DisplayName("Should generate first numeric legacy ID in backend")
+    void testGenerateFirstLegacyId() {
+        when(rentalItemRepository.findMaxLegacyId()).thenReturn(Optional.empty());
+
+        Integer legacyId = rentalItemService.generateLegacyId();
+
+        assertThat(legacyId).isEqualTo(1);
+        verify(rentalItemRepository).lockLegacyIdGeneration();
+    }
+
+    @Test
+    @DisplayName("Should increment greatest numeric legacy ID in backend")
+    void testGenerateNextLegacyId() {
+        when(rentalItemRepository.findMaxLegacyId()).thenReturn(Optional.of(1001));
+
+        Integer legacyId = rentalItemService.generateLegacyId();
+
+        assertThat(legacyId).isEqualTo(1002);
+        verify(rentalItemRepository).lockLegacyIdGeneration();
     }
 
     @Test
@@ -143,7 +163,7 @@ class RentalItemServiceTest {
     void testCreateLegacyIdExists() {
         // Arrange
         when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
-        when(rentalItemRepository.findByLegacyId("VEST001")).thenReturn(Optional.of(rentalItem));
+        when(rentalItemRepository.findByLegacyId(1001)).thenReturn(Optional.of(rentalItem));
 
         // Act & Assert
         assertThatThrownBy(() -> rentalItemService.create(rentalItemDTO))
@@ -235,31 +255,31 @@ class RentalItemServiceTest {
     @DisplayName("Should find rental item by legacy ID")
     void testFindByLegacyId() {
         // Arrange
-        when(rentalItemRepository.findByLegacyId("VEST001")).thenReturn(Optional.of(rentalItem));
+        when(rentalItemRepository.findByLegacyId(1001)).thenReturn(Optional.of(rentalItem));
 
         // Act
-        RentalItemDetailsDTO result = rentalItemService.findByLegacyId("VEST001");
+        RentalItemDetailsDTO result = rentalItemService.findByLegacyId(1001);
 
         // Assert
         assertThat(result).isNotNull();
-        assertThat(result.legacyId()).isEqualTo("VEST001");
+        assertThat(result.legacyId()).isEqualTo(1001);
 
-        verify(rentalItemRepository, times(1)).findByLegacyId("VEST001");
+        verify(rentalItemRepository, times(1)).findByLegacyId(1001);
     }
 
     @Test
     @DisplayName("Should check if legacy ID exists")
     void testCheckLegacyIdExists() {
         // Arrange
-        when(rentalItemRepository.findByLegacyId("VEST001")).thenReturn(Optional.of(rentalItem));
+        when(rentalItemRepository.findByLegacyId(1001)).thenReturn(Optional.of(rentalItem));
 
         // Act
-        boolean result = rentalItemService.checkLegacyIdExists("VEST001");
+        boolean result = rentalItemService.checkLegacyIdExists(1001);
 
         // Assert
         assertThat(result).isTrue();
 
-        verify(rentalItemRepository, times(1)).findByLegacyId("VEST001");
+        verify(rentalItemRepository, times(1)).findByLegacyId(1001);
     }
 
     @Test

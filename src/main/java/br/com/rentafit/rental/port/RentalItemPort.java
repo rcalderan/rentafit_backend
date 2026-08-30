@@ -18,7 +18,7 @@ public interface RentalItemPort {
 
     Optional<RentalItemSnapshot> findById(UUID rentalItemId);
 
-    Optional<RentalItemSnapshot> findByLegacyId(String legacyId);
+    Optional<RentalItemSnapshot> findByLegacyId(Integer legacyId);
 
     /**
      * Resolve múltiplos snapshots de uma vez (batch) para evitar N+1.
@@ -39,7 +39,7 @@ public interface RentalItemPort {
      */
     record RentalItemSnapshot(
             UUID id,
-            String legacyId,
+            Integer legacyId,
             String name,
             String categoryName,
             String size,

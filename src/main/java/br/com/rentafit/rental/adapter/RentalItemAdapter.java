@@ -35,7 +35,7 @@ public class RentalItemAdapter implements RentalItemPort {
     }
 
     @Override
-    public Optional<RentalItemSnapshot> findByLegacyId(String legacyId) {
+    public Optional<RentalItemSnapshot> findByLegacyId(Integer legacyId) {
         return rentalItemRepository.findByLegacyId(legacyId).map(this::toSnapshot);
     }
 
