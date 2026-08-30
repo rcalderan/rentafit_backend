@@ -26,7 +26,7 @@ import java.time.LocalDateTime;
 public class RentalItem extends Product {
 
     @Column(name = "legacy_id", unique = true)
-    private String legacyId;
+    private Integer legacyId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
