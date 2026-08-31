@@ -28,7 +28,9 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     Page<UserAccount> findAllWithDetails(Pageable pageable);
 
     @Query("SELECT DISTINCT ua FROM UserAccount ua JOIN ua.roles role "
-            + "WHERE ua.isActive = true AND role.role IN :roles ORDER BY ua.person.name")
+            + "WHERE ua.isActive = true AND role.role IN :roles "
+            + "AND EXISTS (SELECT employee.id FROM Employee employee WHERE employee.id = ua.id) "
+            + "ORDER BY ua.person.name")
     @EntityGraph(attributePaths = {"person", "roles"})
     List<UserAccount> findActiveAttendants(@Param("roles") Set<RoleName> roles);
 }
