@@ -8,6 +8,7 @@ import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.people.domain.Employee;
+import br.com.rentafit.people.dto.ActiveAttendantDTO;
 import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
 import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
 import br.com.rentafit.people.dto.EmployeeCheckResponseDTO;
@@ -24,7 +25,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -42,6 +45,15 @@ public class EmployeeService {
     @Transactional(readOnly = true)
     public Page<EmployeeDTO> findAll(Pageable pageable) {
         return employeeRepository.findAll(pageable).map(peopleMapper::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActiveAttendantDTO> findActiveAttendants() {
+        Set<RoleName> attendantRoles = Set.of(RoleName.EMPLOYEE, RoleName.MANAGER, RoleName.ADMIN);
+        return userAccountRepository.findActiveAttendants(attendantRoles).stream()
+                .map(account -> new ActiveAttendantDTO(
+                        account.getId(), account.getPerson().getName(), account.getRole()))
+                .toList();
     }
 
     @Transactional(readOnly = true)

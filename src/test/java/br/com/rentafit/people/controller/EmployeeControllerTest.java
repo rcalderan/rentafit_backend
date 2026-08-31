@@ -1,5 +1,7 @@
 package br.com.rentafit.people.controller;
 
+import br.com.rentafit.auth.domain.RoleName;
+import br.com.rentafit.people.dto.ActiveAttendantDTO;
 import br.com.rentafit.people.dto.EmployeeDTO;
 import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
 import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
@@ -96,6 +98,19 @@ class EmployeeControllerTest {
         assertThat(response.getBody().getTotalElements()).isEqualTo(1);
 
         verify(employeeService, times(1)).findAll(any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Should return active attendants")
+    void testFindActiveAttendants() {
+        ActiveAttendantDTO attendant = new ActiveAttendantDTO(employeeId, "Maria Santos", RoleName.MANAGER);
+        when(employeeService.findActiveAttendants()).thenReturn(List.of(attendant));
+
+        ResponseEntity<List<ActiveAttendantDTO>> response = employeeController.findActiveAttendants();
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).containsExactly(attendant);
+        verify(employeeService).findActiveAttendants();
     }
 
     @Test

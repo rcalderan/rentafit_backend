@@ -58,6 +58,7 @@ public class SecurityConfig {
                         // Employees: /check (initials+PIN) e /initials/** usados no fluxo de rental/sales
                         .requestMatchers(HttpMethod.POST, "/api/v1/employees/check").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.GET,  "/api/v1/employees/initials/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET,  "/api/v1/employees/attendants").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         // Demais endpoints: leitura (MANAGER/ADMIN) para fluxo de user-roles; escrita/delete ADMIN
                         .requestMatchers(HttpMethod.GET,    "/api/v1/employees/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.POST,   "/api/v1/employees/**").hasRole("ADMIN")

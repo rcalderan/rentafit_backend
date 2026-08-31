@@ -8,6 +8,7 @@ import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.people.domain.Employee;
+import br.com.rentafit.people.dto.ActiveAttendantDTO;
 import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
 import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
 import br.com.rentafit.people.dto.EmployeeCheckResponseDTO;
@@ -33,6 +34,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
@@ -132,6 +134,23 @@ class EmployeeServiceTest {
 
         verify(employeeRepository, times(1)).findAll(pageable);
         verify(peopleMapper, times(1)).toDTO(employee);
+    }
+
+    @Test
+    @DisplayName("Deve listar usuários ativos aptos a atender locações")
+    void shouldFindActiveAttendants() {
+        UserAccount account = new UserAccount();
+        account.setId(employeeId);
+        account.setPerson(employee);
+        account.setRoles(List.of(employeeRole));
+
+        when(userAccountRepository.findActiveAttendants(Set.of(
+                RoleName.EMPLOYEE, RoleName.MANAGER, RoleName.ADMIN))).thenReturn(List.of(account));
+
+        List<ActiveAttendantDTO> result = employeeService.findActiveAttendants();
+
+        assertThat(result).containsExactly(
+                new ActiveAttendantDTO(employeeId, "Jane Smith", RoleName.EMPLOYEE));
     }
 
     @Test

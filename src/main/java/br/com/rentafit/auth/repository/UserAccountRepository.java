@@ -1,5 +1,6 @@
 package br.com.rentafit.auth.repository;
 
+import br.com.rentafit.auth.domain.RoleName;
 import br.com.rentafit.auth.domain.UserAccount;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -9,7 +10,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -23,5 +26,10 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @Query("SELECT ua FROM UserAccount ua")
     @EntityGraph(attributePaths = {"person", "roles"})
     Page<UserAccount> findAllWithDetails(Pageable pageable);
+
+    @Query("SELECT DISTINCT ua FROM UserAccount ua JOIN ua.roles role "
+            + "WHERE ua.isActive = true AND role.role IN :roles ORDER BY ua.person.name")
+    @EntityGraph(attributePaths = {"person", "roles"})
+    List<UserAccount> findActiveAttendants(@Param("roles") Set<RoleName> roles);
 }
 

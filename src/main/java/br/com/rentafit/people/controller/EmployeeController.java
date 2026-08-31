@@ -1,5 +1,6 @@
 package br.com.rentafit.people.controller;
 
+import br.com.rentafit.people.dto.ActiveAttendantDTO;
 import br.com.rentafit.people.dto.EmployeeAuthResponseDTO;
 import br.com.rentafit.people.dto.EmployeeCheckRequestDTO;
 import br.com.rentafit.people.dto.EmployeeCheckResponseDTO;
@@ -18,6 +19,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -33,6 +35,13 @@ public class EmployeeController {
     @ApiResponse(responseCode = "200", description = "Employees retrieved successfully")
     public ResponseEntity<Page<EmployeeDTO>> findAll(Pageable pageable) {
         return ResponseEntity.ok(employeeService.findAll(pageable));
+    }
+
+    @GetMapping("/attendants")
+    @Operation(summary = "List active users eligible to attend rental items")
+    @ApiResponse(responseCode = "200", description = "Active attendants retrieved successfully")
+    public ResponseEntity<List<ActiveAttendantDTO>> findActiveAttendants() {
+        return ResponseEntity.ok(employeeService.findActiveAttendants());
     }
 
     @GetMapping("/{id}")
