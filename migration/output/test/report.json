@@ -1,0 +1,108 @@
+{
+  "status": "failed",
+  "started_at": 1788433998,
+  "finished_at": 1788433999,
+  "duration_seconds": 0,
+  "tables": [
+    {
+      "name": "categories",
+      "source_count": 22,
+      "inserted_count": 0,
+      "errors": [
+        "COPY categories falhou: missing data for column \"active\"\nCONTEXT:  COPY categories, line 2: \"900bdfa4-2db5-493a-b8e6-37e0509d629d,0,N/A,1970-01-01 00:00:00,1970-01-01 00:00:00\"\n"
+      ]
+    },
+    {
+      "name": "people",
+      "source_count": 16124,
+      "inserted_count": 0,
+      "errors": [
+        "COPY people falhou: extra data after last expected column\nCONTEXT:  COPY people, line 2: \"78df0967-72d9-45a7-8896-e8c2a2eba517,1,RICHARD CARVALHO CALDERAN KAIBARA,0RCALDERAN1 I9LOV... ETC,32...\"\n"
+      ]
+    },
+    {
+      "name": "customers",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "employees",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "user_accounts",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "addresses",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "person_address_details",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "customer_phones",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "products",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "rental_items",
+      "source_count": 3223,
+      "inserted_count": 0,
+      "errors": [
+        "COPY rental_items falhou: invalid input syntax for type timestamp: \"0.0\"\nCONTEXT:  COPY rental_items, line 2, column last_rental_date: \"0.0\"\n"
+      ]
+    },
+    {
+      "name": "rental_contracts",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "rental_contract_items",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "rental_payments",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    },
+    {
+      "name": "rental_contract_item_meta",
+      "source_count": 0,
+      "inserted_count": 0,
+      "errors": []
+    }
+  ],
+  "errors": [
+    "COPY categories falhou: missing data for column \"active\"\nCONTEXT:  COPY categories, line 2: \"900bdfa4-2db5-493a-b8e6-37e0509d629d,0,N/A,1970-01-01 00:00:00,1970-01-01 00:00:00\"\n",
+    "COPY people falhou: extra data after last expected column\nCONTEXT:  COPY people, line 2: \"78df0967-72d9-45a7-8896-e8c2a2eba517,1,RICHARD CARVALHO CALDERAN KAIBARA,0RCALDERAN1 I9LOV... ETC,32...\"\n",
+    "COPY rental_items falhou: invalid input syntax for type timestamp: \"0.0\"\nCONTEXT:  COPY rental_items, line 2, column last_rental_date: \"0.0\"\n"
+  ],
+  "warnings": [
+    "Continuando após erro em categories",
+    "Continuando após erro em people",
+    "Continuando após erro em rental_items"
+  ]
+}

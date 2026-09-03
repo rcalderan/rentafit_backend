@@ -23,6 +23,9 @@ public class Category {
     @GeneratedValue(strategy = GenerationType.AUTO)
     private UUID id;
 
+    @Column(name = "legacy_id", unique = true)
+    private Integer legacyId;
+
     @Column(nullable = false, unique = true)
     private String name;
 

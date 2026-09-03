@@ -90,6 +90,9 @@ public class SecurityConfig {
                         // Admin de usuários (já tem @PreAuthorize, defense-in-depth)
                         .requestMatchers("/api/auth/users/**").hasAnyRole("MANAGER", "ADMIN")
 
+                        // Migração: apenas ADMIN
+                        .requestMatchers("/api/v1/migration/**").hasRole("ADMIN")
+
                         // Demais endpoints auth (login, me, refresh, setup, change-pw)
                         .requestMatchers("/api/auth/**").authenticated()
 
