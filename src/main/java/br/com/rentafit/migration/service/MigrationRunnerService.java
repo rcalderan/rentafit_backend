@@ -36,10 +36,10 @@ public class MigrationRunnerService {
                 script.toString(),
                 "--session-dir", sessionPath.toString(),
                 "--output-dir", outputPath.toString(),
-                "--pg-host", "localhost",
-                "--pg-port", "5433",
+                "--pg-host", resolvePgHost(),
+                "--pg-port", resolvePgPort(),
                 "--pg-db", "rentafit_dump",
-                "--pg-user", "postgres",
+                "--pg-user", dataSourceProperties.determineUsername(),
                 "--pg-password", dataSourceProperties.determinePassword()
         );
         pb.inheritIO();
@@ -58,5 +58,19 @@ public class MigrationRunnerService {
 
         Path reportPath = outputPath.resolve("report.json");
         return reportService.buildReport(reportPath);
+    }
+
+    private String resolvePgHost() {
+        String url = dataSourceProperties.determineUrl();
+        // jdbc:postgresql://postgres:5432/rentafit -> postgres
+        String host = url.replaceAll("jdbc:postgresql://([^:/]+).*", "$1");
+        return host;
+    }
+
+    private String resolvePgPort() {
+        String url = dataSourceProperties.determineUrl();
+        // jdbc:postgresql://postgres:5432/rentafit -> 5432
+        String port = url.replaceAll("jdbc:postgresql://[^:/]+:(\\d+).*", "$1");
+        return port;
     }
 }

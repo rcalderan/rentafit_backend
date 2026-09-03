@@ -51,6 +51,10 @@ public class MigrationSessionService {
         return basePath.resolve(sessionId);
     }
 
+    public Path resolveOutputPath(String sessionId) {
+        return migrationProperties.resolveOutputPath().resolve(sessionId);
+    }
+
     public MigrationSessionDTO getSession(String sessionId) throws IOException {
         Path sessionPath = resolveSessionPath(sessionId);
         if (!Files.exists(sessionPath)) {

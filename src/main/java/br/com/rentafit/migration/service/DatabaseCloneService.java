@@ -25,6 +25,7 @@ public class DatabaseCloneService {
     private final DataSourceProperties dataSourceProperties;
 
     public void cloneRentafitToDump() {
+        executeAdmin("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'rentafit' AND pid <> pg_backend_pid()");
         executeAdmin("DROP DATABASE IF EXISTS rentafit_dump");
         executeAdmin("CREATE DATABASE rentafit_dump WITH TEMPLATE rentafit OWNER postgres");
     }
@@ -34,11 +35,13 @@ public class DatabaseCloneService {
         return count != null && count > 0;
     }
 
-    public void backupOriginal() {
+    public String backupOriginal() {
         String suffix = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
         String backupName = "rentafit_backup_" + suffix;
+        executeAdmin("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'rentafit' AND pid <> pg_backend_pid()");
         executeAdmin("CREATE DATABASE " + backupName + " WITH TEMPLATE rentafit OWNER postgres");
         log.info("Created backup database: {}", backupName);
+        return backupName;
     }
 
     public void promoteDumpToOriginal() {

@@ -26,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -75,9 +76,9 @@ public class MigrationController {
 
     @PostMapping("/sessions/{sessionId}/clone")
     @Operation(summary = "Clonar rentafit para rentafit_dump", description = "Cria o banco de testes a partir do original")
-    public ResponseEntity<String> cloneDatabase() {
+    public ResponseEntity<Map<String, String>> cloneDatabase() {
         databaseCloneService.cloneRentafitToDump();
-        return ResponseEntity.ok("rentafit_dump criado a partir de rentafit");
+        return ResponseEntity.ok(Map.of("status", "cloned", "target", "rentafit_dump"));
     }
 
     @PostMapping("/sessions/{sessionId}/run")
@@ -88,6 +89,17 @@ public class MigrationController {
         return ResponseEntity.ok(report);
     }
 
+    @GetMapping("/sessions/{sessionId}/report")
+    @Operation(summary = "Obter relatório", description = "Lê o report.json gerado pela migração")
+    public ResponseEntity<MigrationReportDTO> getReport(@PathVariable String sessionId) throws IOException {
+        Path outputPath = sessionService.resolveOutputPath(sessionId);
+        Path reportPath = outputPath.resolve("report.json");
+        if (!reportPath.toFile().exists()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(reportService.buildReport(reportPath));
+    }
+
     @GetMapping("/compare")
     @Operation(summary = "Comparar bancos", description = "Compara contagens entre rentafit, rentafit_dump e fontes MongoDB")
     public ResponseEntity<MigrationComparisonDTO> compare() {
@@ -96,15 +108,15 @@ public class MigrationController {
 
     @PostMapping("/backup")
     @Operation(summary = "Backup do original", description = "Cria um backup nomeado de rentafit")
-    public ResponseEntity<String> backup() {
-        databaseCloneService.backupOriginal();
-        return ResponseEntity.ok("Backup criado");
+    public ResponseEntity<Map<String, String>> backup() {
+        String backupName = databaseCloneService.backupOriginal();
+        return ResponseEntity.ok(Map.of("status", "backed_up", "database", backupName));
     }
 
     @PostMapping("/promote")
     @Operation(summary = "Promover dump", description = "Faz backup de rentafit e renomeia rentafit_dump para rentafit")
-    public ResponseEntity<String> promote() {
+    public ResponseEntity<Map<String, String>> promote() {
         promotionService.promote();
-        return ResponseEntity.ok("rentafit_dump promovido para rentafit");
+        return ResponseEntity.ok(Map.of("status", "promoted", "message", "rentafit_dump promovido para rentafit"));
     }
 }

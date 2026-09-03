@@ -5,7 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ public class MigrationReportService {
 
     private final JdbcTemplate jdbcTemplate;
     private final ObjectMapper objectMapper;
+    private final DataSourceProperties dataSourceProperties;
 
     public MigrationReportDTO buildReport(Path reportPath) throws IOException {
         if (!reportPath.toFile().exists()) {
@@ -49,12 +52,23 @@ public class MigrationReportService {
 
     private long countTable(String table) {
         try {
-            Long value = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
+            JdbcTemplate dumpTemplate = dumpTemplate();
+            Long value = dumpTemplate.queryForObject("SELECT COUNT(*) FROM " + table, Long.class);
             return value != null ? value : 0L;
         } catch (Exception e) {
             log.warn("Could not execute count query for {}: {}", table, e.getMessage());
             return 0L;
         }
+    }
+
+    private JdbcTemplate dumpTemplate() {
+        String url = dataSourceProperties.determineUrl();
+        String dumpUrl = url.replaceAll("(/[^/]+?)$", "/rentafit_dump");
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setUrl(dumpUrl);
+        dataSource.setUsername(dataSourceProperties.determineUsername());
+        dataSource.setPassword(dataSourceProperties.determinePassword());
+        return new JdbcTemplate(dataSource);
     }
 
     private OffsetDateTime toOffsetDateTime(Long epochSeconds) {
