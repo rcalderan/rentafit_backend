@@ -36,13 +36,13 @@ public class MigrationProperties {
      * Executável Python a ser usado.
      * Default: python
      */
-    private String pythonExecutable = "python";
+    private String pythonExecutable = "python3";
 
     /**
      * Caminho para o script Python principal de migração.
      * Default: migration/scripts/migrate.py
      */
-    private String scriptPath = "migration/scripts/migrate.py";
+    private String scriptPath = "/app/migration/scripts/migrate.py";
 
     /**
      * Pular validações pré-migração.
