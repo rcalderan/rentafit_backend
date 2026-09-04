@@ -87,7 +87,7 @@ public class MigrationSessionService {
         dto.setName(safeName);
         dto.setSize(file.getSize());
         dto.setType(detectType(safeName));
-        dto.setStatus("pending");
+        dto.setStatus("uploaded");
         return dto;
     }
 
@@ -118,7 +118,7 @@ public class MigrationSessionService {
             dto.setSize(0);
         }
         dto.setType(detectType(path.getFileName().toString()));
-        dto.setStatus("pending");
+        dto.setStatus("uploaded");
         return dto;
     }
 
@@ -138,7 +138,7 @@ public class MigrationSessionService {
             return "created";
         }
         boolean hasBson = session.getFiles().stream().anyMatch(f -> "bson".equals(f.getType()));
-        return hasBson ? "uploading" : "created";
+        return hasBson ? "uploaded" : "created";
     }
 
     private String sanitize(String originalName) {
