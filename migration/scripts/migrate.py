@@ -21,6 +21,7 @@ from transformers import (
     transform_contracts,
     transform_people_from_cliente,
     transform_people_from_funcionario,
+    transform_product_categories,
     transform_products_and_rental_items,
 )
 
