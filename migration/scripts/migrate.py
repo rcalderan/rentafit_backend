@@ -230,9 +230,6 @@ def main():
                     password=args.pg_password,
                 )
 
-        # Restaurar admin apos a carga completa
-        restore_admin(conn, admin)
-
             source = sum(
                 count for name, count in source_counts.items()
                 if name == "roupa_tipo" and table == "categories"
@@ -241,6 +238,9 @@ def main():
                 or name == "contrato" and table == "rental_contracts"
             )
             tables.append({"name": table, "source_count": len(rows), "inserted_count": inserted, "errors": table_errors})
+
+        # Restaurar admin apos a carga completa
+        restore_admin(conn, admin)
 
         conn.close()
 
