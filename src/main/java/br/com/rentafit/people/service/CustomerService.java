@@ -9,6 +9,7 @@ import br.com.rentafit.people.domain.PersonAddressHistory;
 import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.dto.CustomerDetailsDTO;
+import br.com.rentafit.people.dto.SignUpRequestDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.CustomerRepository;
 import br.com.rentafit.people.repository.PersonAddressHistoryRepository;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -111,6 +113,50 @@ public class CustomerService {
         log.info("Created customer with ID: {}", saved.getId());
 
         return saved.toDTO();
+    }
+
+    @Transactional
+    public CustomerDetailsDTO updateFromSignUp(Customer customer, SignUpRequestDTO dto) {
+        customer.setEmail(dto.email().trim().toLowerCase());
+        customer.setIsAuthenticated(true);
+
+        // Merge phones: add new ones that are not already present
+        List<String> currentPhones = customer.getPhones();
+        if (currentPhones == null) {
+            currentPhones = new ArrayList<>();
+        }
+        for (String phone : dto.phones()) {
+            String normalized = normalizePhone(phone);
+            if (normalized != null && !currentPhones.contains(normalized)) {
+                currentPhones.add(normalized);
+            }
+        }
+        customer.setPhones(currentPhones);
+
+        // Update address if provided
+        if (dto.address() != null && dto.address().zipCode() != null) {
+            CustomerDTO customerDTO = CustomerDTO.builder()
+                    .name(customer.getName())
+                    .email(customer.getEmail())
+                    .document(customer.getDocument())
+                    .phones(currentPhones)
+                    .address(dto.address())
+                    .number(dto.number())
+                    .complement(dto.complement())
+                    .isAuthenticated(true)
+                    .build();
+            addressService.handleAddressUpdate(customer, customerDTO);
+        }
+
+        Customer updated = customerRepository.save(customer);
+        log.info("Merged legacy customer on sign-up: id={}", updated.getId());
+        return updated.toDTO();
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) return null;
+        String digits = phone.replaceAll("\\D", "");
+        return digits.isEmpty() ? null : digits;
     }
 
     @Transactional

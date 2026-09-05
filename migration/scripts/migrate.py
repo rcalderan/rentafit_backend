@@ -10,7 +10,7 @@ import psycopg2
 
 from config import TABLES
 from csv_writer import write_csv
-from pg_loader import connect, load_csv, truncate_all
+from pg_loader import connect, fetch_admin, load_csv, restore_admin, truncate_all
 from readers import read_all_bson_files
 from report import build_report, write_report
 from transformers import (
@@ -203,6 +203,9 @@ def main():
             password=args.pg_password,
         )
 
+        # Preservar admin antes do truncate
+        admin = fetch_admin(conn)
+
         # Limpar tabelas antes do COPY (banco foi clonado, pode ter dados)
         truncate_all(conn, TABLES)
 
@@ -226,6 +229,9 @@ def main():
                     user=args.pg_user,
                     password=args.pg_password,
                 )
+
+        # Restaurar admin apos a carga completa
+        restore_admin(conn, admin)
 
             source = sum(
                 count for name, count in source_counts.items()
