@@ -2,6 +2,8 @@ HELP.md
 target/
 receita/
 scripts/
+!migration/scripts/
+**/__pycache__/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
