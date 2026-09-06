@@ -390,7 +390,7 @@ def transform_contracts(documents: list[dict], customer_map: dict, customer_name
                 "value": pag.get("valor", 0.0) or 0.01,
                 "installments": pag.get("vezes", 1) or 1,
                 "processed_by_employee_id": employee_map.get(func_legacy, ""),
-                "status": "PAID" if doc.get("baixa") else "PENDING",
+                "status": "PAID" if doc.get("situacao") == 0 else "PENDING",
             })
 
     return contract_rows, contract_item_rows, payment_rows, meta_rows

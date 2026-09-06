@@ -225,10 +225,38 @@ class TestTransformContracts:
         assert len(payments) == 2
         assert payments[0]["value"] == 250.0
         assert payments[1]["value"] == 100.0
+        # pagamentos de contrato FINALIZADO devem ser PAID
+        assert payments[0]["status"] == "PAID"
+        assert payments[1]["status"] == "PAID"
 
         # 3 meta rows (sub-itens: M44, SEM SAPATO, MANGA DIR 49CM)
         assert len(meta) == 3
         assert meta[0]["type"] == "OBSERVACAO"
+
+    def test_payment_status_uses_situacao_not_baixa(self):
+        """Regression: pagamentos de contrato FINALIZADO devem ser PAID mesmo sem baixa."""
+        from datetime import datetime
+        docs = [{
+            "_id": 1000,
+            "tipo": 1,
+            "cliente": 7001,
+            "retirada": datetime(2010, 10, 27, 2, 0, 0),
+            "usa": datetime(2010, 10, 29, 2, 0, 0),
+            "devolucao": datetime(2010, 10, 31, 2, 0, 0),
+            "hoje": datetime(2010, 10, 27, 2, 0, 0),
+            "devolveu": datetime(2010, 10, 31, 2, 0, 0),
+            "criado_por": 8001,
+            "baixa_por": 8001,
+            "baixa": False,
+            "situacao": 0,
+            "itens": [],
+            "pagamentos": [
+                {"data": datetime(2010, 10, 27, 2, 0, 0), "forma": 0, "valor": 100.0, "vezes": 1, "funcionario": 8001},
+            ],
+        }]
+        _, _, payments, _ = transform_contracts(docs, {7001: "uuid"}, {7001: "Mock"}, {8001: "emp"}, {})
+        assert len(payments) == 1
+        assert payments[0]["status"] == "PAID"
 
     def test_contract_dates_always_sorted(self):
         """Regression: datas legadas fora de ordem devem ser ordenadas."""
