@@ -13,9 +13,10 @@ FROM ubuntu:22.04
 # Evita perguntas durante instalao
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Instala Java 21, Postgres 14 e utilitrios
+# Instala Java 21, Postgres 14, Python 3 e utilitários
 RUN apt-get update && \
-    apt-get install -y openjdk-21-jre postgresql-14 curl sudo && \
+    apt-get install -y openjdk-21-jre postgresql-14 curl sudo python3 python3-pip && \
+    pip3 install pymongo psycopg2-binary && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -25,6 +26,9 @@ COPY --from=build /app/target/Rentafit-*.jar app.jar
 # Copia o script de entrypoint
 COPY scripts/entrypoint.sh .
 RUN chmod +x entrypoint.sh
+
+# Copia scripts Python de migração
+COPY migration/scripts /app/migration/scripts
 
 # Expe portas: 8080 (App) e 5432 (Postgres se HK)
 EXPOSE 8080 5432

@@ -4,9 +4,10 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import java.nio.file.Path;
+
 /**
- * Propriedades de configuração para migração do MongoDB → PostgreSQL
- * Carregadas de application.properties com prefixo "migration"
+ * Propriedades de configuração para migração do MongoDB → PostgreSQL via Python.
  */
 @Data
 @Component
@@ -14,105 +15,62 @@ import org.springframework.stereotype.Component;
 public class MigrationProperties {
 
     /**
-     * Habilita/desabilita todo o job de migração
-     * Default: false (deve ser ativado explicitamente)
+     * Habilita/desabilita os endpoints de migração.
+     * Default: false (deve ser ativado explicitamente).
      */
     private Boolean enabled = false;
 
     /**
-     * Configurações de batch
+     * Caminho base para os arquivos BSON de legado e sessões.
+     * Default: .legado/noivabd
      */
-    private BatchConfig batch = new BatchConfig();
+    private String bsonBasePath = ".legado/noivabd";
 
     /**
-     * Configuração de leitura de arquivos BSON
+     * Caminho onde o Python gerará os CSVs e report.json por sessão.
+     * Default: migration/output
      */
-    private BsonConfig bson = new BsonConfig();
+    private String outputPath = "migration/output";
 
     /**
-     * Quais entidades migrar: "cliente", "funcionario", "cliente,funcionario"
-     * Default: "cliente,funcionario"
+     * Executável Python a ser usado.
+     * Default: python
      */
-    private String entities = "cliente,funcionario";
+    private String pythonExecutable = "python3";
 
     /**
-     * Pular validações pré-migração
+     * Caminho para o script Python principal de migração.
+     * Default: migration/scripts/migrate.py
+     */
+    private String scriptPath = "/app/migration/scripts/migrate.py";
+
+    /**
+     * Pular validações pré-migração.
      * Default: false
      */
     private Boolean skipValidation = false;
 
     /**
-     * Pular limpeza pós-migração
+     * Pular limpeza pós-migração.
      * Default: false
      */
     private Boolean skipCleanup = false;
 
     /**
-     * Habilitar auditoria de migração em tabela
+     * Habilitar auditoria de migração em tabela.
      * Default: true
      */
     private Boolean auditEnabled = true;
 
-    @Data
-    public static class BatchConfig {
-        /**
-         * Tamanho do chunk (lote) processado por vez
-         * Default: 100
-         */
-        private Integer chunkSize = 100;
-
-        /**
-         * Número máximo de tentativas para cada registro
-         * Default: 3
-         */
-        private Integer maxRetries = 3;
-
-        /**
-         * Tempo de espera antes de retry em ms
-         * Default: 1000
-         */
-        private Integer retryBackoffMs = 1000;
-
-        /**
-         * Número máximo de erros a permitir antes de parar
-         * Default: 10
-         */
-        private Integer skipLimit = 10;
+    public Path resolveBsonBasePath() {
+        return Path.of(bsonBasePath).toAbsolutePath().normalize();
     }
 
-    @Data
-    public static class BsonConfig {
-        /**
-         * Caminho base para os arquivos BSON
-         * Default: ".legado/noivabd"
-         */
-        private String basePath = ".legado/noivabd";
-
-        /**
-         * Nome do arquivo BSON para clientes
-         * Default: "cliente.bson"
-         */
-        private String clienteFileName = "cliente.bson";
-
-        /**
-         * Nome do arquivo BSON para funcionários
-         * Default: "funcionario.bson"
-         */
-        private String funcionarioFileName = "funcionario.bson";
+    public Path resolveOutputPath() {
+        return Path.of(outputPath).toAbsolutePath().normalize();
     }
 
-    /**
-     * Helper para verificar se uma entidade deve ser migrada
-     */
-    public boolean shouldMigrateCliente() {
-        return entities != null && entities.contains("cliente");
-    }
-
-    /**
-     * Helper para verificar se uma entidade deve ser migrada
-     */
-    public boolean shouldMigrateFuncionario() {
-        return entities != null && entities.contains("funcionario");
+    public Path resolveScriptPath() {
+        return Path.of(scriptPath).toAbsolutePath().normalize();
     }
 }
-

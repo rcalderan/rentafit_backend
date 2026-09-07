@@ -133,18 +133,6 @@
 			<version>2.2.0</version>
 		</dependency>
 
-		<!-- Spring Batch for Migration -->
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-batch</artifactId>
-		</dependency>
-
-		<!-- MongoDB BSON -->
-		<dependency>
-			<groupId>org.mongodb</groupId>
-			<artifactId>bson</artifactId>
-			<version>4.11.1</version>
-		</dependency>
 
 		<!-- ============================================ -->
 		<!-- FISCAL (NF-e / NFS-e)                        -->
@@ -196,13 +184,6 @@
 			<scope>test</scope>
 		</dependency>
 
-
-		<!-- Spring Batch Test -->
-		<dependency>
-			<groupId>org.springframework.batch</groupId>
-			<artifactId>spring-batch-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 
 		<!-- H2 Database -->
 		<dependency>
