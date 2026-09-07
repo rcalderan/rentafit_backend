@@ -354,6 +354,40 @@ class SalesOrderServiceTest {
             verify(orderRepository).findByStatus(SalesOrderStatus.CANCELLED, pageable);
             verify(orderRepository, never()).findWithFilters(any(), any(), any(), any());
         }
+
+        @Test
+        @DisplayName("Deve consultar com filtros de data quando informados")
+        void deveConsultarComFiltrosDeData() {
+            var pageable = PageRequest.of(0, 20);
+            var dateFrom = java.time.OffsetDateTime.now().minusDays(7);
+            var dateTo = java.time.OffsetDateTime.now();
+
+            when(orderRepository.findWithFilters(null, dateFrom, dateTo, pageable))
+                    .thenReturn(new PageImpl<>(List.of(draftOrder), pageable, 1));
+            when(mapper.toSummaryDTO(draftOrder)).thenReturn(SalesOrderSummaryDTO.builder()
+                    .id(orderId).status("DRAFT").build());
+
+            var result = orderService.findWithFilters(null, dateFrom, dateTo, pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            verify(orderRepository).findWithFilters(null, dateFrom, dateTo, pageable);
+            verify(orderRepository, never()).findByStatus(any(), any());
+        }
+
+        @Test
+        @DisplayName("Deve consultar com filtros combinados (status + data)")
+        void deveConsultarComStatusEData() {
+            var pageable = PageRequest.of(0, 20);
+            var dateFrom = java.time.OffsetDateTime.now().minusDays(7);
+
+            when(orderRepository.findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, pageable))
+                    .thenReturn(new PageImpl<>(List.of(), pageable, 0));
+
+            var result = orderService.findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, pageable);
+
+            assertThat(result.getContent()).isEmpty();
+            verify(orderRepository).findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, pageable);
+        }
     }
 
     // ── findByCustomerId ──────────────────────────────────────────────────────
@@ -388,6 +422,28 @@ class SalesOrderServiceTest {
             List<SalesOrderSummaryDTO> result = orderService.findByCustomerId(customerId);
 
             assertThat(result).isEmpty();
+        }
+    }
+
+    // ── findAll ────────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("findAll")
+    class FindAll {
+
+        @Test
+        @DisplayName("Deve retornar página de pedidos")
+        void deveRetornarPaginaDePedidos() {
+            var pageable = PageRequest.of(0, 20);
+            when(orderRepository.findAll(pageable))
+                    .thenReturn(new PageImpl<>(List.of(draftOrder), pageable, 1));
+            when(mapper.toSummaryDTO(draftOrder)).thenReturn(SalesOrderSummaryDTO.builder()
+                    .id(orderId).status("DRAFT").build());
+
+            var result = orderService.findAll(pageable);
+
+            assertThat(result.getContent()).hasSize(1);
+            verify(orderRepository).findAll(pageable);
         }
     }
 }

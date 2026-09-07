@@ -858,4 +858,87 @@ class RentalContractServiceTest {
         assertThat(parentContract.getReplacedByContractId()).isEqualTo(contractId);
         verify(contractRepository, times(2)).save(any());
     }
+
+    // ── findByCustomer ─────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("findByCustomer deve retornar página de contratos do cliente")
+    void testFindByCustomer_success() {
+        Page<RentalContract> page = new PageImpl<>(List.of(draftContract));
+        when(contractRepository.findByCustomerId(customerId, PageRequest.of(0, 10))).thenReturn(page);
+        when(mapper.toSummaryDTO(draftContract)).thenReturn(summaryDTO);
+
+        Page<RentalContractSummaryDTO> result = contractService.findByCustomer(customerId, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(contractRepository).findByCustomerId(customerId, PageRequest.of(0, 10));
+    }
+
+    // ── deliverItem ────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("deliverItem deve confirmar entrega de item em contrato FINALIZED")
+    void testDeliverItem_success() {
+        UUID itemId = UUID.randomUUID();
+        UUID attendantId = UUID.randomUUID();
+        RentalContractItem item = RentalContractItem.builder()
+                .id(itemId).contract(signedContract)
+                .description("Vestido").value(BigDecimal.valueOf(500)).delivered(false)
+                .metadata(new ArrayList<>()).build();
+
+        RentalContract finalizedContract = RentalContract.builder()
+                .id(contractId).status(ContractStatus.FINALIZED)
+                .returned(false).items(new ArrayList<>(List.of(item))).payments(new ArrayList<>())
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        contractService.deliverItem(contractId, itemId, attendantId);
+
+        verify(workflowService).onDeliverItem(item, attendantId);
+    }
+
+    @Test
+    @DisplayName("deliverItem deve lançar ValidationException se contrato não está FINALIZED")
+    void testDeliverItem_wrongStatus() {
+        UUID itemId = UUID.randomUUID();
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
+
+        assertThatThrownBy(() -> contractService.deliverItem(contractId, itemId, UUID.randomUUID()))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("FINALIZED");
+    }
+
+    @Test
+    @DisplayName("deliverItem deve lançar ResourceNotFoundException se item não existe no contrato")
+    void testDeliverItem_itemNotFound() {
+        RentalContract finalizedContract = RentalContract.builder()
+                .id(contractId).status(ContractStatus.FINALIZED)
+                .returned(false).items(new ArrayList<>()).payments(new ArrayList<>()).build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+        assertThatThrownBy(() -> contractService.deliverItem(contractId, UUID.randomUUID(), UUID.randomUUID()))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("RentalContractItem");
+    }
+
+    @Test
+    @DisplayName("deliverItem deve lançar ValidationException se item já foi entregue")
+    void testDeliverItem_alreadyDelivered() {
+        UUID itemId = UUID.randomUUID();
+        RentalContractItem item = RentalContractItem.builder()
+                .id(itemId).delivered(true).metadata(new ArrayList<>()).build();
+
+        RentalContract finalizedContract = RentalContract.builder()
+                .id(contractId).status(ContractStatus.FINALIZED)
+                .returned(false).items(new ArrayList<>(List.of(item))).payments(new ArrayList<>()).build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+        assertThatThrownBy(() -> contractService.deliverItem(contractId, itemId, UUID.randomUUID()))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("já marcado como entregue");
+    }
 }

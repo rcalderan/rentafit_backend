@@ -1,5 +1,6 @@
 package br.com.rentafit.people.service;
 
+import br.com.rentafit.common.exception.ExternalServiceTimeoutException;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.dto.AddressDTO;
@@ -662,6 +663,101 @@ class AddressServiceTest {
         assertThat(result.isManual()).isTrue();
         verify(addressRepository, never()).save(any(Address.class));
         verify(viaCepIntegrationService, never()).fetchAddressByZipCode(anyString());
+    }
+
+    // ==================== findByZipCode – timeout e exceção genérica ====================
+
+    @Test
+    @DisplayName("Deve lançar ResponseStatusException 408 quando ViaCEP dá timeout")
+    void shouldThrow408WhenViaCepTimesOut() {
+        String normalized = "01310100";
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized))
+                .thenThrow(new ExternalServiceTimeoutException("ViaCEP timeout", 5000L));
+
+        assertThatThrownBy(() -> addressService.findByZipCode("01310-100"))
+                .isInstanceOf(org.springframework.web.server.ResponseStatusException.class)
+                .hasMessageContaining("ViaCEP service timeout");
+    }
+
+    @Test
+    @DisplayName("Deve relançar exceção genérica do ViaCEP em findByZipCode")
+    void shouldRethrowGenericExceptionFromViaCep() {
+        String normalized = "01310100";
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized))
+                .thenThrow(new RuntimeException("Connection refused"));
+
+        assertThatThrownBy(() -> addressService.findByZipCode("01310-100"))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Connection refused");
+    }
+
+    // ==================== findOrCreateByAddress – múltiplos endereços mesmo ZIP ====================
+
+    @Test
+    @DisplayName("Deve reutilizar endereço por composição quando múltiplos endereços compartilham o ZIP")
+    void shouldMatchByCompositionWhenMultipleAddressesShareZip() {
+        String normalized = "01310100";
+        Address addr1 = new Address(normalized, "Rua A", "Centro", "São Paulo", "SP");
+        Address addr2 = new Address(normalized, "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of(addr1, addr2));
+
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        assertThat(result).isEqualTo(addr2);
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
+    @Test
+    @DisplayName("Deve reusar primeiro endereço quando múltiplos compartilham ZIP sem match de composição")
+    void shouldFallbackToFirstWhenMultipleAddressesShareZipButNoCompositionMatch() {
+        String normalized = "01310100";
+        Address addr1 = new Address(normalized, "Rua A", "Centro", "São Paulo", "SP");
+        Address addr2 = new Address(normalized, "Rua B", "Centro", "São Paulo", "SP");
+
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Rua Inexistente")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of(addr1, addr2));
+
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        assertThat(result).isEqualTo(addr1);
+        verify(addressRepository, never()).save(any(Address.class));
+    }
+
+    // ==================== createFromViaCep – timeout re-lançado ====================
+
+    @Test
+    @DisplayName("Deve relançar ExternalServiceTimeoutException em findOrCreateByAddress")
+    void shouldRethrowTimeoutInFindOrCreateByAddress() {
+        String normalized = "01310100";
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized))
+                .thenThrow(new ExternalServiceTimeoutException("ViaCEP timeout", 5000L));
+
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        assertThatThrownBy(() -> addressService.findOrCreateByAddress(dto))
+                .isInstanceOf(ExternalServiceTimeoutException.class);
     }
 }
 

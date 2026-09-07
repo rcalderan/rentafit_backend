@@ -324,5 +324,89 @@ class EmployeeServiceTest {
         verify(employeeRepository, times(1)).existsById(employeeId);
         verify(employeeRepository, never()).deleteById(any());
     }
+
+    // ==================== ensureEmployeeForPerson Tests ====================
+
+    @Test
+    @DisplayName("Deve lançar exceção quando personId for nulo")
+    void shouldThrowWhenPersonIdIsNull() {
+        assertThatThrownBy(() -> employeeService.ensureEmployeeForPerson(null, "JD", 1))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("personId is required");
+    }
+
+    @Test
+    @DisplayName("Deve retornar sem efeito quando Employee já existe")
+    void shouldReturnEarlyWhenEmployeeAlreadyExists() {
+        when(employeeRepository.existsById(employeeId)).thenReturn(true);
+
+        employeeService.ensureEmployeeForPerson(employeeId, "JD", 1);
+
+        verify(employeeRepository, never()).findByInitials(anyString());
+        verify(entityManager, never()).createNativeQuery(anyString());
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando iniciais são nulas e Employee não existe")
+    void shouldThrowWhenInitialsAreNull() {
+        when(employeeRepository.existsById(employeeId)).thenReturn(false);
+
+        assertThatThrownBy(() -> employeeService.ensureEmployeeForPerson(employeeId, null, 1))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Initials are required");
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando iniciais estão em branco e Employee não existe")
+    void shouldThrowWhenInitialsAreBlank() {
+        when(employeeRepository.existsById(employeeId)).thenReturn(false);
+
+        assertThatThrownBy(() -> employeeService.ensureEmployeeForPerson(employeeId, "   ", 1))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Initials are required");
+    }
+
+    @Test
+    @DisplayName("Deve lançar exceção quando iniciais já estão em uso")
+    void shouldThrowWhenInitialsAlreadyInUse() {
+        Employee existing = new Employee();
+        existing.setId(UUID.randomUUID());
+        existing.setInitials("JD");
+
+        when(employeeRepository.existsById(employeeId)).thenReturn(false);
+        when(employeeRepository.findByInitials("JD")).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> employeeService.ensureEmployeeForPerson(employeeId, "jd", 2))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("already in use");
+    }
+
+    @Test
+    @DisplayName("Deve criar Employee com roleLevel default 1 quando roleLevel for nulo")
+    void shouldCreateEmployeeWithDefaultRoleLevel() {
+        when(employeeRepository.existsById(employeeId)).thenReturn(false);
+        when(employeeRepository.findByInitials("JD")).thenReturn(Optional.empty());
+
+        employeeService.ensureEmployeeForPerson(employeeId, "jd", null);
+
+        verify(entityManager).createNativeQuery(
+                "INSERT INTO employees (id, initials, role_level) VALUES (:id, :initials, :level)");
+        verify(nativeQueryMock).setParameter("id", employeeId);
+        verify(nativeQueryMock).setParameter("initials", "JD");
+        verify(nativeQueryMock).setParameter("level", 1);
+        verify(nativeQueryMock).executeUpdate();
+    }
+
+    @Test
+    @DisplayName("Deve criar Employee com roleLevel informado")
+    void shouldCreateEmployeeWithGivenRoleLevel() {
+        when(employeeRepository.existsById(employeeId)).thenReturn(false);
+        when(employeeRepository.findByInitials("JD")).thenReturn(Optional.empty());
+
+        employeeService.ensureEmployeeForPerson(employeeId, "JD", 3);
+
+        verify(nativeQueryMock).setParameter("level", 3);
+        verify(nativeQueryMock).executeUpdate();
+    }
 }
 

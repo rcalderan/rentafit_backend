@@ -8,6 +8,9 @@ import br.com.rentafit.billing.dto.FiscalDocumentSummaryResponse;
 import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.billing.service.FiscalDocumentContentService;
 import br.com.rentafit.billing.service.FiscalDocumentQueryService;
+import br.com.rentafit.billing.service.FiscalDocumentService;
+import br.com.rentafit.billing.domain.FiscalDocument;
+import br.com.rentafit.billing.mapper.FiscalDocumentResponseMapper;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.security.TokenService;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +54,12 @@ class FiscalDocumentControllerTest {
 
     @MockitoBean
     FiscalDocumentContentService contentService;
+
+    @MockitoBean
+    FiscalDocumentService fiscalDocumentService;
+
+    @MockitoBean
+    FiscalDocumentResponseMapper fiscalDocumentResponseMapper;
 
     @MockitoBean
     TokenService tokenService;
@@ -148,5 +157,55 @@ class FiscalDocumentControllerTest {
     void list_semAutenticacao_retorna403() throws Exception {
         mockMvc.perform(get("/api/fiscal-documents"))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @WithMockUser(roles = {"EMPLOYEE"})
+    @DisplayName("POST /api/fiscal-documents sincroniza documento e retorna 201")
+    void sync_retorna201() throws Exception {
+        UUID id = UUID.randomUUID();
+        FiscalDocument doc = new FiscalDocument();
+        java.lang.reflect.Field idField = FiscalDocument.class.getDeclaredField("id");
+        idField.setAccessible(true);
+        idField.set(doc, id);
+
+        FiscalDocumentDetailResponse detail = FiscalDocumentDetailResponse.builder()
+                .id(id)
+                .type("NFE")
+                .status("AUTHORIZED")
+                .value(BigDecimal.valueOf(500))
+                .origin("SALES")
+                .build();
+
+        when(fiscalDocumentService.saveFromSync(any())).thenReturn(doc);
+        when(fiscalDocumentResponseMapper.toDetail(doc)).thenReturn(detail);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .post("/api/fiscal-documents")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"type\":\"NFE\",\"origin\":\"SALES\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id", is(id.toString())))
+                .andExpect(jsonPath("$.type", is("NFE")));
+    }
+
+    @Test
+    @WithMockUser(roles = {"EMPLOYEE"})
+    @DisplayName("GET /api/fiscal-documents aceita ordenação por campo permitido (issueDate)")
+    void list_ordenacaoPermitida_retorna200() throws Exception {
+        FiscalDocumentSummaryResponse summary = FiscalDocumentSummaryResponse.builder()
+                .id(UUID.randomUUID())
+                .type("NFE")
+                .status("AUTHORIZED")
+                .value(BigDecimal.valueOf(100))
+                .build();
+        Page<FiscalDocumentSummaryResponse> page = new PageImpl<>(List.of(summary), PageRequest.of(0, 20), 1);
+        when(queryService.search(any(), any(), any(), any(), any(), any(), any(), any()))
+                .thenReturn(page);
+
+        mockMvc.perform(get("/api/fiscal-documents")
+                        .param("sort", "issueDate,desc"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content", hasSize(1)));
     }
 }

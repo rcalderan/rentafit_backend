@@ -284,6 +284,15 @@
 								<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
 								<exclude>br.com.rentafit.people.service.ViaCepIntegrationService</exclude>
 							<exclude>br.com.rentafit.billing.controller.BillingController</exclude>
+							<!-- Exclui servicos de migracao infra (ProcessBuilder/Python, conexoes DB admin) -->
+							<exclude>br.com.rentafit.migration.service.BsonValidationService</exclude>
+							<exclude>br.com.rentafit.migration.service.DatabaseCloneService</exclude>
+							<exclude>br.com.rentafit.migration.service.DatabasePromotionService</exclude>
+							<exclude>br.com.rentafit.migration.service.MigrationCompareService</exclude>
+							<exclude>br.com.rentafit.migration.service.MigrationReportService</exclude>
+							<exclude>br.com.rentafit.migration.service.MigrationReportService$PythonReport</exclude>
+							<exclude>br.com.rentafit.migration.service.MigrationRunnerService</exclude>
+							<exclude>br.com.rentafit.migration.controller.MigrationController</exclude>
 							</excludes>
 						</rule>
 					</rules>
@@ -314,6 +323,14 @@
 						<exclude>**/*Config.*</exclude>
 						<!-- Exclui ViaCepIntegrationService (requer mocks complexos de WebClient) -->
 						<exclude>**/ViaCepIntegrationService.*</exclude>
+						<!-- Exclui servicos de migracao infra (ProcessBuilder/Python, conexoes DB admin) -->
+						<exclude>**/migration/service/BsonValidationService.*</exclude>
+						<exclude>**/migration/service/DatabaseCloneService.*</exclude>
+						<exclude>**/migration/service/DatabasePromotionService.*</exclude>
+						<exclude>**/migration/service/MigrationCompareService.*</exclude>
+						<exclude>**/migration/service/MigrationReportService.*</exclude>
+						<exclude>**/migration/service/MigrationRunnerService.*</exclude>
+						<exclude>**/migration/controller/MigrationController.*</exclude>
 					</excludes>
 				</configuration>
 			</plugin>
