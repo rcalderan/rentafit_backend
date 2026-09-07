@@ -163,6 +163,42 @@ class MigrationSessionServiceTest {
         assertEquals("uploaded", retrieved.getStatus());
     }
 
+    @Test
+    @DisplayName("resolveOutputPath deve retornar caminho sob diretório de output")
+    void resolveOutputPathReturnsPathUnderOutputDir() {
+        Path outputPath = service.resolveOutputPath("session-123");
+
+        assertNotNull(outputPath);
+        assertTrue(outputPath.toString().contains("output"));
+        assertTrue(outputPath.toString().contains("session-123"));
+    }
+
+    @Test
+    @DisplayName("listFiles por sessionId deve retornar arquivos da sessão")
+    void listFilesBySessionIdReturnsFiles() throws IOException {
+        MigrationSessionDTO session = service.createSession();
+        byte[] bsonContent = createMinimalBson();
+
+        MultipartFile mockFile = new MockMultipartFile(
+                "file", "dados.bson", "application/octet-stream", bsonContent
+        );
+        service.storeFile(session.getId(), mockFile);
+
+        List<MigrationFileDTO> files = service.listFiles(session.getId());
+
+        assertEquals(1, files.size());
+        assertEquals("dados.bson", files.get(0).getName());
+        assertEquals("bson", files.get(0).getType());
+    }
+
+    @Test
+    @DisplayName("listFiles por sessionId inexistente deve retornar lista vazia")
+    void listFilesByInvalidSessionIdReturnsEmptyList() throws IOException {
+        List<MigrationFileDTO> files = service.listFiles("nonexistent-session");
+
+        assertTrue(files.isEmpty());
+    }
+
     /**
      * Cria um BSON minimo valido: 1 documento com _id=1 e nome="test".
      * Formato: 4 bytes tamanho + documento BSON.

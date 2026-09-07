@@ -10,6 +10,7 @@ import br.com.rentafit.people.dto.AddressDTO;
 import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.dto.CustomerDetailsDTO;
+import br.com.rentafit.people.dto.SignUpRequestDTO;
 import br.com.rentafit.people.mapper.PeopleMapper;
 import br.com.rentafit.people.repository.CustomerRepository;
 import br.com.rentafit.people.repository.PersonAddressDetailsRepository;
@@ -594,6 +595,115 @@ class CustomerServiceTest {
         verify(addressService, times(2)).findOrCreateByAddress(any(AddressDTO.class));
         // save chamado uma vez por cliente
         verify(customerRepository, times(2)).save(any(Customer.class));
+    }
+
+    // ==================== search Tests ====================
+
+    @Test
+    @DisplayName("Deve delegar para findByName ao chamar search")
+    void shouldDelegateToFindByNameWhenSearchCalled() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.findByNameContainingIgnoreCase("test", pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.search("test", pageable);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(customerRepository).findByNameContainingIgnoreCase("test", pageable);
+    }
+
+    // ==================== getNextLegacyId Tests ====================
+
+    @Test
+    @DisplayName("Deve retornar 1 quando não há legacyId máximo")
+    void shouldReturnOneWhenNoMaxLegacyId() {
+        when(customerRepository.findMaxLegacyId()).thenReturn(null);
+
+        assertThat(customerService.getNextLegacyId()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("Deve retornar maxLegacyId + 1 quando há legacyId máximo")
+    void shouldReturnMaxPlusOneWhenMaxLegacyIdExists() {
+        when(customerRepository.findMaxLegacyId()).thenReturn(42);
+
+        assertThat(customerService.getNextLegacyId()).isEqualTo(43);
+    }
+
+    // ==================== updateFromSignUp Tests ====================
+
+    @Test
+    @DisplayName("Deve atualizar cliente a partir do SignUp sem endereço")
+    void shouldUpdateFromSignUpWithoutAddress() {
+        testCustomer.setPhones(new ArrayList<>(List.of("11999999999")));
+        SignUpRequestDTO dto = SignUpRequestDTO.builder()
+                .name("Test Customer")
+                .email("  Test@Example.COM  ")
+                .document("12345678900")
+                .phones(List.of("11888888888"))
+                .address(AddressDTO.builder().zipCode(null).build())
+                .build();
+
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerDetailsDTO result = customerService.updateFromSignUp(testCustomer, dto);
+
+        assertThat(result).isNotNull();
+        assertThat(testCustomer.getEmail()).isEqualTo("test@example.com");
+        assertThat(testCustomer.getIsAuthenticated()).isTrue();
+        assertThat(testCustomer.getPhones()).contains("11999999999", "11888888888");
+        verify(addressService, never()).handleAddressUpdate(any(), any());
+    }
+
+    @Test
+    @DisplayName("Deve atualizar cliente a partir do SignUp com endereço")
+    void shouldUpdateFromSignUpWithAddress() {
+        testCustomer.setPhones(null);
+        AddressDTO addressDTO = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Avenida Paulista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+        SignUpRequestDTO dto = SignUpRequestDTO.builder()
+                .name("Test Customer")
+                .email("test@example.com")
+                .document("12345678900")
+                .phones(List.of("(11) 8888-8888", "11999999999"))
+                .address(addressDTO)
+                .number("1000")
+                .complement("Apt 201")
+                .build();
+
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CustomerDetailsDTO result = customerService.updateFromSignUp(testCustomer, dto);
+
+        assertThat(result).isNotNull();
+        assertThat(testCustomer.getEmail()).isEqualTo("test@example.com");
+        assertThat(testCustomer.getPhones()).containsExactly("1188888888", "11999999999");
+        verify(addressService).handleAddressUpdate(any(Customer.class), any(CustomerDTO.class));
+    }
+
+    @Test
+    @DisplayName("Não deve adicionar telefones duplicados no updateFromSignUp")
+    void shouldNotAddDuplicatePhonesInUpdateFromSignUp() {
+        testCustomer.setPhones(new ArrayList<>(List.of("11999999999")));
+        SignUpRequestDTO dto = SignUpRequestDTO.builder()
+                .name("Test Customer")
+                .email("test@example.com")
+                .document("12345678900")
+                .phones(List.of("11999999999", "  "))
+                .address(AddressDTO.builder().zipCode(null).build())
+                .build();
+
+        when(customerRepository.save(any(Customer.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        customerService.updateFromSignUp(testCustomer, dto);
+
+        assertThat(testCustomer.getPhones()).containsExactly("11999999999");
     }
 }
 
