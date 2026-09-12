@@ -23,7 +23,7 @@ from transformers import (
     transform_products_and_rental_items,
     transform_contracts,
 )
-from readers import read_all_bson_files
+from readers import read_bson_file
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -31,7 +31,12 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 def load_fixtures() -> dict:
     """Carrega todos os BSONs mock em um dict nome -> lista de docs."""
-    return read_all_bson_files(str(FIXTURES_DIR))
+    result = {}
+    for path in FIXTURES_DIR.glob("*.bson"):
+        if path.name == "noivabd_backup.bson":
+            continue
+        result[path.stem] = read_bson_file(path)
+    return result
 
 
 # ---------- fmt_date / fmt_datetime ----------

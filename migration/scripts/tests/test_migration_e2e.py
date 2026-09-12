@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 from config import TABLES, CSV_HEADERS
 from csv_writer import write_csv
-from readers import read_all_bson_files
+from readers import read_bson_file
 from transformers import (
     EPOCH,
     new_uuid,
@@ -31,14 +31,19 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
 def load_fixtures() -> dict:
-    return read_all_bson_files(str(FIXTURES_DIR))
+    result = {}
+    for path in FIXTURES_DIR.glob("*.bson"):
+        if path.name == "noivabd_backup.bson":
+            continue
+        result[path.stem] = read_bson_file(path)
+    return result
 
 
 class FakeMigration:
     """Executa o pipeline de transformacao sem conectar ao PostgreSQL."""
 
     def __init__(self, fixtures_dir: Path):
-        self.fixtures = read_all_bson_files(str(fixtures_dir))
+        self.fixtures = load_fixtures()
         self.output_dir = None
 
     def run_transform(self, output_dir: Path) -> dict:

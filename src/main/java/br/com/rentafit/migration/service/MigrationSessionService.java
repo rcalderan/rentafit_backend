@@ -2,7 +2,9 @@ package br.com.rentafit.migration.service;
 
 import br.com.rentafit.migration.config.MigrationProperties;
 import br.com.rentafit.migration.dto.MigrationFileDTO;
+import br.com.rentafit.migration.dto.MigrationReportDTO;
 import br.com.rentafit.migration.dto.MigrationSessionDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -26,6 +28,7 @@ public class MigrationSessionService {
     private static final Logger log = LoggerFactory.getLogger(MigrationSessionService.class);
 
     private final MigrationProperties migrationProperties;
+    private final ObjectMapper objectMapper;
 
     private Path basePath;
 
@@ -44,6 +47,7 @@ public class MigrationSessionService {
         session.setId(id);
         session.setCreatedAt(OffsetDateTime.now());
         session.setStatus("created");
+        saveStatus(id, "created", null);
         return session;
     }
 
@@ -55,6 +59,14 @@ public class MigrationSessionService {
         return migrationProperties.resolveOutputPath().resolve(sessionId);
     }
 
+    private Path statusPath(String sessionId) {
+        return resolveSessionPath(sessionId).resolve("status.json");
+    }
+
+    private Path reportPath(String sessionId) {
+        return resolveOutputPath(sessionId).resolve("report.json");
+    }
+
     public MigrationSessionDTO getSession(String sessionId) throws IOException {
         Path sessionPath = resolveSessionPath(sessionId);
         if (!Files.exists(sessionPath)) {
@@ -64,7 +76,14 @@ public class MigrationSessionService {
         MigrationSessionDTO session = new MigrationSessionDTO();
         session.setId(sessionId);
         session.setFiles(listFiles(sessionPath));
-        session.setStatus(detectStatus(session));
+        session.setStatus(readStatus(sessionId));
+        if (reportPath(sessionId).toFile().exists()) {
+            try {
+                session.setReport(objectMapper.readValue(reportPath(sessionId).toFile(), MigrationReportDTO.class));
+            } catch (IOException e) {
+                log.warn("Could not read report for session {}", sessionId, e);
+            }
+        }
         return session;
     }
 
@@ -96,6 +115,45 @@ public class MigrationSessionService {
         return listFiles(sessionPath);
     }
 
+    public void saveStatus(String sessionId, String status, String errorMessage) throws IOException {
+        Path path = statusPath(sessionId);
+        Files.createDirectories(path.getParent());
+        objectMapper.writeValue(path.toFile(), new StatusSnapshot(sessionId, status, errorMessage));
+    }
+
+    public String readStatus(String sessionId) {
+        Path path = statusPath(sessionId);
+        if (!path.toFile().exists()) {
+            return "created";
+        }
+        try {
+            StatusSnapshot snapshot = objectMapper.readValue(path.toFile(), StatusSnapshot.class);
+            return snapshot.getStatus();
+        } catch (IOException e) {
+            log.warn("Could not read status for session {}", sessionId, e);
+            return "created";
+        }
+    }
+
+    public String readError(String sessionId) {
+        Path path = statusPath(sessionId);
+        if (!path.toFile().exists()) {
+            return null;
+        }
+        try {
+            StatusSnapshot snapshot = objectMapper.readValue(path.toFile(), StatusSnapshot.class);
+            return snapshot.getErrorMessage();
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    public void saveReport(String sessionId, MigrationReportDTO report) throws IOException {
+        Path outputPath = resolveOutputPath(sessionId);
+        Files.createDirectories(outputPath);
+        objectMapper.writeValue(reportPath(sessionId).toFile(), report);
+    }
+
     private List<MigrationFileDTO> listFiles(Path sessionPath) throws IOException {
         if (!Files.exists(sessionPath)) {
             return List.of();
@@ -104,6 +162,7 @@ public class MigrationSessionService {
         try (Stream<Path> stream = Files.list(sessionPath)) {
             return stream
                     .filter(Files::isRegularFile)
+                    .filter(p -> !p.getFileName().toString().equals("status.json"))
                     .map(this::toFileDto)
                     .toList();
         }
@@ -133,15 +192,46 @@ public class MigrationSessionService {
         return "unknown";
     }
 
-    private String detectStatus(MigrationSessionDTO session) {
-        if (session.getFiles().isEmpty()) {
-            return "created";
-        }
-        boolean hasBson = session.getFiles().stream().anyMatch(f -> "bson".equals(f.getType()));
-        return hasBson ? "uploaded" : "created";
-    }
-
     private String sanitize(String originalName) {
         return originalName.replaceAll("[^a-zA-Z0-9._-]", "_");
+    }
+
+    public static class StatusSnapshot {
+        private String sessionId;
+        private String status;
+        private String errorMessage;
+
+        public StatusSnapshot() {
+        }
+
+        public StatusSnapshot(String sessionId, String status, String errorMessage) {
+            this.sessionId = sessionId;
+            this.status = status;
+            this.errorMessage = errorMessage;
+        }
+
+        public String getSessionId() {
+            return sessionId;
+        }
+
+        public void setSessionId(String sessionId) {
+            this.sessionId = sessionId;
+        }
+
+        public String getStatus() {
+            return status;
+        }
+
+        public void setStatus(String status) {
+            this.status = status;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        public void setErrorMessage(String errorMessage) {
+            this.errorMessage = errorMessage;
+        }
     }
 }

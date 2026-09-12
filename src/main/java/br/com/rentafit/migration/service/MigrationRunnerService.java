@@ -45,12 +45,16 @@ public class MigrationRunnerService {
         pb.inheritIO();
         pb.redirectErrorStream(true);
 
-        log.info("Starting Python migration for session {} from script {}", sessionId, script);
+        int timeoutMinutes = migrationProperties.getTimeoutMinutes() != null
+                ? migrationProperties.getTimeoutMinutes()
+                : 30;
+        log.info("Starting Python migration for session {} from script {} (timeout {} min)",
+                sessionId, script, timeoutMinutes);
         Process process = pb.start();
-        boolean finished = process.waitFor(10, TimeUnit.MINUTES);
+        boolean finished = process.waitFor(timeoutMinutes, TimeUnit.MINUTES);
         if (!finished) {
             process.destroyForcibly();
-            throw new IllegalStateException("Python migration timed out after 10 minutes");
+            throw new IllegalStateException("Python migration timed out after " + timeoutMinutes + " minutes");
         }
         if (process.exitValue() != 0) {
             throw new IllegalStateException("Python migration failed with exit code " + process.exitValue());
