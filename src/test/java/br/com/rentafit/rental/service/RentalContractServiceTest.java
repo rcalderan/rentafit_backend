@@ -10,6 +10,7 @@ import br.com.rentafit.rental.domain.enums.PaymentMethod;
 import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.mapper.RentalMapper;
+import br.com.rentafit.rental.port.CustomerPort;
 import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
@@ -44,6 +45,7 @@ class RentalContractServiceTest {
     @Mock private RentalContractRepository contractRepository;
     @Mock private RentalContractValidator validator;
     @Mock private RentalWorkflowService workflowService;
+    @Mock private CustomerPort customerPort;
     @Mock private RentalMapper mapper;
 
     @InjectMocks
@@ -185,6 +187,36 @@ class RentalContractServiceTest {
         assertThatThrownBy(() -> contractService.findByLegacyId(legacyId, null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasMessageContaining("legacyId");
+    }
+
+    @Test
+    @DisplayName("findById deve enriquecer customerDocument em branco com CPF atual do cliente (contrato legado)")
+    void testFindById_enrichesBlankCustomerDocument() {
+        RentalContractDetailsDTO blankDocDTO = detailsDTO.toBuilder()
+                .customerDocument(null)
+                .build();
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(mapper.toDetailsDTO(draftContract, null)).thenReturn(blankDocDTO);
+        when(customerPort.findById(customerId)).thenReturn(Optional.of(customerSnapshot));
+
+        RentalContractDetailsDTO result = contractService.findById(contractId);
+
+        assertThat(result.customerDocument()).isEqualTo("12345678901");
+    }
+
+    @Test
+    @DisplayName("findById não deve consultar customerPort quando snapshot já possui documento")
+    void testFindById_keepsExistingCustomerDocument() {
+        RentalContractDetailsDTO withDocDTO = detailsDTO.toBuilder()
+                .customerDocument("99999999999")
+                .build();
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(mapper.toDetailsDTO(draftContract, null)).thenReturn(withDocDTO);
+
+        RentalContractDetailsDTO result = contractService.findById(contractId);
+
+        assertThat(result.customerDocument()).isEqualTo("99999999999");
+        verifyNoInteractions(customerPort);
     }
 
     // ── create ────────────────────────────────────────────────────────────────

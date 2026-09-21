@@ -15,7 +15,7 @@ import java.util.UUID;
  * <p>O campo {@code warnings} é omitido do JSON quando não há alertas,
  * seguindo o padrão {@code @JsonInclude(NON_NULL)} do ErrorResponse.</p>
  */
-@Builder
+@Builder(toBuilder = true)
 public record RentalContractDetailsDTO(
         UUID id,
         String legacyId,

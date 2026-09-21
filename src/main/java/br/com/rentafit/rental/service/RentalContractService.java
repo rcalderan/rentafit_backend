@@ -10,6 +10,7 @@ import br.com.rentafit.rental.domain.enums.ContractStatus;
 import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.mapper.RentalMapper;
+import br.com.rentafit.rental.port.CustomerPort;
 import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
@@ -52,6 +53,7 @@ public class RentalContractService {
     private final RentalContractRepository contractRepository;
     private final RentalContractValidator validator;
     private final RentalWorkflowService workflowService;
+    private final CustomerPort customerPort;
     private final RentalMapper mapper;
 
     @Value("${rentafit.legacy-id.pattern:yyMMdd}")
@@ -67,7 +69,7 @@ public class RentalContractService {
     @Transactional(readOnly = true)
     public RentalContractDetailsDTO findById(UUID id) {
         RentalContract contract = requireContract(id);
-        return mapper.toDetailsDTO(contract, null);
+        return enrichBlankCustomerDocument(mapper.toDetailsDTO(contract, null));
     }
 
     @Transactional(readOnly = true)
@@ -78,12 +80,32 @@ public class RentalContractService {
                 : contract.getPayments().stream()
                         .filter(p -> installmentNumber.equals(p.getInstallmentNumber()))
                         .collect(Collectors.toList());
-        return mapper.toDetailsDTO(contract, payments, null);
+        return enrichBlankCustomerDocument(mapper.toDetailsDTO(contract, payments, null));
     }
 
     @Transactional(readOnly = true)
     public Page<RentalContractSummaryDTO> findByCustomer(UUID customerId, Pageable pageable) {
         return contractRepository.findByCustomerId(customerId, pageable).map(mapper::toSummaryDTO);
+    }
+
+    /**
+     * Enriquece o DTO de leitura com o CPF/CNPJ atual do cliente quando o snapshot
+     * imutável gravado na criação do contrato está em branco (contratos legados).
+     * Não muta a entidade — apenas o DTO de saída.
+     */
+    private RentalContractDetailsDTO enrichBlankCustomerDocument(RentalContractDetailsDTO dto) {
+        if (dto.customerDocument() != null && !dto.customerDocument().isBlank()) {
+            return dto;
+        }
+        return customerPort.findById(dto.customerId())
+                .map(CustomerSnapshot::document)
+                .filter(doc -> doc != null && !doc.isBlank())
+                .map(currentDoc -> {
+                    log.info("Enriquecido customerDocument em branco do contrato {} com documento atual do cliente {}",
+                            dto.id(), dto.customerId());
+                    return dto.toBuilder().customerDocument(currentDoc).build();
+                })
+                .orElse(dto);
     }
 
     public RentalContractDetailsDTO create(CreateRentalContractDTO dto) {

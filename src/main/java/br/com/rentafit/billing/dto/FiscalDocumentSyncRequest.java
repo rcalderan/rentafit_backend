@@ -23,6 +23,7 @@ public record FiscalDocumentSyncRequest(
         String customerEmail,
         OffsetDateTime issueDate,
         String authorizedXml,
+        String serviceDescription,
         String rejectionReason,
         String cancelReason,
         OffsetDateTime cancelledAt,
