@@ -3,12 +3,9 @@ package br.com.rentafit.migration.controller;
 import br.com.rentafit.migration.dto.MigrationComparisonDTO;
 import br.com.rentafit.migration.dto.MigrationReportDTO;
 import br.com.rentafit.migration.dto.MigrationSessionDTO;
-import br.com.rentafit.migration.service.BsonValidationService;
-import br.com.rentafit.migration.service.DatabaseCloneService;
-import br.com.rentafit.migration.service.DatabasePromotionService;
 import br.com.rentafit.migration.service.MigrationCompareService;
+import br.com.rentafit.migration.service.MigrationOrchestrationService;
 import br.com.rentafit.migration.service.MigrationReportService;
-import br.com.rentafit.migration.service.MigrationRunnerService;
 import br.com.rentafit.migration.service.MigrationSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -27,7 +24,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/migration")
@@ -36,57 +32,26 @@ import java.util.UUID;
 public class MigrationController {
 
     private final MigrationSessionService sessionService;
-    private final BsonValidationService validationService;
-    private final MigrationRunnerService runnerService;
-    private final MigrationCompareService compareService;
+    private final MigrationOrchestrationService orchestrationService;
     private final MigrationReportService reportService;
-    private final DatabaseCloneService databaseCloneService;
-    private final DatabasePromotionService promotionService;
+    private final MigrationCompareService compareService;
 
-    @PostMapping("/sessions")
-    @Operation(summary = "Criar sessão de migração", description = "Gera um diretório temporário para anexar arquivos .bson")
-    public ResponseEntity<MigrationSessionDTO> createSession() throws IOException {
-        return ResponseEntity.ok(sessionService.createSession());
-    }
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Upload do dump BSON", description = "Envia o arquivo unico .bson e inicia migrate + validation em background")
+    public ResponseEntity<MigrationSessionDTO> upload(@RequestParam("file") @NotNull MultipartFile file) throws IOException {
+        MigrationSessionDTO session = sessionService.createSession();
+        sessionService.storeFile(session.getId(), file);
+        sessionService.saveStatus(session.getId(), "uploaded", null);
 
-    @PostMapping(value = "/sessions/{sessionId}/files", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Anexar arquivo", description = "Faz upload de um arquivo .bson ou .metadata.json na sessão")
-    public ResponseEntity<MigrationSessionDTO> uploadFile(
-            @PathVariable String sessionId,
-            @RequestParam("file") @NotNull MultipartFile file) throws IOException {
-        sessionService.storeFile(sessionId, file);
-        return ResponseEntity.ok(sessionService.getSession(sessionId));
+        orchestrationService.runMigrationFlow(session.getId());
+
+        return ResponseEntity.ok(sessionService.getSession(session.getId()));
     }
 
     @GetMapping("/sessions/{sessionId}")
-    @Operation(summary = "Consultar sessão", description = "Lista arquivos anexados e status da sessão")
+    @Operation(summary = "Consultar sessão", description = "Retorna status atual, arquivos e relatório da sessão")
     public ResponseEntity<MigrationSessionDTO> getSession(@PathVariable String sessionId) throws IOException {
         return ResponseEntity.ok(sessionService.getSession(sessionId));
-    }
-
-    @PostMapping("/sessions/{sessionId}/validate")
-    @Operation(summary = "Validar arquivos", description = "Valida se os arquivos .bson são parseáveis")
-    public ResponseEntity<MigrationSessionDTO> validateSession(@PathVariable String sessionId) throws IOException {
-        MigrationSessionDTO session = sessionService.getSession(sessionId);
-        Path sessionPath = sessionService.resolveSessionPath(sessionId);
-        validationService.validateSessionFiles(sessionPath, session.getFiles());
-        session.setStatus(validationService.allBsonValid(session.getFiles()) ? "valid" : "invalid");
-        return ResponseEntity.ok(session);
-    }
-
-    @PostMapping("/sessions/{sessionId}/clone")
-    @Operation(summary = "Clonar rentafit para rentafit_dump", description = "Cria o banco de testes a partir do original")
-    public ResponseEntity<Map<String, String>> cloneDatabase() {
-        databaseCloneService.cloneRentafitToDump();
-        return ResponseEntity.ok(Map.of("status", "cloned", "target", "rentafit_dump"));
-    }
-
-    @PostMapping("/sessions/{sessionId}/run")
-    @Operation(summary = "Executar migração", description = "Roda o script Python a partir dos arquivos .bson da sessão")
-    public ResponseEntity<MigrationReportDTO> runMigration(@PathVariable String sessionId) throws Exception {
-        Path sessionPath = sessionService.resolveSessionPath(sessionId);
-        MigrationReportDTO report = runnerService.runMigration(sessionId, sessionPath);
-        return ResponseEntity.ok(report);
     }
 
     @GetMapping("/sessions/{sessionId}/report")
@@ -100,23 +65,18 @@ public class MigrationController {
         return ResponseEntity.ok(reportService.buildReport(reportPath));
     }
 
+    @PostMapping("/sessions/{sessionId}/promote")
+    @Operation(summary = "Promover dump", description = "Faz backup de rentafit e renomeia rentafit_dump para rentafit. Requer confirm=true")
+    public ResponseEntity<Map<String, String>> promote(
+            @PathVariable String sessionId,
+            @RequestParam(name = "confirm", defaultValue = "false") boolean confirm) {
+        orchestrationService.promote(sessionId, confirm);
+        return ResponseEntity.ok(Map.of("status", "promoted", "message", "rentafit_dump promovido para rentafit"));
+    }
+
     @GetMapping("/compare")
     @Operation(summary = "Comparar bancos", description = "Compara contagens entre rentafit, rentafit_dump e fontes MongoDB")
     public ResponseEntity<MigrationComparisonDTO> compare() {
         return ResponseEntity.ok(compareService.compare());
-    }
-
-    @PostMapping("/backup")
-    @Operation(summary = "Backup do original", description = "Cria um backup nomeado de rentafit")
-    public ResponseEntity<Map<String, String>> backup() {
-        String backupName = databaseCloneService.backupOriginal();
-        return ResponseEntity.ok(Map.of("status", "backed_up", "database", backupName));
-    }
-
-    @PostMapping("/promote")
-    @Operation(summary = "Promover dump", description = "Faz backup de rentafit e renomeia rentafit_dump para rentafit")
-    public ResponseEntity<Map<String, String>> promote() {
-        promotionService.promote();
-        return ResponseEntity.ok(Map.of("status", "promoted", "message", "rentafit_dump promovido para rentafit"));
     }
 }

@@ -16,6 +16,8 @@ scripts/
 .devin
 .QA
 *sefaz-cacerts*
+migration/output/*
+migration/session_reset/*
 
 ### Playwright ###
 .playwright*

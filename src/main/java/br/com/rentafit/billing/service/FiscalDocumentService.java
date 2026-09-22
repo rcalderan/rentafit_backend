@@ -63,6 +63,7 @@ public class FiscalDocumentService {
         if (request.authorizedXml() != null) {
             existing.setAuthorizedXml(request.authorizedXml());
         }
+        existing.setServiceDescription(request.serviceDescription());
         existing.setRejectionReason(request.rejectionReason());
         existing.setCancelReason(request.cancelReason());
         existing.setCancelledAt(request.cancelledAt());
@@ -96,6 +97,7 @@ public class FiscalDocumentService {
                 .customerName(request.customerName())
                 .customerEmail(request.customerEmail())
                 .authorizedXml(request.authorizedXml())
+                .serviceDescription(request.serviceDescription())
                 .rejectionReason(request.rejectionReason())
                 .cancelReason(request.cancelReason())
                 .cancelledAt(request.cancelledAt())

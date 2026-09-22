@@ -62,6 +62,12 @@ public class MigrationProperties {
      */
     private Boolean auditEnabled = true;
 
+    /**
+     * Tempo maximo de execucao do script Python em minutos.
+     * Default: 30
+     */
+    private Integer timeoutMinutes = 30;
+
     public Path resolveBsonBasePath() {
         return Path.of(bsonBasePath).toAbsolutePath().normalize();
     }

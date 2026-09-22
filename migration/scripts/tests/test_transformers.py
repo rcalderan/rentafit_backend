@@ -23,7 +23,7 @@ from transformers import (
     transform_products_and_rental_items,
     transform_contracts,
 )
-from readers import read_all_bson_files
+from readers import read_bson_file
 
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -31,7 +31,12 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 def load_fixtures() -> dict:
     """Carrega todos os BSONs mock em um dict nome -> lista de docs."""
-    return read_all_bson_files(str(FIXTURES_DIR))
+    result = {}
+    for path in FIXTURES_DIR.glob("*.bson"):
+        if path.name == "noivabd_backup.bson":
+            continue
+        result[path.stem] = read_bson_file(path)
+    return result
 
 
 # ---------- fmt_date / fmt_datetime ----------
@@ -143,13 +148,105 @@ class TestTransformPeopleFromCliente:
 class TestTransformEmployees:
     def test_mock_funcionario_produces_one_employee(self):
         docs = load_fixtures().get("funcionario", [])
-        people, employees, user_accounts, employee_map = transform_people_from_funcionario(docs)
+        people, employees, user_accounts, employee_map = transform_people_from_funcionario(docs, {}, set())
 
         assert len(people) == 1
         assert len(employees) == 1
         assert len(user_accounts) == 1
-        assert people[0]["name"] == "Funcionario Mock"
+        # MCK nao esta no de-para: regra auto => nome=sigla, email=sigla@dominio
+        assert people[0]["name"] == "MCK"
+        assert people[0]["email"] == "mck@noivamodas.com.br"
+        assert people[0]["legacy_id"] == 1  # menor id livre
         assert 8001 in employee_map
+
+    def _person(self, legacy_id: int, email: str = "", document: str = "") -> dict:
+        return {"id": f"uuid-cli-{legacy_id}", "legacy_id": legacy_id, "name": "CLIENTE X",
+                "document": document, "email": email, "created_at": "", "updated_at": ""}
+
+    def _func(self, fid: int, sigla: str, nome: str = "") -> dict:
+        return {"_id": fid, "sigla": sigla, "nome": nome or sigla, "senha": "x",
+                "privilegio": 1, "ativo": True}
+
+    def test_ccli_existente_mescla_na_pessoa_do_cliente(self):
+        person = self._person(1, document="32697221840")
+        docs = [self._func(2, "RI", "Richard")]
+
+        people, employees, accounts, emap = transform_people_from_funcionario(
+            docs, {1: person}, {1}
+        )
+
+        assert people == []  # sem pessoa nova
+        assert employees[0]["id"] == "uuid-cli-1"
+        assert employees[0]["initials"] == "RI"
+        assert accounts[0]["id"] == "uuid-cli-1"
+        assert accounts[0]["username"] == "RI"
+        assert emap[2] == "uuid-cli-1"
+        assert person["email"] == "richardcck@hotmail.com"
+        # documento do cadastro prevalece sobre o cpf do de-para
+        assert person["document"] == "32697221840"
+
+    def test_merge_nao_sobrescreve_email_existente(self):
+        person = self._person(2, email="cadastro@x.com")
+        docs = [self._func(3, "RE", "Renata")]
+
+        transform_people_from_funcionario(docs, {2: person}, {2})
+
+        assert person["email"] == "cadastro@x.com"
+
+    def test_depara_sem_ccli_aloca_ids_livres_na_ordem_do_depara(self):
+        # Ordem do BSON propositalmente diferente da ordem do de-para
+        docs = [self._func(17, "VA"), self._func(7, "HI"), self._func(4, "CL"),
+                self._func(18, "AK"), self._func(20, "CA")]
+        used = {1, 2, 3, 4, 6, 7, 8}
+
+        people, _, _, emap = transform_people_from_funcionario(docs, {}, used)
+        by_sigla = {p["name"]: p["legacy_id"] for p in people}
+
+        # CL e o primeiro ccli=None do de-para: recebe o menor id livre (5)
+        assert by_sigla["CLEYTON CARVALHO CALDERAN"] == 5
+        assert by_sigla["HIDEKO"] == 9
+        assert by_sigla["AKEMI"] == 10
+        assert by_sigla["CAMILA"] == 11
+        assert by_sigla["VALERIA"] == 12
+
+    def test_demais_funcionarios_usam_regra_auto_apos_depara(self):
+        docs = [self._func(5, "JO", "Josi"), self._func(4, "CL")]
+        used = {1, 2, 3, 4}
+
+        people, employees, accounts, emap = transform_people_from_funcionario(docs, {}, used)
+        by_initials = {e["initials"]: e["id"] for e in employees}
+        person_by_id = {p["id"]: p for p in people}
+
+        cl = person_by_id[by_initials["CL"]]
+        jo = person_by_id[by_initials["JO"]]
+        assert cl["legacy_id"] == 5  # de-para primeiro
+        assert cl["document"] == "21976776830"
+        assert jo["legacy_id"] == 6  # demais depois
+        assert jo["name"] == "JO"
+        assert jo["email"] == "jo@noivamodas.com.br"
+
+    def test_adm_mapeia_para_admin_uuid_e_na_e_pulado(self):
+        docs = [self._func(0, "N/A", "Desconhecido"), self._func(1, "ADM", "Admnistrador"),
+                self._func(5, "JO")]
+
+        people, employees, accounts, emap = transform_people_from_funcionario(
+            docs, {}, {1, 2, 3, 4}, admin_uuid="uuid-admin"
+        )
+
+        assert emap[1] == "uuid-admin"
+        assert 0 not in emap
+        assert len(people) == 1 and people[0]["legacy_id"] == 5
+        assert len(employees) == 1 and employees[0]["initials"] == "JO"
+
+    def test_ccli_ausente_no_cadastro_aloca_id_livre(self):
+        docs = [self._func(2, "RI", "Richard")]
+
+        people, employees, _, emap = transform_people_from_funcionario(docs, {}, {1, 2})
+
+        assert len(people) == 1
+        assert people[0]["legacy_id"] == 3
+        assert people[0]["name"] == "Richard Calderan"
+        assert people[0]["document"] == "326972219840"
 
 
 # ---------- transform_products_and_rental_items ----------
@@ -188,7 +285,7 @@ class TestTransformContracts:
         customer_name_map = {7001: "Joao Mock da Silva"}
 
         func_docs = fixtures.get("funcionario", [])
-        _, _, _, employee_map = transform_people_from_funcionario(func_docs)
+        _, _, _, employee_map = transform_people_from_funcionario(func_docs, {}, set())
 
         roupa_docs = fixtures.get("roupa", [])
         cat_docs = fixtures.get("roupa_tipo", [])

@@ -1,8 +1,5 @@
 package br.com.rentafit.migration.validator;
 
-import br.com.rentafit.auth.repository.UserAccountRepository;
-import br.com.rentafit.people.repository.CustomerRepository;
-import br.com.rentafit.people.repository.EmployeeRepository;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,7 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Validador de integridade de dados após migração.
+ * Validador de integridade de dados apos migracao.
+ *
+ * Trabalha exclusivamente com {@link JdbcTemplate} para permitir validacao
+ * tanto do banco de producao quanto do banco de dump temporario.
  */
 @Component
 @RequiredArgsConstructor
@@ -21,9 +21,6 @@ public class MigrationValidator {
 
     private static final Logger log = LoggerFactory.getLogger(MigrationValidator.class);
 
-    private final CustomerRepository customerRepository;
-    private final EmployeeRepository employeeRepository;
-    private final UserAccountRepository userAccountRepository;
     private final JdbcTemplate jdbcTemplate;
 
     public ValidationResult validate() {
@@ -48,9 +45,9 @@ public class MigrationValidator {
     }
 
     private void validateRecordCounts(ValidationResult result) {
-        long customerCount = customerRepository.count();
-        long employeeCount = employeeRepository.count();
-        long userAccountCount = userAccountRepository.count();
+        long customerCount = count("customers");
+        long employeeCount = count("employees");
+        long userAccountCount = count("user_accounts");
 
         result.setCustomerCount(customerCount);
         result.setEmployeeCount(employeeCount);
@@ -65,6 +62,11 @@ public class MigrationValidator {
         if (userAccountCount == 0) {
             result.addWarning("No user accounts found after migration");
         }
+    }
+
+    private long count(String table) {
+        Long value = queryLong("SELECT COUNT(*) FROM " + table);
+        return value != null ? value : 0L;
     }
 
     private void validateUniqueness(ValidationResult result) {

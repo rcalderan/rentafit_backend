@@ -4,7 +4,14 @@ import re
 from datetime import datetime
 from uuid import uuid4
 
-from config import CONTRACT_STATUS_MAP, CONTRACT_TYPE_MAP, PAYMENT_METHOD_MAP
+from config import (
+    CONTRACT_STATUS_MAP,
+    CONTRACT_TYPE_MAP,
+    FUNCIONARIO_AUTO_EMAIL_DOMAIN,
+    FUNCIONARIO_DEPARA,
+    FUNCIONARIO_SKIP_SIGLAS,
+    PAYMENT_METHOD_MAP,
+)
 
 EPOCH = "1970-01-01 00:00:00"
 EPOCH_TZ = "1970-01-01 00:00:00+00"
@@ -198,49 +205,114 @@ def transform_people_from_cliente(documents: list[dict]) -> tuple[list[dict], li
     return people_rows, customer_rows, address_rows, phone_rows, pad_rows, customer_legacy_map
 
 
-def transform_people_from_funcionario(documents: list[dict]) -> tuple[list[dict], list[dict], list[dict], dict]:
-    """Retorna (people_rows, employee_rows, user_account_rows, employee_legacy_map)."""
+def _next_free_legacy_id(used: set[int]) -> int:
+    """Aloca o menor inteiro positivo fora de `used` e o marca como usado."""
+    candidate = 1
+    while candidate in used:
+        candidate += 1
+    used.add(candidate)
+    return candidate
+
+
+def _fill_person_from_depara(person: dict, entry: dict) -> None:
+    """Completa email/documento da pessoa mesclada somente quando vazios."""
+    if not person.get("email"):
+        person["email"] = normalize_email(entry.get("email"))
+    if not person.get("document"):
+        person["document"] = normalize_document(entry.get("cpf"))
+
+
+def _employee_and_account_rows(pid: str, sigla: str, doc: dict) -> tuple[dict, dict]:
+    name = normalize_text(doc.get("nome"))
+    employee = {
+        "id": pid,
+        "initials": (sigla or name[:3].upper())[:10],
+        "role_level": doc.get("privilegio", 1),
+    }
+    account = {
+        "id": pid,
+        "username": (sigla or name)[:50],
+        "password": normalize_text(doc.get("senha")) or "legacy",
+        "pin": "",
+        "is_active": "true" if doc.get("ativo") else "false",
+        "password_changed_at": "",
+        "issuer_cnpj": "",
+    }
+    return employee, account
+
+
+def _new_employee_person(sigla: str, doc: dict, entry: dict | None, legacy_id: int) -> dict:
+    """Monta a people row de um employee sem cadastro de cliente (id alocado)."""
+    if entry:
+        name = entry["name"]
+        email = normalize_email(entry.get("email"))
+        document = normalize_document(entry.get("cpf"))
+    else:
+        name = sigla or normalize_text(doc.get("nome")) or "SEM NOME"
+        email = f"{sigla.lower()}@{FUNCIONARIO_AUTO_EMAIL_DOMAIN}" if sigla else ""
+        document = ""
+    return {
+        "id": new_uuid(),
+        "legacy_id": legacy_id,
+        "name": name,
+        "document": document,
+        "email": email,
+        "created_at": EPOCH_TZ,
+        "updated_at": EPOCH_TZ,
+    }
+
+
+def transform_people_from_funcionario(
+    documents: list[dict],
+    people_by_legacy: dict[int, dict],
+    used_legacy_ids: set[int],
+    admin_uuid: str = "",
+) -> tuple[list[dict], list[dict], list[dict], dict]:
+    """Retorna (people_rows_novos, employee_rows, user_account_rows, employee_map).
+
+    Funcionarios cujo ccli do de-para existe no cadastro de clientes sao
+    mesclados na pessoa do cliente (employee + user_account apontam para o
+    UUID existente). Os demais ganham pessoa nova com um legacy_id livre do
+    espaco de clientes — primeiro os ccli=None do de-para (na ordem do dict),
+    depois os fora do de-para (na ordem do BSON). ADM e N/A sao pulados.
+    """
     people_rows = []
     employee_rows = []
     user_account_rows = []
-    employee_legacy_map = {}  # legacy_id -> uuid
+    employee_map = {}  # funcionario._id -> uuid
+    pending = []  # (doc, entry) aguardando legacy_id livre
 
     for doc in documents:
-        pid = new_uuid()
-        legacy_id = doc.get("_id")
-        name = normalize_text(doc.get("nome"))
         sigla = normalize_text(doc.get("sigla"))
+        if sigla in FUNCIONARIO_SKIP_SIGLAS:
+            if sigla == "ADM" and admin_uuid:
+                employee_map[doc.get("_id")] = admin_uuid
+            continue
 
-        people_rows.append({
-            "id": pid,
-            "legacy_id": legacy_id if legacy_id is not None else "",
-            "name": name,
-            "document": "",
-            "email": "",
-            "created_at": EPOCH_TZ,
-            "updated_at": EPOCH_TZ,
-        })
+        entry = FUNCIONARIO_DEPARA.get(sigla)
+        person = people_by_legacy.get(entry["ccli"]) if entry else None
+        if person is not None:
+            _fill_person_from_depara(person, entry)
+            emp, acc = _employee_and_account_rows(person["id"], sigla, doc)
+            employee_rows.append(emp)
+            user_account_rows.append(acc)
+            employee_map[doc.get("_id")] = person["id"]
+        else:
+            pending.append((doc, entry))
 
-        employee_rows.append({
-            "id": pid,
-            "initials": (sigla or name[:3].upper())[:10],
-            "role_level": doc.get("privilegio", 1),
-        })
+    depara_order = {sigla: idx for idx, sigla in enumerate(FUNCIONARIO_DEPARA)}
+    pending.sort(key=lambda t: depara_order.get(normalize_text(t[0].get("sigla")), len(depara_order)))
 
-        user_account_rows.append({
-            "id": pid,
-            "username": (sigla or name)[:50],
-            "password": normalize_text(doc.get("senha")) or "legacy",
-            "pin": "",
-            "is_active": "true" if doc.get("ativo") else "false",
-            "password_changed_at": "",
-            "issuer_cnpj": "",
-        })
+    for doc, entry in pending:
+        sigla = normalize_text(doc.get("sigla"))
+        person = _new_employee_person(sigla, doc, entry, _next_free_legacy_id(used_legacy_ids))
+        people_rows.append(person)
+        emp, acc = _employee_and_account_rows(person["id"], sigla, doc)
+        employee_rows.append(emp)
+        user_account_rows.append(acc)
+        employee_map[doc.get("_id")] = person["id"]
 
-        if legacy_id is not None:
-            employee_legacy_map[legacy_id] = pid
-
-    return people_rows, employee_rows, user_account_rows, employee_legacy_map
+    return people_rows, employee_rows, user_account_rows, employee_map
 
 
 # ---------- products + rental_items ----------
@@ -395,10 +467,3 @@ def transform_contracts(documents: list[dict], customer_map: dict, customer_name
 
     return contract_rows, contract_item_rows, payment_rows, meta_rows
 
-
-# ---------- conf ----------
-
-def extract_issuer_cnpj(conf_docs: list[dict]) -> str:
-    if not conf_docs:
-        return ""
-    return normalize_document(conf_docs[0].get("cnpj"))

@@ -7,10 +7,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -18,45 +22,69 @@ public class BsonValidationService {
 
     private static final Logger log = LoggerFactory.getLogger(BsonValidationService.class);
 
+    private static final String VALIDATOR_SCRIPT = "migration/scripts/validate_dump.py";
+
     private final MigrationProperties migrationProperties;
 
     public void validateSessionFiles(Path sessionPath, List<MigrationFileDTO> files) {
-        for (MigrationFileDTO file : files) {
-            if (!"bson".equals(file.getType())) {
-                file.setStatus("ignored");
-                continue;
-            }
+        List<MigrationFileDTO> bsonFiles = files.stream()
+                .filter(f -> "bson".equals(f.getType()))
+                .toList();
 
-            Path filePath = sessionPath.resolve(file.getName());
-            try {
-                validateBsonFile(filePath);
-                file.setStatus("valid");
-                file.setError(null);
-            } catch (Exception e) {
+        if (bsonFiles.isEmpty()) {
+            throw new IllegalStateException("Nenhum arquivo .bson encontrado na sessao.");
+        }
+        if (bsonFiles.size() > 1) {
+            for (MigrationFileDTO file : bsonFiles) {
                 file.setStatus("invalid");
-                file.setError("BSON parse error: " + e.getMessage());
-                log.warn("Invalid BSON file: {}", file.getName(), e);
+                file.setError("Formato antigo detectado: apenas o dump unico e aceito.");
             }
+            return;
+        }
+
+        MigrationFileDTO file = bsonFiles.get(0);
+        Path filePath = sessionPath.resolve(file.getName());
+        try {
+            validateSingleDump(filePath);
+            file.setStatus("valid");
+            file.setError(null);
+        } catch (Exception e) {
+            file.setStatus("invalid");
+            file.setError("BSON validation error: " + e.getMessage());
+            log.warn("Invalid BSON dump file: {}", file.getName(), e);
         }
     }
 
-    private void validateBsonFile(Path filePath) throws IOException, InterruptedException {
+    public void validateSingleDump(Path filePath) throws IOException, InterruptedException {
+        Path scriptPath = migrationProperties.resolveScriptPath().getParent().resolve("validate_dump.py");
+        if (!scriptPath.toFile().exists()) {
+            scriptPath = Path.of(VALIDATOR_SCRIPT).toAbsolutePath().normalize();
+        }
+
         ProcessBuilder pb = new ProcessBuilder(
                 migrationProperties.getPythonExecutable(),
-                "-c",
-                "import sys, bson; bson.decode_all(open(sys.argv[1], 'rb').read())",
-                filePath.toString()
+                scriptPath.toString(),
+                filePath.toString(),
+                "--expected-collections", "cliente", "contrato", "roupa", "funcionario",
+                "roupa_tipo", "conf", "fornecedor"
         );
         pb.redirectErrorStream(true);
 
         Process process = pb.start();
-        boolean finished = process.waitFor(30, TimeUnit.SECONDS);
+        boolean finished = process.waitFor(2, TimeUnit.MINUTES);
         if (!finished) {
             process.destroyForcibly();
             throw new IllegalStateException("BSON validation timed out");
         }
+
+        String output;
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            output = reader.lines().collect(Collectors.joining("\n"));
+        }
+
         if (process.exitValue() != 0) {
-            throw new IllegalStateException("BSON validation failed with exit code " + process.exitValue());
+            throw new IllegalStateException("BSON validation failed: " + output);
         }
     }
 
