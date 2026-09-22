@@ -8,14 +8,13 @@ from pathlib import Path
 
 import psycopg2
 
-from config import TABLES
+from config import ADMIN_UUID, TABLES
 from csv_writer import write_csv
 from pg_loader import connect, fetch_admin, load_csv, restore_admin, truncate_all
 from readers import read_all_bson_files
 from report import build_report, write_report
 from transformers import (
     EPOCH,
-    extract_issuer_cnpj,
     new_uuid,
     transform_categories,
     transform_contracts,
@@ -101,6 +100,10 @@ def main():
             "created_by_id": "",
         })
 
+        # people.legacy_id representa o ccli (id da collection cliente).
+        # Fornecedores tem espaco de ids proprio (colide com cliente) — viram
+        # customers sem legacy_id e fora dos mapas usados por contratos.
+        people_by_legacy = {}
         if "cliente" in all_docs:
             p, c, a, ph, pad, cmap = transform_people_from_cliente(all_docs["cliente"])
             people_rows.extend(p)
@@ -110,28 +113,26 @@ def main():
             pad_rows.extend(pad)
             customer_map.update({k: v[0] for k, v in cmap.items()})
             customer_name_map.update({k: v[1] for k, v in cmap.items()})
+            people_by_legacy.update({row["legacy_id"]: row for row in p if row["legacy_id"] != ""})
 
         if "fornecedor" in all_docs:
             p, c, a, ph, pad, cmap = transform_people_from_cliente(all_docs["fornecedor"])
+            for row in p:
+                row["legacy_id"] = ""
             people_rows.extend(p)
             customer_rows.extend(c)
             address_rows.extend(a)
             phone_rows.extend(ph)
             pad_rows.extend(pad)
-            customer_map.update({k: v[0] for k, v in cmap.items()})
-            customer_name_map.update({k: v[1] for k, v in cmap.items()})
 
         if "funcionario" in all_docs:
-            p, e, u, emap = transform_people_from_funcionario(all_docs["funcionario"])
+            p, e, u, emap = transform_people_from_funcionario(
+                all_docs["funcionario"], people_by_legacy, set(people_by_legacy), ADMIN_UUID
+            )
             people_rows.extend(p)
             employee_rows.extend(e)
             user_account_rows.extend(u)
             employee_map.update(emap)
-
-        # Aplicar issuer_cnpj do conf no admin
-        issuer_cnpj = extract_issuer_cnpj(all_docs.get("conf", []))
-        if issuer_cnpj and user_account_rows:
-            user_account_rows[0]["issuer_cnpj"] = issuer_cnpj
 
         # 3. Products + rental_items
         product_rows = []
@@ -156,8 +157,9 @@ def main():
                 all_docs["contrato"], customer_map, customer_name_map, employee_map, rental_item_map, default_customer_id
             )
 
-        # 6. Deduplicar documents e legacy_ids em people (unique constraints)
+        # 6. Deduplicar documents, emails e legacy_ids em people (unique constraints)
         seen_docs = set()
+        seen_emails = set()
         seen_legacy = set()
         for p in people_rows:
             doc = p.get("document", "")
@@ -165,6 +167,11 @@ def main():
                 p["document"] = ""
             elif doc:
                 seen_docs.add(doc)
+            email = p.get("email", "")
+            if email and email in seen_emails:
+                p["email"] = ""
+            elif email:
+                seen_emails.add(email)
             legacy = p.get("legacy_id", "")
             if legacy and legacy in seen_legacy:
                 p["legacy_id"] = ""
@@ -210,6 +217,13 @@ def main():
         truncate_all(conn, TABLES)
 
         for table in TABLES:
+            # Admin precisa existir em employees antes do COPY de
+            # rental_contracts: contratos legados com criado_por=ADM apontam
+            # para o uuid do admin preservado.
+            if table == "rental_contracts":
+                restore_admin(conn, admin)
+                admin = None
+
             inserted = 0
             table_errors = []
             rows = all_rows.get(table, [])
@@ -239,7 +253,7 @@ def main():
             )
             tables.append({"name": table, "source_count": len(rows), "inserted_count": inserted, "errors": table_errors})
 
-        # Restaurar admin apos a carga completa
+        # Restaurar admin (fallback se nao houver contratos no dump)
         restore_admin(conn, admin)
 
         conn.close()

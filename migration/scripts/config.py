@@ -45,6 +45,34 @@ CONTRACT_STATUS_MAP = {0: "FINALIZED", 1: "SIGNED", 2: "DRAFT", 3: "REVISION", 4
 # Mapeamento de tipo de contrato legado -> inteiro.
 CONTRACT_TYPE_MAP = {0: 0, 1: 1, 2: 2}
 
+# De-para de funcionarios legados (sigla -> ccli/nome/email/cpf conhecidos).
+# ccli = codigo do cliente no cadastro legado; None => alocar proximo id livre.
+# A ordem do dict define a ordem de alocacao dos ids livres (CL primeiro, para
+# reservar o menor id livre — hoje o 5).
+FUNCIONARIO_DEPARA = {
+    "RI": {"ccli": 1,     "name": "Richard Calderan",          "email": "richardcck@hotmail.com",      "cpf": "326972219840"},
+    "RE": {"ccli": 2,     "name": "RENATA EMIKO",              "email": "emikacal@gmail.com",          "cpf": "29223700892"},
+    "NE": {"ccli": 4,     "name": "NELSON VAZ",                "email": "nelsonvaz@noivamodas.com.br", "cpf": "19174306804"},
+    "CL": {"ccli": None,  "name": "CLEYTON CARVALHO CALDERAN", "email": "cleytoncalderan@gmail.com",   "cpf": "21976776830"},
+    "SI": {"ccli": 15193, "name": "SIMONE LEIKO KAIBARA CALDERAN", "email": "simone@noivamodas.com.br", "cpf": "25884738811"},
+    "IA": {"ccli": 9965,  "name": "IAMA",                      "email": "iama@noivamodas.com.br",      "cpf": ""},
+    "HI": {"ccli": None,  "name": "HIDEKO",                    "email": "hideko@noivamodas.com.br",    "cpf": ""},
+    "AK": {"ccli": None,  "name": "AKEMI",                     "email": "akemi@noivamodas.com.br",     "cpf": ""},
+    "CA": {"ccli": None,  "name": "CAMILA",                    "email": "camila@noivamodas.com.br",    "cpf": ""},
+    "VA": {"ccli": None,  "name": "VALERIA",                   "email": "valeria@noivamodas.com.br",   "cpf": ""},
+}
+
+# Funcionarios que nao viram employee: ADM e o admin preservado via
+# fetch_admin/restore_admin; N/A ("Desconhecido") e placeholder sem login.
+FUNCIONARIO_SKIP_SIGLAS = {"ADM", "N/A"}
+
+# Dominio dos emails auto-gerados para funcionarios fora do de-para.
+FUNCIONARIO_AUTO_EMAIL_DOMAIN = "noivamodas.com.br"
+
+# UUID do admin semeado por V2__insert-admin-user.sql (funcionario ADM do
+# legado mapeia para ele, mantendo FKs de contratos).
+ADMIN_UUID = "0194269a-0000-7000-8000-000000000001"
+
 # Campos que devem ser NULL (não string vazia) quando ausentes.
 # FKs opcionais, timestamps opcionais, e campos nullable.
 NULL_WHEN_EMPTY = {
