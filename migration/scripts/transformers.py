@@ -267,16 +267,21 @@ def transform_people_from_funcionario(
     people_by_legacy: dict[int, dict],
     used_legacy_ids: set[int],
     admin_uuid: str = "",
-) -> tuple[list[dict], list[dict], list[dict], dict]:
-    """Retorna (people_rows_novos, employee_rows, user_account_rows, employee_map).
+) -> tuple[list[dict], list[dict], list[dict], list[dict], dict]:
+    """Retorna (people_rows_novos, customer_rows, employee_rows, user_account_rows, employee_map).
 
     Funcionarios cujo ccli do de-para existe no cadastro de clientes sao
     mesclados na pessoa do cliente (employee + user_account apontam para o
     UUID existente). Os demais ganham pessoa nova com um legacy_id livre do
     espaco de clientes — primeiro os ccli=None do de-para (na ordem do dict),
     depois os fora do de-para (na ordem do BSON). ADM e N/A sao pulados.
+
+    Toda pessoa nova de funcionario tambem recebe linha em customers: o app
+    calcula o proximo legacy_id via MAX(customers.legacy_id), entao employees
+    fora de customers colidiriam com novos cadastros (signup).
     """
     people_rows = []
+    customer_rows = []
     employee_rows = []
     user_account_rows = []
     employee_map = {}  # funcionario._id -> uuid
@@ -307,12 +312,18 @@ def transform_people_from_funcionario(
         sigla = normalize_text(doc.get("sigla"))
         person = _new_employee_person(sigla, doc, entry, _next_free_legacy_id(used_legacy_ids))
         people_rows.append(person)
+        customer_rows.append({
+            "id": person["id"],
+            "is_authenticated": "false",
+            "notes": "Funcionario legado sem cadastro de cliente",
+            "created_by_id": "",
+        })
         emp, acc = _employee_and_account_rows(person["id"], sigla, doc)
         employee_rows.append(emp)
         user_account_rows.append(acc)
         employee_map[doc.get("_id")] = person["id"]
 
-    return people_rows, employee_rows, user_account_rows, employee_map
+    return people_rows, customer_rows, employee_rows, user_account_rows, employee_map
 
 
 # ---------- products + rental_items ----------

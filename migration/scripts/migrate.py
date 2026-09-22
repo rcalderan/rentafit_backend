@@ -126,10 +126,11 @@ def main():
             pad_rows.extend(pad)
 
         if "funcionario" in all_docs:
-            p, e, u, emap = transform_people_from_funcionario(
+            p, fc, e, u, emap = transform_people_from_funcionario(
                 all_docs["funcionario"], people_by_legacy, set(people_by_legacy), ADMIN_UUID
             )
             people_rows.extend(p)
+            customer_rows.extend(fc)
             employee_rows.extend(e)
             user_account_rows.extend(u)
             employee_map.update(emap)
