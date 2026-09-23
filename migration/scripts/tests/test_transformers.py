@@ -148,9 +148,11 @@ class TestTransformPeopleFromCliente:
 class TestTransformEmployees:
     def test_mock_funcionario_produces_one_employee(self):
         docs = load_fixtures().get("funcionario", [])
-        people, employees, user_accounts, employee_map = transform_people_from_funcionario(docs, {}, set())
+        people, customers, employees, user_accounts, employee_map = transform_people_from_funcionario(docs, {}, set())
 
         assert len(people) == 1
+        assert len(customers) == 1
+        assert customers[0]["id"] == people[0]["id"]
         assert len(employees) == 1
         assert len(user_accounts) == 1
         # MCK nao esta no de-para: regra auto => nome=sigla, email=sigla@dominio
@@ -171,11 +173,12 @@ class TestTransformEmployees:
         person = self._person(1, document="32697221840")
         docs = [self._func(2, "RI", "Richard")]
 
-        people, employees, accounts, emap = transform_people_from_funcionario(
+        people, customers, employees, accounts, emap = transform_people_from_funcionario(
             docs, {1: person}, {1}
         )
 
         assert people == []  # sem pessoa nova
+        assert customers == []  # cliente ja tem linha em customers
         assert employees[0]["id"] == "uuid-cli-1"
         assert employees[0]["initials"] == "RI"
         assert accounts[0]["id"] == "uuid-cli-1"
@@ -199,7 +202,7 @@ class TestTransformEmployees:
                 self._func(18, "AK"), self._func(20, "CA")]
         used = {1, 2, 3, 4, 6, 7, 8}
 
-        people, _, _, emap = transform_people_from_funcionario(docs, {}, used)
+        people, _, _, _, emap = transform_people_from_funcionario(docs, {}, used)
         by_sigla = {p["name"]: p["legacy_id"] for p in people}
 
         # CL e o primeiro ccli=None do de-para: recebe o menor id livre (5)
@@ -213,9 +216,10 @@ class TestTransformEmployees:
         docs = [self._func(5, "JO", "Josi"), self._func(4, "CL")]
         used = {1, 2, 3, 4}
 
-        people, employees, accounts, emap = transform_people_from_funcionario(docs, {}, used)
+        people, customers, employees, accounts, emap = transform_people_from_funcionario(docs, {}, used)
         by_initials = {e["initials"]: e["id"] for e in employees}
         person_by_id = {p["id"]: p for p in people}
+        assert {c["id"] for c in customers} == {p["id"] for p in people}
 
         cl = person_by_id[by_initials["CL"]]
         jo = person_by_id[by_initials["JO"]]
@@ -229,19 +233,20 @@ class TestTransformEmployees:
         docs = [self._func(0, "N/A", "Desconhecido"), self._func(1, "ADM", "Admnistrador"),
                 self._func(5, "JO")]
 
-        people, employees, accounts, emap = transform_people_from_funcionario(
+        people, customers, employees, accounts, emap = transform_people_from_funcionario(
             docs, {}, {1, 2, 3, 4}, admin_uuid="uuid-admin"
         )
 
         assert emap[1] == "uuid-admin"
         assert 0 not in emap
         assert len(people) == 1 and people[0]["legacy_id"] == 5
+        assert len(customers) == 1
         assert len(employees) == 1 and employees[0]["initials"] == "JO"
 
     def test_ccli_ausente_no_cadastro_aloca_id_livre(self):
         docs = [self._func(2, "RI", "Richard")]
 
-        people, employees, _, emap = transform_people_from_funcionario(docs, {}, {1, 2})
+        people, customers, employees, _, emap = transform_people_from_funcionario(docs, {}, {1, 2})
 
         assert len(people) == 1
         assert people[0]["legacy_id"] == 3
@@ -285,7 +290,7 @@ class TestTransformContracts:
         customer_name_map = {7001: "Joao Mock da Silva"}
 
         func_docs = fixtures.get("funcionario", [])
-        _, _, _, employee_map = transform_people_from_funcionario(func_docs, {}, set())
+        _, _, _, _, employee_map = transform_people_from_funcionario(func_docs, {}, set())
 
         roupa_docs = fixtures.get("roupa", [])
         cat_docs = fixtures.get("roupa_tipo", [])

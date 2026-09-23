@@ -117,10 +117,11 @@ class FakeMigration:
         employee_map = {}
         if "funcionario" in all_docs:
             people_by_legacy = {p["legacy_id"]: p for p in people_rows if p["legacy_id"] != ""}
-            ep, ee, eu, em = transform_people_from_funcionario(
+            ep, ec, ee, eu, em = transform_people_from_funcionario(
                 all_docs["funcionario"], people_by_legacy, set(people_by_legacy), ""
             )
             people_rows.extend(ep)
+            customer_rows.extend(ec)
             employee_rows.extend(ee)
             user_account_rows.extend(eu)
             employee_map.update(em)
@@ -212,7 +213,9 @@ class TestMigrationE2E:
 
     def test_customers_has_default_plus_cliente(self, migration_result):
         rows = migration_result["all_rows"]["customers"]
-        assert len(rows) == 2
+        # default + cliente + funcionario (employee tambem vira customer:
+        # getNextLegacyId usa MAX(customers.legacy_id))
+        assert len(rows) == 3
 
     def test_employees_has_one(self, migration_result):
         rows = migration_result["all_rows"]["employees"]
