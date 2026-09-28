@@ -55,6 +55,11 @@ public class SecurityConfig {
                         // Área self-service do cliente autenticado (qualquer role autenticada)
                         .requestMatchers("/api/v1/account/**").authenticated()
 
+                        // Templates imprimíveis: leitura operacional e escrita de gestão.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/print-templates/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/print-templates/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/print-templates/**").hasAnyRole("MANAGER", "ADMIN")
+
                         // Employees: /check (initials+PIN) e /initials/** usados no fluxo de rental/sales
                         .requestMatchers(HttpMethod.POST, "/api/v1/employees/check").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.GET,  "/api/v1/employees/initials/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")

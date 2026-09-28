@@ -468,6 +468,39 @@ Para dúvidas ou problemas:
 2. Verifique a documentação Swagger
 3. Entre em contato com a equipe de desenvolvimento
 
+## Templates de impressão
+
+Os templates são persistidos em `print_templates`; o frontend envia os 5 templates padrão na primeira sincronização, mantendo os identificadores estáveis para instalação existente.
+
+- `GET /api/v1/print-templates` — lista os templates (EMPLOYEE, MANAGER, ADMIN)
+- `GET /api/v1/print-templates/{id}` — consulta um template
+- `PUT /api/v1/print-templates/{id}` — cria ou substitui um template (MANAGER, ADMIN); retorna `201` ao criar e `200` ao atualizar
+- `DELETE /api/v1/print-templates/{id}` — exclui um template (MANAGER, ADMIN)
+
+Exemplo de `PUT /api/v1/print-templates/template-custom-123`:
+
+```json
+{
+  "name": "Contrato personalizado",
+  "description": "Contrato A4 customizado",
+  "templateType": "CUSTOM",
+  "pageFormat": "A4",
+  "orientation": "PORTRAIT",
+  "pageWidthMm": 210,
+  "pageHeightMm": 297,
+  "marginTopMm": 12,
+  "marginBottomMm": 12,
+  "marginLeftMm": 14,
+  "marginRightMm": 14,
+  "printOffsetMm": 5,
+  "contentJson": null,
+  "contentHtml": "<h1>Contrato</h1>",
+  "cssStyles": null,
+  "isDefault": false,
+  "isActive": true
+}
+```
+
 ---
 
 **Rentafit API Collection** - v1.1.0
