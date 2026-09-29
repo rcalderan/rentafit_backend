@@ -196,7 +196,7 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 2. Get Contract by ID
 3. Update Contract (DRAFT)
 4. ⚡ Update with Deficit — parcela automática criada (parcelas < total)
-5. Sign Contract (DRAFT → SIGNED)
+5. Sign Contract (DRAFT → SIGNED) — body opcional: { "printTemplateId": "template-contrato-locacao-legado-v2" }; sem o campo permanece nulo para clientes legados.
 6. Finalize Contract (SIGNED → FINALIZED)
 7. Deliver Item
 8. Process Return

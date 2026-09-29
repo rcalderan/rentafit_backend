@@ -532,7 +532,31 @@ class RentalContractServiceTest {
         contractService.sign(contractId);
 
         assertThat(draftContract.getStatus()).isEqualTo(ContractStatus.SIGNED);
+        assertThat(draftContract.getPrintTemplateId()).isNull();
         verify(validator).checkConflictsForTransition(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("sign deve persistir o template selecionado na assinatura")
+    void testSign_persistsPrintTemplateId() {
+        String printTemplateId = "template-contrato-locacao-legado-v2";
+        RentalContractDetailsDTO signedDTO = detailsDTO.toBuilder()
+                .status(1)
+                .statusDescription("Assinado")
+                .printTemplateId(printTemplateId)
+                .build();
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(draftContract));
+        when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(null);
+        when(contractRepository.save(draftContract)).thenReturn(draftContract);
+        when(mapper.toDetailsDTO(draftContract, null)).thenReturn(signedDTO);
+
+        RentalContractDetailsDTO result = contractService.sign(contractId, printTemplateId);
+
+        assertThat(draftContract.getStatus()).isEqualTo(ContractStatus.SIGNED);
+        assertThat(draftContract.getPrintTemplateId()).isEqualTo(printTemplateId);
+        assertThat(result.printTemplateId()).isEqualTo(printTemplateId);
+        assertThat(new RentalMapper().toDetailsDTO(draftContract, null).printTemplateId())
+                .isEqualTo(printTemplateId);
     }
 
     @Test
@@ -578,12 +602,13 @@ class RentalContractServiceTest {
         when(validator.checkConflictsForTransition(any(), any(), any()))
                 .thenThrow(new ValidationException("Conflito de reserva: Item 'Vestido' — BLOQUEIO — mesma data"));
 
-        assertThatThrownBy(() -> contractService.sign(contractId))
+        assertThatThrownBy(() -> contractService.sign(contractId, "template-contrato-locacao-legado-v2"))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("BLOQUEIO");
 
         // Status NÃO deve mudar
         assertThat(draftContract.getStatus()).isEqualTo(ContractStatus.DRAFT);
+        assertThat(draftContract.getPrintTemplateId()).isNull();
     }
 
     // ── finalize ──────────────────────────────────────────────────────────────

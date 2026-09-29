@@ -204,6 +204,10 @@ public class RentalContractService {
      * o contrato-pai é automaticamente marcado como SUPERSEDED.
      */
     public RentalContractDetailsDTO sign(UUID id) {
+        return sign(id, null);
+    }
+
+    public RentalContractDetailsDTO sign(UUID id, String printTemplateId) {
         RentalContract contract = requireContract(id);
         requireStatusOneOf(contract, "assinar", ContractStatus.DRAFT, ContractStatus.REVISION);
 
@@ -213,6 +217,9 @@ public class RentalContractService {
         List<String> warnings = validator.checkConflictsForTransition(
                 contract.getItems(), contract.getEventDate(), contract.getId());
 
+        if (printTemplateId != null && !printTemplateId.isBlank()) {
+            contract.setPrintTemplateId(printTemplateId);
+        }
         contract.setStatus(ContractStatus.SIGNED);
         RentalContract saved = contractRepository.save(contract);
 

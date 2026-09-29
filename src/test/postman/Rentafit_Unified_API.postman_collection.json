@@ -1461,6 +1461,7 @@
                   "if (pm.response.code === 200) {",
                   "    var body = pm.response.json();",
                   "    pm.test('Status é SIGNED', () => pm.expect(body.status).to.eql('SIGNED'));",
+                  "    pm.test('Template usado registrado', () => pm.expect(body.printTemplateId).to.eql('template-contrato-locacao-legado-v2'));",
                   "    if (body.warnings && body.warnings.length > 0) {",
                   "        console.warn('⚠️  Conflito de proximidade:', body.warnings);",
                   "    } else {",
@@ -1481,7 +1482,14 @@
           ],
           "request": {
             "method": "PATCH",
-            "header": [],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"printTemplateId\": \"template-contrato-locacao-legado-v2\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
             "url": {
               "raw": "{{base_url}}/api/v1/rental/contracts/{{contract_id}}/sign",
               "host": [
@@ -1681,6 +1689,7 @@
                   "if (pm.response.code === 200) {",
                   "    var body = pm.response.json();",
                   "    pm.test('Revisão agora é SIGNED (1)', () => pm.expect(body.status).to.eql(1));",
+                  "    pm.test('Template usado registrado', () => pm.expect(body.printTemplateId).to.eql('template-contrato-locacao-legado-v2'));",
                   "    // O contrato-pai agora é SUPERSEDED — consulte via GET para confirmar",
                   "    console.log('Revisão assinada. Contrato-pai deve estar SUPERSEDED (4).');",
                   "}"
@@ -1691,7 +1700,14 @@
           ],
           "request": {
             "method": "PATCH",
-            "header": [],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"printTemplateId\": \"template-contrato-locacao-legado-v2\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
             "url": {
               "raw": "{{base_url}}/api/v1/rental/contracts/{{revision_contract_id}}/sign",
               "host": [
@@ -2069,6 +2085,7 @@
                   "if (pm.response.code === 200) {",
                   "    var body = pm.response.json();",
                   "    pm.test('Status é SIGNED', () => pm.expect(body.status).to.eql('SIGNED'));",
+                  "    pm.test('Template usado registrado', () => pm.expect(body.printTemplateId).to.eql('template-contrato-locacao-legado-v2'));",
                   "    if (body.warnings && body.warnings.length > 0) {",
                   "        pm.test('warnings[] contém alerta de proximidade', () => {",
                   "            pm.expect(body.warnings[0]).to.match(/ALERTA|conflito/i);",
@@ -2085,7 +2102,14 @@
           ],
           "request": {
             "method": "PATCH",
-            "header": [],
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"printTemplateId\": \"template-contrato-locacao-legado-v2\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
             "url": {
               "raw": "{{base_url}}/api/v1/rental/contracts/{{warning_contract_id}}/sign",
               "host": [

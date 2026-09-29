@@ -191,19 +191,39 @@ class RentalContractControllerTest {
     @Test
     @DisplayName("PATCH /{id}/sign deve retornar 200 com contrato assinado")
     void testSign_returns200() {
-        when(contractService.sign(contractId)).thenReturn(detailsDTO);
+        when(contractService.sign(contractId, null)).thenReturn(detailsDTO);
 
-        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId);
+        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     @Test
+    @DisplayName("PATCH /{id}/sign deve persistir o template informado")
+    void testSign_persistsPrintTemplateId() {
+        String printTemplateId = "template-contrato-locacao-legado-v2";
+        SignRentalContractDTO request = new SignRentalContractDTO(printTemplateId);
+        RentalContractDetailsDTO signed = detailsDTO.toBuilder()
+                .status(1)
+                .statusDescription("Assinado")
+                .printTemplateId(printTemplateId)
+                .build();
+        when(contractService.sign(contractId, printTemplateId)).thenReturn(signed);
+
+        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().printTemplateId()).isEqualTo(printTemplateId);
+        verify(contractService).sign(contractId, printTemplateId);
+    }
+
+    @Test
     @DisplayName("PATCH /{id}/sign deve retornar 200 com warnings quando há conflito de proximidade")
     void testSign_returns200WithWarnings() {
-        when(contractService.sign(contractId)).thenReturn(detailsDTOWithWarnings);
+        when(contractService.sign(contractId, null)).thenReturn(detailsDTOWithWarnings);
 
-        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId);
+        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -214,10 +234,10 @@ class RentalContractControllerTest {
     @Test
     @DisplayName("PATCH /{id}/sign deve propagar ValidationException em conflito bloqueante")
     void testSign_blockingConflict() {
-        when(contractService.sign(contractId))
+        when(contractService.sign(contractId, null))
                 .thenThrow(new ValidationException("Conflito de reserva: Item 'Vestido' — BLOQUEIO"));
 
-        assertThatThrownBy(() -> controller.sign(contractId))
+        assertThatThrownBy(() -> controller.sign(contractId, null))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("BLOQUEIO");
     }
@@ -335,9 +355,9 @@ class RentalContractControllerTest {
     @Test
     @DisplayName("Response sem conflitos NÃO deve ter campo warnings")
     void testNoWarnings_fieldIsNull() {
-        when(contractService.sign(contractId)).thenReturn(detailsDTO);
+        when(contractService.sign(contractId, null)).thenReturn(detailsDTO);
 
-        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId);
+        ResponseEntity<RentalContractDetailsDTO> response = controller.sign(contractId, null);
 
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().warnings()).isNull();

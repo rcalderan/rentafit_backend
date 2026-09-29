@@ -95,6 +95,9 @@ public class RentalContract {
     @Builder.Default
     private String notes = "";
 
+    @Column(name = "print_template_id", length = 100)
+    private String printTemplateId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

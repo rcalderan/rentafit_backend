@@ -22,6 +22,8 @@ public record RentalContractDetailsDTO(
         Integer contractType,
         Integer status,
         String statusDescription,
+        @JsonInclude(JsonInclude.Include.NON_NULL)
+        String printTemplateId,
 
         // Snapshot do cliente (imutável após criação)
         UUID customerId,

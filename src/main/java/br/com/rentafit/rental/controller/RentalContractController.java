@@ -102,8 +102,11 @@ public class RentalContractController {
             @ApiResponse(responseCode = "404", description = "Contrato não encontrado"),
             @ApiResponse(responseCode = "422", description = "Status inválido ou conflito bloqueante")
     })
-    public ResponseEntity<RentalContractDetailsDTO> sign(@PathVariable UUID id) {
-        return ResponseEntity.ok(contractService.sign(id));
+    public ResponseEntity<RentalContractDetailsDTO> sign(
+            @PathVariable UUID id,
+            @Valid @RequestBody(required = false) SignRentalContractDTO request) {
+        String printTemplateId = request == null ? null : request.printTemplateId();
+        return ResponseEntity.ok(contractService.sign(id, printTemplateId));
     }
 
     @PatchMapping("/{id}/finalize")
