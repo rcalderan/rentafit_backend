@@ -103,6 +103,7 @@ public class RentalMapper {
                 .contractType(contract.getContractType())
                 .status(contract.getStatus().getLegacyCode())
                 .statusDescription(contract.getStatus().getDescription())
+                .printTemplateId(contract.getPrintTemplateId())
                 .customerId(contract.getCustomerId())
                 .customerName(contract.getCustomerName())
                 .customerDocument(contract.getCustomerDocument())
