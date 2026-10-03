@@ -12,4 +12,6 @@ public interface PrintTemplateRepository extends JpaRepository<PrintTemplate, St
             String templateType,
             String id
     );
+
+    List<PrintTemplate> findByIdStartingWith(String prefix);
 }

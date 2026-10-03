@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.regex.Pattern;
 
 @Service
 @RequiredArgsConstructor
@@ -37,15 +38,75 @@ public class PrintTemplateService {
 
     public PrintTemplateResponse save(String id, PrintTemplateRequest request) {
         PrintTemplate template = repository.findById(id).orElseGet(PrintTemplate::new);
-        if (template.getId() == null) template.setId(id);
+        if (template.getId() == null) {
+            template.setId(id);
+            template.setVersion(1);
+        }
         if (request.isDefault() && request.isActive()) {
-            var defaultsToClear = repository.findAllByTemplateTypeAndIsDefaultTrueAndIsActiveTrueAndIdNot(
-                    request.templateType(), template.getId());
-            defaultsToClear.forEach(existingDefault -> existingDefault.setDefault(false));
-            repository.saveAllAndFlush(defaultsToClear);
+            clearOtherDefaults(template.getId(), request.templateType());
         }
         apply(template, request);
         return toResponse(repository.save(template));
+    }
+
+    public PrintTemplateResponse createNewVersion(String sourceId, PrintTemplateRequest request) {
+        PrintTemplate source = repository.findById(sourceId)
+                .orElseThrow(() -> new ResourceNotFoundException("PrintTemplate", "id", sourceId));
+        PrintTemplate version = new PrintTemplate();
+        int nextVersion = nextVersionNumber(source);
+        version.setId(newVersionId(source, nextVersion));
+        version.setVersion(nextVersion);
+        version.setPreviousVersionId(source.getId());
+        apply(version, request);
+        // Versões preservam o tipo do documento original: um contrato versionado continua RENTAL_CONTRACT
+        version.setTemplateType(source.getTemplateType());
+        version.setDefault(true);
+        version.setActive(true);
+        clearOtherDefaults(version.getId(), version.getTemplateType());
+        return toResponse(repository.save(version));
+    }
+
+    public PrintTemplateResponse markAsDefault(String id) {
+        PrintTemplate template = repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("PrintTemplate", "id", id));
+        clearOtherDefaults(template.getId(), template.getTemplateType());
+        template.setDefault(true);
+        template.setActive(true);
+        return toResponse(repository.save(template));
+    }
+
+    private void clearOtherDefaults(String exceptId, String templateType) {
+        var defaultsToClear = repository.findAllByTemplateTypeAndIsDefaultTrueAndIsActiveTrueAndIdNot(
+                templateType, exceptId);
+        defaultsToClear.forEach(existingDefault -> existingDefault.setDefault(false));
+        repository.saveAllAndFlush(defaultsToClear);
+    }
+
+    private int nextVersionNumber(PrintTemplate source) {
+        String base = lineageBaseId(source);
+        String lineagePattern = Pattern.quote(base) + "(-v\\d+(-\\d+)?)?";
+        int sourceVersion = Math.max(source.getVersion(), 1);
+        int max = repository.findByIdStartingWith(base).stream()
+                .filter(t -> t.getId().matches(lineagePattern))
+                .mapToInt(t -> Math.max(t.getVersion(), 1))
+                .max()
+                .orElse(sourceVersion);
+        return Math.max(max, sourceVersion) + 1;
+    }
+
+    private String newVersionId(PrintTemplate source, int nextVersion) {
+        String base = lineageBaseId(source);
+        String candidate = base + "-v" + nextVersion;
+        int suffix = 2;
+        while (repository.existsById(candidate)) {
+            candidate = base + "-v" + nextVersion + "-" + suffix++;
+        }
+        return candidate;
+    }
+
+    private String lineageBaseId(PrintTemplate source) {
+        String base = source.getId().replaceAll("-v\\d+(-\\d+)?$", "");
+        return base.length() > 80 ? base.substring(0, 80) : base;
     }
 
     public void delete(String id) {
@@ -92,6 +153,8 @@ public class PrintTemplateService {
                 template.getContentJson(),
                 template.getContentHtml(),
                 template.getCssStyles(),
+                template.getVersion(),
+                template.getPreviousVersionId(),
                 template.isDefault(),
                 template.isActive(),
                 template.getCreatedAt(),

@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -42,5 +44,33 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
      */
     List<RentalContract> findByEventDateBetweenAndStatusInOrderByEventDateAscCustomerNameAsc(
             LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses);
+
+    /**
+     * Agregado de valores por contrato para listagens paginadas.
+     *
+     * <p>Substitui o carregamento das coleções items/payments via SUBSELECT em findAll:
+     * sem restrição na query raiz, o subselect ignorava o LIMIT e varria as tabelas
+     * inteiras (~43k itens + ~49k pagamentos) para renderizar uma página de 5 DTOs.</p>
+     */
+    interface ContractValueTotal {
+        UUID getContractId();
+        BigDecimal getTotal();
+    }
+
+    @Query("""
+            SELECT i.contract.id AS contractId, SUM(i.value) AS total
+            FROM RentalContractItem i
+            WHERE i.contract.id IN :contractIds
+            GROUP BY i.contract.id
+            """)
+    List<ContractValueTotal> sumItemValuesByContractIds(@Param("contractIds") Collection<UUID> contractIds);
+
+    @Query("""
+            SELECT p.contract.id AS contractId, SUM(p.value) AS total
+            FROM RentalPayment p
+            WHERE p.contract.id IN :contractIds AND p.status = 'PAID'
+            GROUP BY p.contract.id
+            """)
+    List<ContractValueTotal> sumPaidValuesByContractIds(@Param("contractIds") Collection<UUID> contractIds);
 }
 

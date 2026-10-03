@@ -73,6 +73,12 @@ public class PrintTemplate {
     @Column(name = "css_styles", columnDefinition = "TEXT")
     private String cssStyles;
 
+    @Column(nullable = false)
+    private int version;
+
+    @Column(name = "previous_version_id", length = 100)
+    private String previousVersionId;
+
     @Column(name = "is_default", nullable = false)
     private boolean isDefault;
 

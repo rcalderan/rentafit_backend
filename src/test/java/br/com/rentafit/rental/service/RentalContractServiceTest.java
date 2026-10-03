@@ -138,11 +138,49 @@ class RentalContractServiceTest {
     void testFindAll() {
         Page<RentalContract> page = new PageImpl<>(List.of(draftContract));
         when(contractRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
-        when(mapper.toSummaryDTO(draftContract)).thenReturn(summaryDTO);
+        when(contractRepository.sumItemValuesByContractIds(any())).thenReturn(List.of());
+        when(contractRepository.sumPaidValuesByContractIds(any())).thenReturn(List.of());
+        when(mapper.toSummaryDTO(draftContract, BigDecimal.ZERO, BigDecimal.ZERO)).thenReturn(summaryDTO);
 
         Page<RentalContractSummaryDTO> result = contractService.findAll(PageRequest.of(0, 10));
 
         assertThat(result.getContent()).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("findAll deve usar totais agregados por contrato sem carregar coleções")
+    void testFindAll_usesAggregatedTotals() {
+        RentalContractRepository.ContractValueTotal total = mock(RentalContractRepository.ContractValueTotal.class);
+        when(total.getContractId()).thenReturn(contractId);
+        when(total.getTotal()).thenReturn(new BigDecimal("750.00"));
+        RentalContractRepository.ContractValueTotal paid = mock(RentalContractRepository.ContractValueTotal.class);
+        when(paid.getContractId()).thenReturn(contractId);
+        when(paid.getTotal()).thenReturn(new BigDecimal("250.00"));
+
+        Page<RentalContract> page = new PageImpl<>(List.of(draftContract));
+        when(contractRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
+        when(contractRepository.sumItemValuesByContractIds(List.of(contractId))).thenReturn(List.of(total));
+        when(contractRepository.sumPaidValuesByContractIds(List.of(contractId))).thenReturn(List.of(paid));
+        when(mapper.toSummaryDTO(draftContract, new BigDecimal("750.00"), new BigDecimal("250.00")))
+                .thenReturn(summaryDTO);
+
+        Page<RentalContractSummaryDTO> result = contractService.findAll(PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(mapper).toSummaryDTO(draftContract, new BigDecimal("750.00"), new BigDecimal("250.00"));
+    }
+
+    @Test
+    @DisplayName("findAll em página vazia não consulta agregações")
+    void testFindAll_emptyPageSkipsAggregates() {
+        Page<RentalContract> page = new PageImpl<>(List.of());
+        when(contractRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
+
+        Page<RentalContractSummaryDTO> result = contractService.findAll(PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).isEmpty();
+        verify(contractRepository, never()).sumItemValuesByContractIds(any());
+        verify(contractRepository, never()).sumPaidValuesByContractIds(any());
     }
 
     // ── findById ──────────────────────────────────────────────────────────────
@@ -923,7 +961,9 @@ class RentalContractServiceTest {
     void testFindByCustomer_success() {
         Page<RentalContract> page = new PageImpl<>(List.of(draftContract));
         when(contractRepository.findByCustomerId(customerId, PageRequest.of(0, 10))).thenReturn(page);
-        when(mapper.toSummaryDTO(draftContract)).thenReturn(summaryDTO);
+        when(contractRepository.sumItemValuesByContractIds(any())).thenReturn(List.of());
+        when(contractRepository.sumPaidValuesByContractIds(any())).thenReturn(List.of());
+        when(mapper.toSummaryDTO(draftContract, BigDecimal.ZERO, BigDecimal.ZERO)).thenReturn(summaryDTO);
 
         Page<RentalContractSummaryDTO> result = contractService.findByCustomer(customerId, PageRequest.of(0, 10));
 

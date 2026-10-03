@@ -109,6 +109,103 @@ class PrintTemplateServiceTest {
     }
 
     @Test
+    void createsNewVersionIncrementingVersionAndBecomingDefault() {
+        var source = template("Contrato");
+        source.setId("contract");
+        source.setVersion(2);
+        source.setDefault(true);
+        when(repository.findById("contract")).thenReturn(Optional.of(source));
+        when(repository.existsById("contract-v3")).thenReturn(false);
+        when(repository.save(any(PrintTemplate.class))).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.createNewVersion("contract", request("Contrato", false, true));
+
+        assertThat(result.id()).isEqualTo("contract-v3");
+        assertThat(result.version()).isEqualTo(3);
+        assertThat(result.previousVersionId()).isEqualTo("contract");
+        assertThat(result.isDefault()).isTrue();
+        assertThat(result.isActive()).isTrue();
+    }
+
+    @Test
+    void newVersionClearsOtherActiveDefaultsOfSameType() {
+        var source = template("Contrato");
+        source.setId("contract");
+        source.setVersion(1);
+        when(repository.findById("contract")).thenReturn(Optional.of(source));
+        when(repository.existsById("contract-v2")).thenReturn(false);
+        var otherDefault = template("Outro contrato");
+        otherDefault.setId("other");
+        otherDefault.setDefault(true);
+        when(repository.findAllByTemplateTypeAndIsDefaultTrueAndIsActiveTrueAndIdNot(
+                "RENTAL_CONTRACT", "contract-v2")).thenReturn(List.of(otherDefault));
+        when(repository.save(any(PrintTemplate.class))).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.createNewVersion("contract", request("Contrato", false, true));
+
+        assertThat(result.isDefault()).isTrue();
+        assertThat(otherDefault.isDefault()).isFalse();
+        verify(repository).saveAllAndFlush(any());
+    }
+
+    @Test
+    void newVersionInheritsTemplateTypeFromSource() {
+        var source = template("Contrato");
+        source.setId("contract");
+        source.setVersion(1);
+        when(repository.findById("contract")).thenReturn(Optional.of(source));
+        when(repository.existsById("contract-v2")).thenReturn(false);
+        when(repository.save(any(PrintTemplate.class))).thenAnswer(call -> call.getArgument(0));
+
+        var mismatchedRequest = new PrintTemplateRequest(
+                "Contrato", null, "CUSTOM", "A4", "PORTRAIT",
+                new BigDecimal("210"), new BigDecimal("297"),
+                BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                BigDecimal.ZERO, null, "<p>Documento</p>", null, false, true
+        );
+        var result = service.createNewVersion("contract", mismatchedRequest);
+
+        assertThat(result.templateType()).isEqualTo("RENTAL_CONTRACT");
+    }
+
+    @Test
+    void throwsWhenVersioningMissingTemplate() {
+        when(repository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.createNewVersion("missing", request("X", false, true)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("missing");
+    }
+
+    @Test
+    void markAsDefaultClearsOthersAndActivatesTemplate() {
+        var target = template("Contrato antigo");
+        target.setId("old-version");
+        target.setActive(false);
+        when(repository.findById("old-version")).thenReturn(Optional.of(target));
+        var currentDefault = template("Contrato atual");
+        currentDefault.setId("current");
+        currentDefault.setDefault(true);
+        when(repository.findAllByTemplateTypeAndIsDefaultTrueAndIsActiveTrueAndIdNot(
+                "RENTAL_CONTRACT", "old-version")).thenReturn(List.of(currentDefault));
+        when(repository.save(any(PrintTemplate.class))).thenAnswer(call -> call.getArgument(0));
+
+        var result = service.markAsDefault("old-version");
+
+        assertThat(result.isDefault()).isTrue();
+        assertThat(result.isActive()).isTrue();
+        assertThat(currentDefault.isDefault()).isFalse();
+    }
+
+    @Test
+    void throwsWhenMarkingMissingTemplateAsDefault() {
+        when(repository.findById("missing")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.markAsDefault("missing"))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
     void deletesExistingTemplate() {
         var existing = template("Contrato");
         when(repository.findById("contract")).thenReturn(Optional.of(existing));

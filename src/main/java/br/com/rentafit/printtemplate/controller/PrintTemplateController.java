@@ -15,6 +15,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -52,6 +53,23 @@ public class PrintTemplateController {
         boolean created = !service.existsById(id);
         PrintTemplateResponse response = service.save(id, request);
         return ResponseEntity.status(created ? HttpStatus.CREATED : HttpStatus.OK).body(response);
+    }
+
+    @PostMapping("/{id}/versions")
+    @Operation(summary = "Create a new version from an existing template (content changes)")
+    public ResponseEntity<PrintTemplateResponse> createVersion(
+            @PathVariable @NotBlank @Size(max = 100) String id,
+            @Valid @RequestBody PrintTemplateRequest request
+    ) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createNewVersion(id, request));
+    }
+
+    @PostMapping("/{id}/default")
+    @Operation(summary = "Mark a template as the default for its type")
+    public ResponseEntity<PrintTemplateResponse> markAsDefault(
+            @PathVariable @NotBlank @Size(max = 100) String id
+    ) {
+        return ResponseEntity.ok(service.markAsDefault(id));
     }
 
     @DeleteMapping("/{id}")

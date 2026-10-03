@@ -57,6 +57,7 @@ public class SecurityConfig {
 
                         // Templates imprimíveis: leitura operacional e escrita de gestão.
                         .requestMatchers(HttpMethod.GET, "/api/v1/print-templates/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/print-templates/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/print-templates/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/print-templates/**").hasAnyRole("MANAGER", "ADMIN")
 
