@@ -68,6 +68,26 @@ class PrintTemplateControllerTest {
     }
 
     @Test
+    void createsNewVersionAndReturnsCreated() {
+        when(service.createNewVersion(any(), any())).thenReturn(response());
+
+        var result = controller.createVersion("contract", request());
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        verify(service).createNewVersion("contract", request());
+    }
+
+    @Test
+    void marksTemplateAsDefault() {
+        when(service.markAsDefault("contract")).thenReturn(response());
+
+        var result = controller.markAsDefault("contract");
+
+        assertThat(result.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(service).markAsDefault("contract");
+    }
+
+    @Test
     void deletesTemplateAndReturnsNoContent() {
         var result = controller.delete("contract");
 
@@ -89,7 +109,7 @@ class PrintTemplateControllerTest {
                 "contract", "Contrato", null, "RENTAL_CONTRACT", "A4", "PORTRAIT",
                 new BigDecimal("210"), new BigDecimal("297"), BigDecimal.ZERO, BigDecimal.ZERO,
                 BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, null,
-                "<p>Documento</p>", null, true, true, null, null
+                "<p>Documento</p>", null, 1, null, true, true, null, null
         );
     }
 }

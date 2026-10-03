@@ -131,10 +131,11 @@ public class RentalMapper {
                 .build();
     }
 
-    public RentalContractSummaryDTO toSummaryDTO(RentalContract contract) {
-        BigDecimal totalValue = computeTotalValue(contract.getItems());
-        BigDecimal paidValue  = computePaidValue(contract.getPayments());
-
+    /**
+     * Monta o DTO de listagem com totais pré-agregados via SQL.
+     * Não acessa items/payments — evita disparar o SUBSELECT fetch.
+     */
+    public RentalContractSummaryDTO toSummaryDTO(RentalContract contract, BigDecimal totalValue, BigDecimal paidValue) {
         return RentalContractSummaryDTO.builder()
                 .id(contract.getId())
                 .legacyId(contract.getLegacyId())

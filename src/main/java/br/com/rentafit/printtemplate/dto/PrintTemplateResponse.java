@@ -22,6 +22,8 @@ public record PrintTemplateResponse(
         JsonNode contentJson,
         String contentHtml,
         String cssStyles,
+        int version,
+        String previousVersionId,
         boolean isDefault,
         boolean isActive,
         OffsetDateTime createdAt,

@@ -22,9 +22,11 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -63,7 +65,7 @@ public class RentalContractService {
 
     @Transactional(readOnly = true)
     public Page<RentalContractSummaryDTO> findAll(Pageable pageable) {
-        return contractRepository.findAll(pageable).map(mapper::toSummaryDTO);
+        return toSummaryPage(contractRepository.findAll(pageable));
     }
 
     @Transactional(readOnly = true)
@@ -85,7 +87,31 @@ public class RentalContractService {
 
     @Transactional(readOnly = true)
     public Page<RentalContractSummaryDTO> findByCustomer(UUID customerId, Pageable pageable) {
-        return contractRepository.findByCustomerId(customerId, pageable).map(mapper::toSummaryDTO);
+        return toSummaryPage(contractRepository.findByCustomerId(customerId, pageable));
+    }
+
+    /**
+     * Converte uma página de contratos em DTOs de listagem sem tocar nas coleções
+     * LAZY (SUBSELECT sem restrição ignoraria o LIMIT e carregaria as tabelas
+     * inteiras). Totais vêm de 2 agregações GROUP BY restritas aos IDs da página.
+     */
+    private Page<RentalContractSummaryDTO> toSummaryPage(Page<RentalContract> page) {
+        List<UUID> ids = page.getContent().stream().map(RentalContract::getId).toList();
+        if (ids.isEmpty()) {
+            return page.map(c -> mapper.toSummaryDTO(c, BigDecimal.ZERO, BigDecimal.ZERO));
+        }
+        Map<UUID, BigDecimal> totals = contractRepository.sumItemValuesByContractIds(ids).stream()
+                .collect(Collectors.toMap(
+                        RentalContractRepository.ContractValueTotal::getContractId,
+                        RentalContractRepository.ContractValueTotal::getTotal));
+        Map<UUID, BigDecimal> paid = contractRepository.sumPaidValuesByContractIds(ids).stream()
+                .collect(Collectors.toMap(
+                        RentalContractRepository.ContractValueTotal::getContractId,
+                        RentalContractRepository.ContractValueTotal::getTotal));
+        return page.map(c -> mapper.toSummaryDTO(
+                c,
+                totals.getOrDefault(c.getId(), BigDecimal.ZERO),
+                paid.getOrDefault(c.getId(), BigDecimal.ZERO)));
     }
 
     /**
