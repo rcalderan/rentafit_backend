@@ -62,6 +62,15 @@ Importe o ambiente correspondente ao seu contexto de teste:
 }
 ```
 
+### Login de operadores do terminal
+
+- `POST /api/auth/operator-login`: recebe `username` e `password`; admite somente contas ativas EMPLOYEE, MANAGER ou ADMIN, com cadastro Employee, sigla, PIN e senha vigente. Retorna tokens e `profile` (`user` e `initials`). Candidato recusado não recebe tokens.
+- `GET /api/auth/operator-profile`: exige Bearer token do próprio usuário alvo e papel operacional; revalida conta e credenciais sem emitir ou renovar tokens. Não use o token do operador atual para consultar outro usuário.
+- O login comum `/api/auth/login` continua atendendo CUSTOMER. O login adicional não deve sobrescrever as variáveis de sessão do operador atual antes de validar o candidato.
+- Cenários de regressão: login inválido retorna 403, não rollback 500; CUSTOMER e conta inativa são recusados; falha de persistência não entrega tokens; troca recusa usuário rebaixado ou desativado; rejeição preserva a sessão atual.
+- Pessoas promovidas podem ter registros em `customers` e `employees` com o mesmo UUID. A consulta operacional usa projeção escalar da sigla para não depender do subtipo Person carregado no contexto Hibernate. `OperatorIdentityPersistenceTest` cobre ambos os registros e confirma que CUSTOMER continua recusado.
+- Enquanto `/api/v1/settings/operator.pinTrustMinutes` não estiver implementado, a leitura retorna 404 e o frontend usa 5 minutos. A falta desse endpoint não deve bloquear a identificação do operador.
+
 ### 4. Testar os Endpoints
 
 Após o login, todos os endpoints estarão autenticados automaticamente usando o Bearer Token armazenado em `{{access_token}}`.

@@ -7,5 +7,10 @@ import jakarta.validation.constraints.NotBlank;
 public record LoginRequestDTO(
         @NotBlank @Schema(example = "admin") String username,
         @NotBlank @Schema(example = "admin123") String password
-) {}
+) {
+    @Override
+    public String toString() {
+        return "LoginRequestDTO[credentials=REDACTED]";
+    }
+}
 

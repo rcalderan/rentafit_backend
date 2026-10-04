@@ -55,6 +55,15 @@ class GlobalExceptionHandlerTest {
 
     @Test
     @WithMockUser(roles = {"EMPLOYEE"})
+    void missingSettingsEndpointReturns404Not500() throws Exception {
+        mockMvc.perform(get("/api/v1/settings/operator.pinTrustMinutes"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.status", is(404)))
+                .andExpect(jsonPath("$.path", is("/api/v1/settings/operator.pinTrustMinutes")));
+    }
+
+    @Test
+    @WithMockUser(roles = {"EMPLOYEE"})
     @DisplayName("RuntimeException generica retorna 500")
     void handleInternal_retorna500() throws Exception {
         mockMvc.perform(get("/test/internal"))

@@ -8,6 +8,7 @@ import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
@@ -63,6 +64,9 @@ public class RefreshTokenService {
         if (token.getExpiryDate().isBefore(Instant.now())) {
             refreshTokenRepository.delete(token);
             throw new RuntimeException("Refresh token was expired. Please make a new signin request");
+        }
+        if (token.getUserAccount() == null || !Boolean.TRUE.equals(token.getUserAccount().getIsActive())) {
+            throw new DisabledException("Conta não habilitada para autenticação.");
         }
         return token;
     }

@@ -158,7 +158,7 @@ class AuthControllerTest {
     @DisplayName("Should return 403 when login with BCrypt hash password")
     void login_WithBCryptHash() {
         // BCrypt hash example
-        LoginRequestDTO request = new LoginRequestDTO("user", "$2a$10$abcdefghijklmnopqrstuvwxyz123456789012345678901234");
+        LoginRequestDTO request = new LoginRequestDTO("user", "$2a$10$" + "a".repeat(53));
 
         // Act
         ResponseEntity<LoginResponseDTO> response = authController.login(request);
@@ -180,6 +180,27 @@ class AuthControllerTest {
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void login_DoesNotHideAuthenticationInfrastructureFailure() {
+        when(authenticationManager.authenticate(any()))
+                .thenThrow(new org.springframework.security.authentication.AuthenticationServiceException("Infrastructure failed"));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authController.login(new LoginRequestDTO("user", "password")))
+                .isInstanceOf(org.springframework.security.authentication.AuthenticationServiceException.class);
+    }
+
+    @Test
+    void login_DoesNotHidePersistenceFailureAsInvalidCredentials() {
+        UserAccount user = new UserAccount();
+        user.setUsername("user");
+        when(authenticationManager.authenticate(any()))
+                .thenReturn(new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
+        when(tokenService.generateToken("user")).thenReturn("access-token");
+        when(refreshTokenService.createRefreshToken(user)).thenThrow(new IllegalStateException("Persistence failed"));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authController.login(new LoginRequestDTO("user", "password")))
+                .isInstanceOf(IllegalStateException.class).hasMessage("Persistence failed");
     }
 
     @Test

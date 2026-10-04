@@ -46,7 +46,8 @@ public class SecurityConfig {
                                 "/api/actuator/health",
                                 "/api/actuator/info"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/login", "/api/auth/operator-login").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/auth/operator-profile").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/customers/signup").permitAll()

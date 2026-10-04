@@ -69,11 +69,25 @@ class RefreshTokenServiceTest {
     void verifyExpiration_valid() {
         RefreshToken token = new RefreshToken();
         token.setExpiryDate(Instant.now().plusSeconds(3600));
+        token.setUserAccount(new UserAccount());
 
         RefreshToken result = refreshTokenService.verifyExpiration(token);
 
         assertThat(result).isEqualTo(token);
         verify(refreshTokenRepository, never()).delete(any());
+    }
+
+    @Test
+    void rejectsRefreshForDisabledAccount() {
+        var account = new UserAccount();
+        account.setIsActive(false);
+        var token = new RefreshToken();
+        token.setExpiryDate(Instant.now().plusSeconds(3600));
+        token.setUserAccount(account);
+
+        assertThatThrownBy(() -> refreshTokenService.verifyExpiration(token))
+                .isInstanceOf(org.springframework.security.authentication.DisabledException.class);
+        verify(refreshTokenRepository, never()).save(any());
     }
 
     @Test

@@ -278,11 +278,41 @@ class EmployeeServiceTest {
     }
 
     @Test
+    void rejectsDisabledAccountEvenWithCorrectPin() {
+        UserAccount account = new UserAccount();
+        account.setId(employeeId);
+        account.setIsActive(false);
+        account.setPin("hashed-pin");
+        account.setRoles(List.of(employeeRole));
+        when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
+        when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
+        lenient().when(passwordEncoder.matches("1234", "hashed-pin")).thenReturn(true);
+
+        assertThatThrownBy(() -> employeeService.check(new EmployeeCheckRequestDTO("JS", "1234")))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("Credenciais inválidas");
+    }
+
+    @Test
+    void rejectsCustomerWithEmployeeRowAndCorrectPin() {
+        UserAccount account = new UserAccount();
+        account.setId(employeeId);
+        account.setPin("hashed-pin");
+        account.setRoles(List.of(new Role(1L, RoleName.CUSTOMER)));
+        when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
+        when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
+        lenient().when(passwordEncoder.matches("1234", "hashed-pin")).thenReturn(true);
+
+        assertThatThrownBy(() -> employeeService.check(new EmployeeCheckRequestDTO("JS", "1234")))
+                .isInstanceOf(ValidationException.class).hasMessageContaining("Credenciais inválidas");
+    }
+
+    @Test
     @DisplayName("Deve lançar exceção quando PIN for inválido")
     void shouldThrowExceptionWhenPinIsInvalid() {
         UserAccount account = new UserAccount();
         account.setId(employeeId);
         account.setPin("$2a$10$otherHashedPin");
+        account.setRoles(List.of(employeeRole));
 
         when(employeeRepository.findByInitials("JS")).thenReturn(Optional.of(employee));
         when(userAccountRepository.findById(employeeId)).thenReturn(Optional.of(account));
