@@ -24,6 +24,12 @@ import java.util.UUID;
 public class RentalContractController {
 
     private final RentalContractService contractService;
+    private final br.com.rentafit.rental.service.RentalRevisionService revisions;
+
+    @PostMapping("/{id}/revision-restart")
+    public ResponseEntity<RentalContractDetailsDTO> restartRevision(@PathVariable UUID id) {
+        return ResponseEntity.ok(revisions.restart(id));
+    }
 
     @GetMapping
     @Operation(summary = "Listar contratos (paginado)")

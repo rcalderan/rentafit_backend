@@ -27,6 +27,7 @@ class OperatorAuthenticationServiceTest {
     @Mock private OperatorIdentityService operatorIdentityService;
     @Mock private TokenService tokenService;
     @Mock private RefreshTokenService refreshTokenService;
+    @Mock private InstallationCompletionService installationCompletion;
     @InjectMocks private OperatorAuthenticationService service;
     private UserAccount account;
     private final LoginRequestDTO request = new LoginRequestDTO("operator", "test-password");

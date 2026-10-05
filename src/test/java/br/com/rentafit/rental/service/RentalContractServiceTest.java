@@ -47,6 +47,8 @@ class RentalContractServiceTest {
     @Mock private RentalWorkflowService workflowService;
     @Mock private CustomerPort customerPort;
     @Mock private RentalMapper mapper;
+    @Mock private br.com.rentafit.auth.service.CurrentAccountId currentAccountId;
+    @Mock private RentalReservationDelta reservationDelta;
 
     @InjectMocks
     private RentalContractService contractService;
@@ -64,6 +66,10 @@ class RentalContractServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(contractService, "legacyIdPattern", "yyMMdd");
+        ReflectionTestUtils.setField(contractService, "revisionService", new RentalRevisionService(
+                contractRepository, mapper, currentAccountId, reservationDelta));
+        ReflectionTestUtils.setField(contractService, "proposalDuplication", new RentalProposalDuplication(contractRepository, validator, mapper));
+        lenient().when(currentAccountId.requireId()).thenReturn(UUID.randomUUID());
         contractId = UUID.randomUUID();
         customerId = UUID.randomUUID();
         legacyId = "CTR001";
@@ -858,7 +864,6 @@ class RentalContractServiceTest {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
         when(contractRepository.findByParentContractIdAndStatusNot(contractId, ContractStatus.SUPERSEDED))
                 .thenReturn(Optional.empty());
-        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
         when(contractRepository.findMaxLegacyIdByPrefix(todayPrefix)).thenReturn(Optional.empty());
         when(contractRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
@@ -940,6 +945,8 @@ class RentalContractServiceTest {
                 .payments(new ArrayList<>())
                 .build();
 
+        revisionContract.setParentSnapshot(ReflectionTestUtils.invokeMethod(
+                new RentalRevisionService(contractRepository, mapper, currentAccountId, reservationDelta), "snapshot", parentContract));
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(revisionContract));
         when(contractRepository.findById(parentId)).thenReturn(Optional.of(parentContract));
         when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(null);

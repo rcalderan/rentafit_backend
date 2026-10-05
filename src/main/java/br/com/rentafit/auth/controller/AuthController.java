@@ -49,6 +49,7 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final CryptoService cryptoService;
     private final UserAccountService userAccountService;
+    private final br.com.rentafit.auth.service.LoginSessionIssuer loginSessionIssuer;
 
 
     private static final Pattern BCRYPT_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
@@ -79,10 +80,7 @@ public class AuthController {
             var user = (UserAccount)authentication.getPrincipal();
             log.info("Usuário autenticado: {} com roles: {}", user.getUsername(), user.getAuthorities());
 
-            var accessToken = tokenService.generateToken(user.getUsername());
-            var refreshToken = refreshTokenService.createRefreshToken(user);
-
-            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
+            return ResponseEntity.ok(loginSessionIssuer.issue(user));
 //            String incomingPassword = data.password();
 //            String decryptedPassword = cryptoService.decrypt(data.password());
 //            if (cryptoService.isRsaEnabled()) {

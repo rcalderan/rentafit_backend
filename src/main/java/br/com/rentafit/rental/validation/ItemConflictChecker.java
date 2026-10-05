@@ -33,7 +33,7 @@ import java.util.UUID;
 @Slf4j
 public class ItemConflictChecker {
 
-    private static final int CONFLICT_WINDOW_DAYS = 3;
+    private final br.com.rentafit.settings.service.ApplicationSettingsService settings;
     private static final List<ContractStatus> ACTIVE_STATUSES = List.of(
             ContractStatus.SIGNED, ContractStatus.FINALIZED
     );
@@ -54,14 +54,18 @@ public class ItemConflictChecker {
             UUID excludeContractId
     ) {
         List<ItemConflict> conflicts = new ArrayList<>();
+        int windowDays = settings.rentalWindowDays();
+        UUID parentId = items.stream().map(RentalContractItem::getContract)
+                .filter(java.util.Objects::nonNull).map(br.com.rentafit.rental.domain.RentalContract::getParentContractId)
+                .filter(java.util.Objects::nonNull).findFirst().orElse(null);
 
         for (RentalContractItem item : items) {
             if (item.getRentalItemId() == null) {
                 continue; // item sem vínculo catalogado — ignorar
             }
 
-            LocalDate start = eventDate.minusDays(CONFLICT_WINDOW_DAYS);
-            LocalDate end   = eventDate.plusDays(CONFLICT_WINDOW_DAYS);
+            LocalDate start = eventDate.minusDays(windowDays);
+            LocalDate end   = eventDate.plusDays(windowDays);
 
             List<RentalContractItem> candidates = contractItemRepository
                     .findConflictCandidates(item.getRentalItemId(), start, end, ACTIVE_STATUSES);
@@ -70,12 +74,11 @@ public class ItemConflictChecker {
                 UUID candidateContractId = candidate.getContract().getId();
 
                 // Excluir o próprio contrato
-                if (candidateContractId.equals(excludeContractId)) continue;
+                if (candidateContractId.equals(excludeContractId) || candidateContractId.equals(parentId)) continue;
 
                 LocalDate candidateEventDate = candidate.getContract().getEventDate();
-                ConflictSeverity severity = candidateEventDate.isEqual(eventDate)
-                        ? ConflictSeverity.BLOCKING
-                        : ConflictSeverity.WARNING;
+                if (candidateEventDate.isBefore(start) || candidateEventDate.isAfter(end)) continue;
+                ConflictSeverity severity = ConflictSeverity.BLOCKING;
 
                 conflicts.add(new ItemConflict(
                         item.getRentalItemId(),

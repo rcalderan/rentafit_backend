@@ -68,7 +68,7 @@ class AuthLoginTransactionTest {
         @Bean
         AuthController authController(AuthenticationManager authenticationManager) {
             return new AuthController(authenticationManager, mock(TokenService.class), mock(RefreshTokenService.class),
-                    mock(CryptoService.class), mock(UserAccountService.class));
+                    mock(CryptoService.class), mock(UserAccountService.class), mock(br.com.rentafit.auth.service.LoginSessionIssuer.class));
         }
     }
 }

@@ -51,6 +51,11 @@ class RentalWorkflowServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(workflowService, "reservationDelta",
+                new RentalReservationDelta(rentalItemPort, accessoryPort, contractItemRepository));
+        lenient().when(rentalItemPort.findById(any())).thenAnswer(invocation -> java.util.Optional.of(
+                new RentalItemPort.RentalItemSnapshot(invocation.getArgument(0), 1, "Vestido", null, null, null,
+                        BigDecimal.TEN, ProductStatus.AVAILABLE)));
         contractId   = UUID.randomUUID();
         rentalItemId = UUID.randomUUID();
         accessoryId  = UUID.randomUUID();

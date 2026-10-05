@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class RentalItemAdapter implements RentalItemPort {
 
     private final RentalItemRepository rentalItemRepository;
+    private final jakarta.persistence.EntityManager entityManager;
 
     @Override
     public Optional<RentalItemSnapshot> findById(UUID rentalItemId) {
@@ -63,8 +64,17 @@ public class RentalItemAdapter implements RentalItemPort {
     @Override
     public boolean isAvailable(UUID rentalItemId) {
         return rentalItemRepository.findById(rentalItemId)
-                .map(item -> ProductStatus.AVAILABLE.equals(item.getStatus()))
+                .map(item -> java.util.Set.of(ProductStatus.AVAILABLE, ProductStatus.RESERVED, ProductStatus.RENTED)
+                        .contains(item.getStatus()))
                 .orElse(false);
+    }
+
+    @Override
+    @Transactional
+    public void lockItems(Collection<UUID> rentalItemIds) {
+        if (rentalItemIds.isEmpty()) return;
+        rentalItemRepository.lockItems(rentalItemIds).forEach(item ->
+                entityManager.refresh(item, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
     }
 
     private RentalItemSnapshot toSnapshot(RentalItem item) {

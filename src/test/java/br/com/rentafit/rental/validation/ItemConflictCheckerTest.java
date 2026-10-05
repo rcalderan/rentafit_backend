@@ -29,6 +29,7 @@ import static org.mockito.Mockito.*;
 class ItemConflictCheckerTest {
 
     @Mock private RentalContractItemRepository contractItemRepository;
+    @Mock private br.com.rentafit.settings.service.ApplicationSettingsService settings;
 
     @InjectMocks
     private ItemConflictChecker conflictChecker;
@@ -41,6 +42,7 @@ class ItemConflictCheckerTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(settings.rentalWindowDays()).thenReturn(3);
         rentalItemId         = UUID.randomUUID();
         contractId           = UUID.randomUUID();
         conflictingContractId = UUID.randomUUID();
@@ -84,6 +86,17 @@ class ItemConflictCheckerTest {
     /** Overload de conveniência: usa rentalItemId padrão */
     private RentalContractItem buildCandidateItem(LocalDate candidateEventDate) {
         return buildCandidateItem(rentalItemId, candidateEventDate);
+    }
+
+    @Test
+    void configuredTwoDayWindowAllowsThreeDaysAndBlocksTwoDays() {
+        when(settings.rentalWindowDays()).thenReturn(2);
+        when(contractItemRepository.findConflictCandidates(eq(rentalItemId), any(), any(), any()))
+                .thenReturn(List.of(buildCandidateItem(eventDate.plusDays(2)), buildCandidateItem(eventDate.minusDays(3))));
+        var result = conflictChecker.check(List.of(myItem), eventDate, contractId);
+        assertThat(result).hasSize(1).allMatch(c -> c.severity() == ConflictSeverity.BLOCKING);
+        verify(contractItemRepository).findConflictCandidates(eq(rentalItemId),
+                eq(eventDate.minusDays(2)), eq(eventDate.plusDays(2)), any());
     }
 
     // ── Sem conflito ──────────────────────────────────────────────────────────
@@ -178,7 +191,7 @@ class ItemConflictCheckerTest {
             List<ItemConflict> result = conflictChecker.check(List.of(myItem), eventDate, contractId);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.WARNING);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -191,7 +204,7 @@ class ItemConflictCheckerTest {
             List<ItemConflict> result = conflictChecker.check(List.of(myItem), eventDate, contractId);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.WARNING);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -204,7 +217,7 @@ class ItemConflictCheckerTest {
             List<ItemConflict> result = conflictChecker.check(List.of(myItem), eventDate, contractId);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.WARNING);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -219,7 +232,7 @@ class ItemConflictCheckerTest {
             assertThat(result.get(0).toMessage())
                     .contains("Vestido de Noiva Premium")
                     .contains(conflictingContractId.toString())
-                    .contains("ALERTA");
+                    .contains("BLOQUEIO");
         }
     }
 
@@ -368,7 +381,7 @@ class ItemConflictCheckerTest {
 
             assertThat(result).hasSize(2);
             assertThat(result).anyMatch(c -> c.severity() == ConflictSeverity.BLOCKING);
-            assertThat(result).anyMatch(c -> c.severity() == ConflictSeverity.WARNING);
+            assertThat(result).allMatch(c -> c.severity() == ConflictSeverity.BLOCKING);
         }
 
         @Test

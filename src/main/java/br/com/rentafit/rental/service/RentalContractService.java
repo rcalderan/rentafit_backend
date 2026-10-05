@@ -57,6 +57,8 @@ public class RentalContractService {
     private final RentalWorkflowService workflowService;
     private final CustomerPort customerPort;
     private final RentalMapper mapper;
+    private final RentalRevisionService revisionService;
+    private final RentalProposalDuplication proposalDuplication;
 
     @Value("${rentafit.legacy-id.pattern:yyMMdd}")
     private String legacyIdPattern;
@@ -178,6 +180,7 @@ public class RentalContractService {
     }
 
     public RentalContractDetailsDTO update(UUID id, UpdateRentalContractDTO dto) {
+        contractRepository.lockById(id);
         RentalContract contract = requireContract(id);
 
         if (!ContractStatus.DRAFT.equals(contract.getStatus())
@@ -199,7 +202,7 @@ public class RentalContractService {
                 .flatMap(i -> i.metadata().stream())
                 .map(ContractItemMetaInputDTO::accessoryId)
                 .collect(Collectors.toList());
-        validator.validateAccessoriesAvailability(accessoryIds);
+        validator.validateAccessoriesAvailability(revisionService.pendingAccessoryIds(contract, accessoryIds));
 
         // Valida que parcelas PAID possuem funcionário responsável
         validator.validatePaidPaymentsHaveEmployee(dto.payments());
@@ -235,7 +238,14 @@ public class RentalContractService {
 
     public RentalContractDetailsDTO sign(UUID id, String printTemplateId) {
         RentalContract contract = requireContract(id);
+        if (contract.getParentContractId() != null) contractRepository.lockById(contract.getParentContractId());
+        contractRepository.lockById(id);
+        if (contract.getParentContractId() != null) {
+            var parent = requireContract(contract.getParentContractId());
+            validator.lockItemsForTransition(java.util.stream.Stream.concat(parent.getItems().stream(), contract.getItems().stream()).toList());
+        }
         requireStatusOneOf(contract, "assinar", ContractStatus.DRAFT, ContractStatus.REVISION);
+        validator.validateItemsAvailability(contract.getItems().stream().map(RentalContractItem::getRentalItemId).toList());
 
         validator.validateDateOrder(contract.getPickupDate(), contract.getEventDate(), contract.getReturnDate());
         validator.validatePersistedPaidPaymentsHaveEmployee(contract.getPayments());
@@ -251,11 +261,8 @@ public class RentalContractService {
 
         // Supersede the parent contract if this is a revision
         if (saved.getParentContractId() != null) {
-            RentalContract parent = requireContract(saved.getParentContractId());
-            parent.setStatus(ContractStatus.SUPERSEDED);
-            parent.setReplacedByContractId(saved.getId());
-            contractRepository.save(parent);
-            log.info("Parent contract {} superseded by revision {}", parent.getId(), saved.getId());
+            revisionService.confirm(saved);
+            log.info("Parent contract {} superseded by revision {}", saved.getParentContractId(), saved.getId());
         }
 
         log.info("Contract {} signed. Warnings: {}", id, warnings != null ? warnings.size() : 0);
@@ -267,8 +274,10 @@ public class RentalContractService {
      * Re-valida conflitos e aciona o workflow de reserva.
      */
     public RentalContractDetailsDTO finalize(UUID id) {
+        contractRepository.lockById(id);
         RentalContract contract = requireContract(id);
         requireStatus(contract, ContractStatus.SIGNED, "finalizar");
+        validator.validateItemsAvailability(contract.getItems().stream().map(RentalContractItem::getRentalItemId).toList());
 
         if (contract.getItems().isEmpty()) {
             throw new ValidationException("O contrato deve ter ao menos um item para ser finalizado");
@@ -297,6 +306,7 @@ public class RentalContractService {
      * Disponível somente para contratos FINALIZED.
      */
     public RentalContractDetailsDTO deliverItem(UUID contractId, UUID itemId, UUID attendantEmployeeId) {
+        contractRepository.lockById(contractId);
         RentalContract contract = requireContract(contractId);
         requireStatus(contract, ContractStatus.FINALIZED, "confirmar entrega");
 
@@ -324,6 +334,7 @@ public class RentalContractService {
      */
     @Deprecated(since = "2.0", forRemoval = false)
     public RentalContractDetailsDTO processReturn(UUID id, ReturnContractDTO dto) {
+        contractRepository.lockById(id);
         RentalContract contract = requireContract(id);
         requireStatus(contract, ContractStatus.FINALIZED, "processar devolução");
 
@@ -349,83 +360,7 @@ public class RentalContractService {
      * Ao ser assinado, o contrato-pai será marcado como SUPERSEDED.</p>
      */
     public RentalContractDetailsDTO revise(UUID id) {
-        RentalContract original = requireContract(id);
-        requireStatus(original, ContractStatus.SIGNED, "criar revisão de");
-
-        // Se já existe uma revisão ativa para este contrato, retorna ela
-        Optional<RentalContract> activeRevision =
-                contractRepository.findByParentContractIdAndStatusNot(id, ContractStatus.SUPERSEDED);
-        if (activeRevision.isPresent()) {
-            log.info("Active revision {} already exists for contract {}", activeRevision.get().getId(), id);
-            return mapper.toDetailsDTO(activeRevision.get(), null);
-        }
-
-        CustomerSnapshot freshSnapshot = validator.validateAndGetCustomer(original.getCustomerId());
-
-        RentalContract revision = RentalContract.builder()
-                .contractType(original.getContractType())
-                .customerId(freshSnapshot.id())
-                .customerName(freshSnapshot.name())
-                .customerDocument(freshSnapshot.document())
-                .createdByEmployeeId(original.getCreatedByEmployeeId())
-                .pickupDate(original.getPickupDate())
-                .eventDate(original.getEventDate())
-                .returnDate(original.getReturnDate())
-                .notes("Revisão do contrato " + original.getLegacyId() + ". " + original.getNotes())
-                .status(ContractStatus.REVISION)
-                .returned(false)
-                .parentContractId(original.getId())
-                .build();
-
-        // Deep-copy items + metadata
-        List<RentalContractItem> copiedItems = original.getItems().stream().map(origItem -> {
-            RentalContractItem newItem = RentalContractItem.builder()
-                    .contract(revision)
-                    .rentalItemId(origItem.getRentalItemId())
-                    .legacyProductCode(origItem.getLegacyProductCode())
-                    .description(origItem.getDescription())
-                    .value(origItem.getValue())
-                    .attendantEmployeeId(origItem.getAttendantEmployeeId())
-                    .delivered(false)
-                    .build();
-
-            List<RentalContractItemMeta> copiedMeta = origItem.getMetadata().stream().map(origMeta ->
-                    RentalContractItemMeta.builder()
-                            .contractItem(newItem)
-                            .type(origMeta.getType())
-                            .description(origMeta.getDescription())
-                            .accessoryId(origMeta.getAccessoryId())
-                            .build()
-            ).collect(Collectors.toList());
-            newItem.setMetadata(copiedMeta);
-            return newItem;
-        }).collect(Collectors.toList());
-        revision.setItems(copiedItems);
-
-        // Deep-copy payments (preserving status — PAID payments stay PAID)
-        List<RentalPayment> copiedPayments = original.getPayments().stream().map(origPay ->
-                RentalPayment.builder()
-                        .contract(revision)
-                        .installmentNumber(origPay.getInstallmentNumber())
-                        .paymentDate(origPay.getPaymentDate())
-                        .paymentMethod(origPay.getPaymentMethod())
-                        .value(origPay.getValue())
-                        .installments(origPay.getInstallments())
-                        .processedByEmployeeId(origPay.getProcessedByEmployeeId())
-                        .status(origPay.getStatus())
-                        .build()
-        ).collect(Collectors.toList());
-        revision.setPayments(copiedPayments);
-
-        revision.setLegacyId(generateLegacyId());
-
-        RentalContract saved = contractRepository.saveAndFlush(revision);
-        log.info("Contract {} revised as {} (legacyId={})", id, saved.getId(), saved.getLegacyId());
-        original.setReplacedByContractId(saved.getId());
-        contractRepository.saveAndFlush(original);
-        log.info("Contract Original {} child replaced by {}", original.getId(), saved.getId());
-
-        return mapper.toDetailsDTO(saved, null);
+        return revisionService.create(id, this::generateLegacyId);
     }
 
     /**
@@ -433,53 +368,7 @@ public class RentalContractService {
      * Snapshot do cliente é atualizado; itens são copiados; pagamentos são zerados.
      */
     public RentalContractDetailsDTO duplicate(UUID id) {
-        RentalContract original = requireContract(id);
-
-        // Atualiza snapshot do cliente
-        CustomerSnapshot freshSnapshot = validator.validateAndGetCustomer(original.getCustomerId());
-
-        RentalContract duplicate = RentalContract.builder()
-                .contractType(original.getContractType())
-                .customerId(freshSnapshot.id())
-                .customerName(freshSnapshot.name())
-                .customerDocument(freshSnapshot.document())
-                .createdByEmployeeId(original.getCreatedByEmployeeId())
-                .pickupDate(original.getPickupDate())
-                .eventDate(original.getEventDate())
-                .returnDate(original.getReturnDate())
-                .notes("Duplicado do contrato " + original.getId() + ". " + original.getNotes())
-                .status(ContractStatus.DRAFT)
-                .returned(false)
-                .build();
-
-        List<RentalContractItem> copiedItems = original.getItems().stream().map(origItem -> {
-            RentalContractItem newItem = RentalContractItem.builder()
-                    .contract(duplicate)
-                    .rentalItemId(origItem.getRentalItemId())
-                    .legacyProductCode(origItem.getLegacyProductCode())
-                    .description(origItem.getDescription())
-                    .value(origItem.getValue())
-                    .delivered(false)
-                    .build();
-
-            List<RentalContractItemMeta> copiedMeta = origItem.getMetadata().stream().map(origMeta ->
-                    RentalContractItemMeta.builder()
-                            .contractItem(newItem)
-                            .type(origMeta.getType())
-                            .description(origMeta.getDescription())
-                            .accessoryId(origMeta.getAccessoryId())
-                            .build()
-            ).collect(Collectors.toList());
-            newItem.setMetadata(copiedMeta);
-            return newItem;
-        }).collect(Collectors.toList());
-
-        duplicate.setItems(copiedItems);
-        duplicate.setLegacyId(generateLegacyId());
-
-        RentalContract saved = contractRepository.save(duplicate);
-        log.info("Contract {} duplicated as {} (legacyId={})", id, saved.getId(), saved.getLegacyId());
-        return mapper.toDetailsDTO(saved, null);
+        return proposalDuplication.create(requireContract(id), this::generateLegacyId);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -568,6 +457,7 @@ public class RentalContractService {
      * sem conflito com este formato.</p>
      */
     String generateLegacyId() {
+        contractRepository.lockLegacyIdGeneration();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(legacyIdPattern);
         String prefix = LocalDate.now().format(formatter) + "-";
         return contractRepository.findMaxLegacyIdByPrefix(prefix)

@@ -98,6 +98,11 @@ public class RentalContractValidator {
         }
     }
 
+    public void lockItemsForTransition(List<br.com.rentafit.rental.domain.RentalContractItem> items) {
+        rentalItemPort.lockItems(items.stream().map(br.com.rentafit.rental.domain.RentalContractItem::getRentalItemId)
+                .filter(java.util.Objects::nonNull).distinct().sorted().toList());
+    }
+
     // ── Validações de transição de estado ─────────────────────────────────────
 
     /**
@@ -115,6 +120,9 @@ public class RentalContractValidator {
             LocalDate eventDate,
             UUID excludeContractId
     ) {
+        lockItemsForTransition(contractItems);
+        validateItemsAvailability(contractItems.stream()
+                .map(br.com.rentafit.rental.domain.RentalContractItem::getRentalItemId).toList());
         List<ItemConflict> conflicts = conflictChecker.check(contractItems, eventDate, excludeContractId);
 
         List<String> blockingMessages = new ArrayList<>();
@@ -239,15 +247,16 @@ public class RentalContractValidator {
                 .filter(p -> PaymentStatus.PAID.equals(p.getStatus()))
                 .toList();
 
-        if (paidPayments.isEmpty()) return;
+        long incomingPaidCount = incoming.stream().filter(dto -> isPaid(dto.status())).count();
+        if (incomingPaidCount > paidPayments.size()) {
+            throw new ValidationException("Parcelas PAGA recebidas: " + incomingPaidCount
+                    + "; esperado " + paidPayments.size() + " sem novos recebimentos na revisão");
+        }
 
         List<String> errors = new ArrayList<>();
         for (RentalPayment paid : paidPayments) {
             boolean found = incoming.stream().anyMatch(dto ->
-                    paid.getInstallmentNumber().equals(dto.installmentNumber())
-                    && paid.getValue().compareTo(dto.value()) == 0
-                    && paid.getPaymentMethod().name().equalsIgnoreCase(dto.paymentMethod())
-                    && "PAID".equalsIgnoreCase(dto.status())
+                    isPaid(dto.status()) && PaidPaymentSnapshot.from(paid).equals(PaidPaymentSnapshot.from(dto))
             );
             if (!found) {
                 errors.add("Parcela PAGA #" + paid.getInstallmentNumber()

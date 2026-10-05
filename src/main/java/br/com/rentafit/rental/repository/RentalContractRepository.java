@@ -21,11 +21,19 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
 
     Optional<RentalContract> findByLegacyId(String legacyId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT contract FROM RentalContract contract WHERE contract.id = :id")
+    Optional<RentalContract> lockById(@Param("id") UUID id);
+
+    @Query(value = "SELECT pg_advisory_xact_lock(1917463412)", nativeQuery = true)
+    void lockLegacyIdGeneration();
+
     Page<RentalContract> findByCustomerId(UUID customerId, Pageable pageable);
 
     List<RentalContract> findByCustomerIdAndStatus(UUID customerId, ContractStatus status);
 
-    @Query("SELECT MAX(r.legacyId) FROM RentalContract r WHERE r.legacyId LIKE :prefix || '%'")
+    @Query(value = "SELECT legacy_id FROM rental_contracts WHERE legacy_id LIKE :prefix || '%' "
+            + "ORDER BY length(legacy_id) DESC, legacy_id DESC LIMIT 1", nativeQuery = true)
     Optional<String> findMaxLegacyIdByPrefix(@Param("prefix") String prefix);
 
     Optional<RentalContract> findByParentContractIdAndStatusNot(UUID parentContractId, ContractStatus excludeStatus);

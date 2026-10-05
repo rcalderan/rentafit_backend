@@ -11,6 +11,7 @@ import java.util.UUID;
 
 @Repository
 public interface StockRepository extends JpaRepository<Stock, UUID> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     Optional<Stock> findByProductId(UUID productId);
 
     @Query("SELECT s FROM Stock s WHERE s.quantityAvailable < s.minStockLevel")

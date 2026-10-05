@@ -25,7 +25,7 @@ public record ItemConflict(
                 itemDescription,
                 conflictingContractId,
                 conflictingEventDate,
-                severity == ConflictSeverity.BLOCKING ? "BLOQUEIO — mesma data" : "ALERTA — dentro de 3 dias"
+                severity == ConflictSeverity.BLOCKING ? "BLOQUEIO — intervalo de uso indisponível" : "ALERTA — intervalo próximo"
         );
     }
 }

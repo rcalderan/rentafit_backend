@@ -441,6 +441,26 @@ class RentalContractValidatorTest {
     class ValidateRevisionPaymentIntegrity {
 
         @Test
+        void rejectsChangedPaidDate() {
+            UUID employeeId = UUID.randomUUID();
+            RentalPayment paid = RentalPayment.builder().installmentNumber(1).value(BigDecimal.TEN)
+                    .paymentMethod(PaymentMethod.PIX).status(PaymentStatus.PAID)
+                    .paymentDate(LocalDate.of(2026, 1, 1)).installments(1).processedByEmployeeId(employeeId).build();
+            RentalPaymentInputDTO changed = new RentalPaymentInputDTO(1, LocalDate.of(2026, 1, 2),
+                    "PIX", BigDecimal.TEN, 1, employeeId, "PAID");
+            assertThatThrownBy(() -> validator.validateRevisionPaymentIntegrity(List.of(changed), List.of(paid)))
+                    .isInstanceOf(ValidationException.class);
+        }
+
+        @Test
+        void rejectsNewPaidPaymentDuringRevision() {
+            RentalPaymentInputDTO added = new RentalPaymentInputDTO(1, LocalDate.now(), "PIX",
+                    BigDecimal.TEN, 1, UUID.randomUUID(), "PAID");
+            assertThatThrownBy(() -> validator.validateRevisionPaymentIntegrity(List.of(added), List.of()))
+                    .isInstanceOf(ValidationException.class);
+        }
+
+        @Test
         @DisplayName("Deve aceitar quando não há parcelas PAID existentes")
         void deveAceitarSemPaidExistentes() {
             RentalPayment pending = RentalPayment.builder()

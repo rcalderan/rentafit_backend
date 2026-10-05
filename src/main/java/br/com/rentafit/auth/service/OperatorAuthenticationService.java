@@ -17,7 +17,9 @@ public class OperatorAuthenticationService {
     private final OperatorIdentityService operatorIdentityService;
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokenService;
+    private final InstallationCompletionService installationCompletion;
 
+    @org.springframework.transaction.annotation.Transactional
     public OperatorLoginResponseDTO login(LoginRequestDTO request) {
         var authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password()));
@@ -28,6 +30,7 @@ public class OperatorAuthenticationService {
         var profile = operatorIdentityService.profile(account.getUsername());
         var accessToken = tokenService.generateToken(account.getUsername());
         var refreshToken = refreshTokenService.createRefreshToken(account);
+        installationCompletion.afterVerifiedLogin(account);
         return new OperatorLoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer", profile);
     }
 }

@@ -39,6 +39,9 @@ public record RentalContractDetailsDTO(
 
         // Vínculo com contrato vigente que substituiu este (quando SUPERSEDED)
         UUID replacedByContractId,
+        UUID revisedByAccountId,
+        UUID confirmedByAccountId,
+        OffsetDateTime revisionConfirmedAt,
 
         // Datas
         LocalDate pickupDate,

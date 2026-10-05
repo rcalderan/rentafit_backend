@@ -39,6 +39,7 @@ public class RentalWorkflowService {
     private final RentalItemPort rentalItemPort;
     private final AccessoryPort accessoryPort;
     private final RentalContractItemRepository contractItemRepository;
+    private final RentalReservationDelta reservationDelta;
 
     /**
      * Processado ao FINALIZAR um contrato (SIGNED → FINALIZED).
@@ -50,18 +51,18 @@ public class RentalWorkflowService {
         for (RentalContractItem item : contract.getItems()) {
             // Reserva o item físico
             if (item.getRentalItemId() != null) {
-                rentalItemPort.updateStatus(item.getRentalItemId(), ProductStatus.RESERVED);
+                reservationDelta.reserveItem(item.getRentalItemId());
                 log.info("RentalItem {} RESERVED for contract {}", item.getRentalItemId(), contract.getId());
             }
 
-            // Reserva acessórios catalogados
-            for (RentalContractItemMeta meta : item.getMetadata()) {
-                if (ItemMetaType.ACESSORIO.equals(meta.getType()) && meta.getAccessoryId() != null) {
+        }
+        // Reserva acessórios catalogados
+        contract.getItems().stream().flatMap(item -> item.getMetadata().stream())
+                .filter(meta -> ItemMetaType.ACESSORIO.equals(meta.getType()) && meta.getAccessoryId() != null)
+                .sorted(java.util.Comparator.comparing(RentalContractItemMeta::getAccessoryId)).forEach(meta -> {
                     accessoryPort.reserveStock(meta.getAccessoryId(), systemUserId);
                     log.info("Accessory {} stock reserved for contract {}", meta.getAccessoryId(), contract.getId());
-                }
-            }
-        }
+                });
     }
 
     /**
@@ -70,6 +71,15 @@ public class RentalWorkflowService {
      */
     public void onDeliverItem(RentalContractItem item, UUID attendantEmployeeId) {
         if (item.getRentalItemId() != null) {
+            rentalItemPort.lockItems(java.util.List.of(item.getRentalItemId()));
+            if (contractItemRepository.countOutstandingDeliveries(item.getRentalItemId()) > 0) {
+                throw new br.com.rentafit.common.exception.ValidationException("Item " + item.getRentalItemId() + ": esperado item devolvido antes de outra entrega");
+            }
+            var physical = rentalItemPort.findById(item.getRentalItemId()).orElseThrow(() ->
+                    new br.com.rentafit.common.exception.ValidationException("Item não encontrado: " + item.getRentalItemId()));
+            if (physical.status() != ProductStatus.AVAILABLE && physical.status() != ProductStatus.RESERVED) {
+                throw new br.com.rentafit.common.exception.ValidationException("Item " + physical.id() + " em " + physical.status() + ": esperado AVAILABLE ou RESERVED para entrega");
+            }
             rentalItemPort.updateStatus(item.getRentalItemId(), ProductStatus.RENTED);
             log.info("RentalItem {} RENTED (delivered) for contract {}", item.getRentalItemId(), item.getContract().getId());
         }
@@ -83,12 +93,14 @@ public class RentalWorkflowService {
      * Todos os RentalItems → MAINTENANCE; Acessórios catalogados → releaseStock().
      */
     public void onReturn(RentalContract contract) {
+        rentalItemPort.lockItems(contract.getItems().stream().map(RentalContractItem::getRentalItemId)
+                .filter(java.util.Objects::nonNull).distinct().sorted().toList());
         UUID systemUserId = contract.getReturnedByEmployeeId() != null
                 ? contract.getReturnedByEmployeeId()
                 : contract.getCreatedByEmployeeId();
 
         for (RentalContractItem item : contract.getItems()) {
-            if (item.getRentalItemId() != null) {
+            if (item.getRentalItemId() != null && contractItemRepository.countOutstandingDeliveries(item.getRentalItemId()) == 0) {
                 rentalItemPort.updateStatus(item.getRentalItemId(), ProductStatus.MAINTENANCE);
                 log.info("RentalItem {} → MAINTENANCE after return for contract {}", item.getRentalItemId(), contract.getId());
             }

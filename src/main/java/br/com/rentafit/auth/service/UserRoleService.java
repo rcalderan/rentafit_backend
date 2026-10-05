@@ -73,13 +73,14 @@ public class UserRoleService {
         }
 
         RoleName actorRole = actor.getRole();
+        userAccountRepository.lockById(targetUserId);
         UserAccount target = userAccountRepository.findById(targetUserId)
                 .orElseThrow(() -> ResourceNotFoundException.forId("UserAccount", targetUserId));
         RoleName targetCurrentRole = target.getRole();
 
         validateChangeAllowed(actorRole, targetCurrentRole, newRole);
 
-        if (newRole == RoleName.EMPLOYEE || newRole == RoleName.MANAGER) {
+        if (newRole == RoleName.EMPLOYEE || newRole == RoleName.MANAGER || newRole == RoleName.ADMIN) {
             employeeService.ensureEmployeeForPerson(targetUserId, initials, roleLevel);
         }
 

@@ -62,8 +62,17 @@ class AuthControllerTest {
     @Mock
     private UserAccountService userAccountService;
 
+    @Mock
+    private br.com.rentafit.auth.service.InstallationCompletionService installation;
+
     @InjectMocks
     private AuthController authController;
+
+    @org.junit.jupiter.api.BeforeEach
+    void initializeSessionIssuer() {
+        org.springframework.test.util.ReflectionTestUtils.setField(authController, "loginSessionIssuer",
+                new br.com.rentafit.auth.service.LoginSessionIssuer(tokenService, refreshTokenService, installation));
+    }
 
     @Test
     @DisplayName("Should return public key when enabled")

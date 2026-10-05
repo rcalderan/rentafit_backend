@@ -79,7 +79,11 @@ public class RentalItemService {
 
         RentalItem product = rentalItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product Rental update", "id", id.toString()));
+        rentalItemRepository.lockItems(java.util.List.of(id));
         product.updateFromDTO(dto);
+        if ("AVAILABLE".equals(dto.status()) && rentalItemRepository.hasPendingReservation(id)) {
+            product.setStatus(br.com.rentafit.product.domain.enums.ProductStatus.RESERVED);
+        }
 
         RentalItem saved = rentalItemRepository.save(product);
 
