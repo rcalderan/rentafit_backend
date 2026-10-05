@@ -42,7 +42,8 @@ import java.util.stream.Collectors;
  * <ul>
  *   <li>update() bloqueado se status != DRAFT.</li>
  *   <li>Snapshot do cliente gravado na criação e nunca alterado.</li>
- *   <li>Conflitos de reserva verificados apenas em sign() e finalize().</li>
+ *   <li>Conflitos de reserva bloqueiam já no salvamento (create/update)
+ *   e são revalidados com lock em sign() e finalize().</li>
  * </ul>
  * </p>
  */
@@ -158,6 +159,9 @@ public class RentalContractService {
                 .collect(Collectors.toList());
         validator.validateAccessoriesAvailability(accessoryIds);
 
+        // Bloqueio antecipado: mesma janela de conflito aplicada em sign(), já no salvar
+        validator.validateNoReservationConflicts(dto.items(), dto.eventDate(), null, null);
+
         // Valida que parcelas PAID possuem funcionário responsável
         validator.validatePaidPaymentsHaveEmployee(dto.payments());
 
@@ -203,6 +207,9 @@ public class RentalContractService {
                 .map(ContractItemMetaInputDTO::accessoryId)
                 .collect(Collectors.toList());
         validator.validateAccessoriesAvailability(revisionService.pendingAccessoryIds(contract, accessoryIds));
+
+        // Bloqueio antecipado no salvar; em REVISION o contrato original é excluído da checagem
+        validator.validateNoReservationConflicts(dto.items(), dto.eventDate(), contract.getId(), contract.getParentContractId());
 
         // Valida que parcelas PAID possuem funcionário responsável
         validator.validatePaidPaymentsHaveEmployee(dto.payments());

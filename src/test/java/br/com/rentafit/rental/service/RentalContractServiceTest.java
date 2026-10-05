@@ -329,6 +329,20 @@ class RentalContractServiceTest {
     }
 
     @Test
+    @DisplayName("create deve bloquear o salvamento quando há conflito de reserva")
+    void testCreate_blockedByReservationConflict() {
+        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        doThrow(new ValidationException("Conflito de reserva: Item 'Vestido de Noiva' indisponível"))
+                .when(validator).validateNoReservationConflicts(any(), any(), isNull(), isNull());
+
+        assertThatThrownBy(() -> contractService.create(createDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Conflito de reserva");
+
+        verify(contractRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     @DisplayName("create deve gerar legacyId sequencial quando já existem contratos no dia")
     void testCreate_autoGenerateLegacyId_increment() {
         String todayPrefix = LocalDate.now().format(DateTimeFormatter.ofPattern("yyMMdd")) + "-";
@@ -537,6 +551,47 @@ class RentalContractServiceTest {
         verify(mapper).updateEntityFromDTO(any(), eq(updateDTO), argThat(payments ->
                 payments.size() == 1
         ));
+    }
+
+    @Test
+    @DisplayName("update em REVISION deve excluir o contrato original da checagem de conflitos")
+    void testUpdate_revisionExcludesParentFromConflictCheck() {
+        UUID parentId = UUID.randomUUID();
+        RentalContract revisionContract = RentalContract.builder()
+                .id(contractId).parentContractId(parentId)
+                .customerId(customerId).customerName("Ana Lima")
+                .status(ContractStatus.REVISION)
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .returned(false).items(new ArrayList<>()).payments(new ArrayList<>())
+                .build();
+        RentalContract parentContract = RentalContract.builder()
+                .id(parentId).status(ContractStatus.SIGNED)
+                .items(new ArrayList<>()).payments(new ArrayList<>()).build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(revisionContract));
+        when(contractRepository.findById(parentId)).thenReturn(Optional.of(parentContract));
+        when(validator.calculatePaymentDeficit(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(contractRepository.save(any())).thenReturn(revisionContract);
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(7),
+                LocalDate.now().plusDays(9),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
+        );
+
+        contractService.update(contractId, updateDTO);
+
+        verify(validator).validateNoReservationConflicts(
+                updateDTO.items(), updateDTO.eventDate(), contractId, parentId);
     }
 
     @Test

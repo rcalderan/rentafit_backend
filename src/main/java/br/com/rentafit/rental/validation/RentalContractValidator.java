@@ -125,22 +125,39 @@ public class RentalContractValidator {
                 .map(br.com.rentafit.rental.domain.RentalContractItem::getRentalItemId).toList());
         List<ItemConflict> conflicts = conflictChecker.check(contractItems, eventDate, excludeContractId);
 
-        List<String> blockingMessages = new ArrayList<>();
-        List<String> warningMessages  = new ArrayList<>();
+        throwIfBlocking(conflicts);
 
-        for (ItemConflict conflict : conflicts) {
-            if (conflict.severity() == ConflictSeverity.BLOCKING) {
-                blockingMessages.add(conflict.toMessage());
-            } else {
-                warningMessages.add(conflict.toMessage());
-            }
-        }
+        List<String> warningMessages = conflicts.stream()
+                .filter(c -> c.severity() != ConflictSeverity.BLOCKING)
+                .map(ItemConflict::toMessage)
+                .toList();
+        return warningMessages.isEmpty() ? null : warningMessages;
+    }
 
+    /**
+     * Bloqueia o salvamento da proposta (create/update) quando algum item conflita
+     * com uma reserva ativa (SIGNED/FINALIZED) dentro da janela configurada —
+     * mesma regra aplicada em sign()/finalize(), antecipada para o salvar.
+     * Em REVISION, {@code parentContractId} exclui o contrato original da checagem.
+     */
+    public void validateNoReservationConflicts(
+            List<ContractItemInputDTO> items,
+            LocalDate eventDate,
+            UUID excludeContractId,
+            UUID parentContractId
+    ) {
+        if (items == null || items.isEmpty() || eventDate == null) return;
+        throwIfBlocking(conflictChecker.checkDraft(items, eventDate, excludeContractId, parentContractId));
+    }
+
+    private void throwIfBlocking(List<ItemConflict> conflicts) {
+        List<String> blockingMessages = conflicts.stream()
+                .filter(c -> c.severity() == ConflictSeverity.BLOCKING)
+                .map(ItemConflict::toMessage)
+                .toList();
         if (!blockingMessages.isEmpty()) {
             throw new ValidationException("Conflito de reserva: " + String.join("; ", blockingMessages));
         }
-
-        return warningMessages.isEmpty() ? null : warningMessages;
     }
 
     // ── Validações de item ────────────────────────────────────────────────────

@@ -651,4 +651,50 @@ class RentalContractValidatorTest {
                     .hasMessageContaining("Conflito de reserva");
         }
     }
+
+    // ── validateNoReservationConflicts (salvar proposta) ─────────────────────
+
+    @Nested
+    @DisplayName("validateNoReservationConflicts")
+    class SaveConflicts {
+
+        private final ContractItemInputDTO item = new ContractItemInputDTO(
+                UUID.randomUUID(), "001", "Vestido", new BigDecimal("100.00"),
+                UUID.randomUUID(), List.of());
+
+        @Test
+        @DisplayName("Deve bloquear o salvamento quando há conflito de reserva")
+        void deveBloquearComConflito() {
+            ItemConflict blocking = new ItemConflict(item.rentalItemId(), "Vestido",
+                    LocalDate.now(), UUID.randomUUID(), ConflictSeverity.BLOCKING);
+            when(conflictChecker.checkDraft(any(), any(), any(), any())).thenReturn(List.of(blocking));
+
+            assertThatThrownBy(() -> validator.validateNoReservationConflicts(
+                    List.of(item), LocalDate.now(), UUID.randomUUID(), null))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Conflito de reserva");
+        }
+
+        @Test
+        @DisplayName("Deve repassar o contrato-pai ao validar uma revisão")
+        void deveRepassarContratoPai() {
+            UUID revisionId = UUID.randomUUID();
+            UUID parentId = UUID.randomUUID();
+            when(conflictChecker.checkDraft(any(), any(), any(), any())).thenReturn(List.of());
+
+            validator.validateNoReservationConflicts(List.of(item), LocalDate.now(), revisionId, parentId);
+
+            verify(conflictChecker).checkDraft(any(), any(), eq(revisionId), eq(parentId));
+        }
+
+        @Test
+        @DisplayName("Deve ignorar lista vazia, nula ou data nula")
+        void deveIgnorarEntradasVazias() {
+            validator.validateNoReservationConflicts(List.of(), LocalDate.now(), null, null);
+            validator.validateNoReservationConflicts(null, LocalDate.now(), null, null);
+            validator.validateNoReservationConflicts(List.of(item), null, null, null);
+
+            verify(conflictChecker, never()).checkDraft(any(), any(), any(), any());
+        }
+    }
 }
