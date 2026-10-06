@@ -37,9 +37,6 @@ import java.util.UUID;
 public class ItemConflictChecker {
 
     private final br.com.rentafit.settings.service.ApplicationSettingsService settings;
-    private static final List<ContractStatus> ACTIVE_STATUSES = List.of(
-            ContractStatus.SIGNED, ContractStatus.FINALIZED
-    );
 
     private final RentalContractItemRepository contractItemRepository;
 
@@ -105,7 +102,7 @@ public class ItemConflictChecker {
             LocalDate end   = eventDate.plusDays(windowDays);
 
             List<RentalContractItem> candidates = contractItemRepository
-                    .findConflictCandidates(item.rentalItemId(), start, end, ACTIVE_STATUSES);
+                    .findConflictCandidates(item.rentalItemId(), start, end, ContractStatus.RESERVATION_STATUSES);
 
             for (RentalContractItem candidate : candidates) {
                 UUID candidateContractId = candidate.getContract().getId();

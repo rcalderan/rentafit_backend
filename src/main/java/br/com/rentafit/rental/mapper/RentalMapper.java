@@ -179,6 +179,25 @@ public class RentalMapper {
                 .build();
     }
 
+    /**
+     * DTO de reserva ativa por item (endpoint byItem). Não acessa items/payments —
+     * apenas campos escalares do contrato + legacyId do cliente resolvido via CustomerPort.
+     */
+    public ItemReservationDTO toItemReservationDTO(RentalContract contract, Integer customerLegacyId) {
+        return new ItemReservationDTO(
+                contract.getId(),
+                contract.getLegacyId(),
+                contract.getCustomerId(),
+                contract.getCustomerName(),
+                customerLegacyId,
+                contract.getEventDate(),
+                contract.getPickupDate(),
+                contract.getReturnDate(),
+                contract.getStatus().name(),
+                contract.getStatus().getDescription()
+        );
+    }
+
     // ── Item ──────────────────────────────────────────────────────────────────
 
     public RentalContractItem toItemEntity(ContractItemInputDTO dto, RentalContract contract) {

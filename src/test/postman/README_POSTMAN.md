@@ -230,6 +230,11 @@ Estas variáveis são definidas em nível de coleção e podem ser substituídas
 3. ⚡ Sign 2nd Contract → espera 422 BLOCKING
 4. ⚡ Create 3rd Contract (mesmo item, +2 dias) → salva warning_contract_id
 5. ⚡ Sign 3rd Contract → espera 200 com warnings[]
+
+# Reservas ativas por item
+1. List Item Reservations — `GET /api/v1/rental/contracts/byItem/{{rental_product_id}}`
+   → 200 com contratos SIGNED/FINALIZED (eventDate >= hoje) que reservam o item
+   → query param opcional `excludeContractId` exclui o contrato em edição da lista
 ```
 
 #### Conflitos de reserva — regras

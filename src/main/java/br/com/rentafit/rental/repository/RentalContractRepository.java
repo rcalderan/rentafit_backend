@@ -54,6 +54,26 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
             LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses);
 
     /**
+     * Contratos que reservam um item (status na lista, eventDate a partir de fromDate),
+     * ordenados pelo evento mais próximo.
+     *
+     * <p>DISTINCT porque o mesmo rentalItemId pode aparecer em mais de um item do
+     * mesmo contrato. A coleção items não é lida após o join — sem custo de SUBSELECT.</p>
+     */
+    @Query("""
+            SELECT DISTINCT c FROM RentalContract c
+            JOIN c.items i
+            WHERE i.rentalItemId = :rentalItemId
+              AND c.status IN :statuses
+              AND c.eventDate >= :fromDate
+            ORDER BY c.eventDate ASC
+            """)
+    List<RentalContract> findReservationsByRentalItemId(
+            @Param("rentalItemId") UUID rentalItemId,
+            @Param("statuses") List<ContractStatus> statuses,
+            @Param("fromDate") LocalDate fromDate);
+
+    /**
      * Agregado de valores por contrato para listagens paginadas.
      *
      * <p>Substitui o carregamento das coleções items/payments via SUBSELECT em findAll:

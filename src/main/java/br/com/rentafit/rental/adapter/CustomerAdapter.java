@@ -5,6 +5,9 @@ import br.com.rentafit.rental.port.CustomerPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,6 +27,16 @@ public class CustomerAdapter implements CustomerPort {
     public Optional<CustomerSnapshot> findById(UUID customerId) {
         return customerRepository.findById(customerId)
                 .map(c -> new CustomerSnapshot(c.getId(), c.getName(), c.getDocument()));
+    }
+
+    @Override
+    public Map<UUID, Integer> findLegacyIdsByIds(Collection<UUID> customerIds) {
+        if (customerIds == null || customerIds.isEmpty()) return Map.of();
+        // Loop manual: Collectors.toMap lança NPE quando Person.legacyId é null
+        Map<UUID, Integer> legacyIds = new HashMap<>();
+        customerRepository.findAllById(customerIds)
+                .forEach(c -> legacyIds.put(c.getId(), c.getLegacyId()));
+        return legacyIds;
     }
 }
 
