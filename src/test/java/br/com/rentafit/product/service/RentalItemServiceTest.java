@@ -223,6 +223,58 @@ class RentalItemServiceTest {
     }
 
     @Test
+    @DisplayName("Should search rental items with full-text query and matched categories")
+    void testSearch() {
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<RentalItem> page = new PageImpl<>(List.of(rentalItem), pageable, 1);
+        when(categoryRepository.findIdsMatchingTsQuery("vest:*")).thenReturn(List.of(categoryId));
+        when(rentalItemRepository.searchByFullText("vest:*", "vest", List.of(categoryId), pageable)).thenReturn(page);
+
+        // Act
+        Page<RentalItemDetailsDTO> result = rentalItemService.search("vest", null, pageable);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        verify(rentalItemRepository).searchByFullText("vest:*", "vest", List.of(categoryId), pageable);
+        verify(rentalItemRepository, never()).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("Should search with sentinel UUID when no category matches")
+    void testSearchWithNoCategoryMatch() {
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<RentalItem> page = new PageImpl<>(List.of(rentalItem), pageable, 1);
+        when(categoryRepository.findIdsMatchingTsQuery("vest:*")).thenReturn(List.of());
+        when(rentalItemRepository.searchByFullText("vest:*", "vest", List.of(new UUID(0, 0)), pageable)).thenReturn(page);
+
+        // Act
+        Page<RentalItemDetailsDTO> result = rentalItemService.search("vest", null, pageable);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        verify(rentalItemRepository).searchByFullText("vest:*", "vest", List.of(new UUID(0, 0)), pageable);
+    }
+
+    @Test
+    @DisplayName("Should fallback to findAll when search term has no token")
+    void testSearchFallsBackWhenBlank() {
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<RentalItem> page = new PageImpl<>(List.of(rentalItem), pageable, 1);
+        when(rentalItemRepository.findAll(pageable)).thenReturn(page);
+
+        // Act
+        Page<RentalItemDetailsDTO> result = rentalItemService.search("  ", null, pageable);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        verify(rentalItemRepository).findAll(pageable);
+        verify(rentalItemRepository, never()).searchByFullText(anyString(), anyString(), any(), any(Pageable.class));
+    }
+
+    @Test
     @DisplayName("Should update rental item successfully")
     void testUpdate() {
         // Arrange

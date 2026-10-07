@@ -59,7 +59,9 @@ public class RentalPaymentService {
     }
 
     public RentalPaymentDetailsDTO addPayment(UUID contractId, RentalPaymentInputDTO dto) {
+        contractRepository.lockById(contractId);
         RentalContract contract = requireContract(contractId);
+        requirePaymentMutation(contract, dto);
 
         validatePaymentDate(dto, contract);
         validateInstallmentLimit(contractId);
@@ -81,8 +83,10 @@ public class RentalPaymentService {
      * @return lista contendo a parcela atualizada e, se houver, a parcela-gap criada automaticamente
      */
     public List<RentalPaymentDetailsDTO> updatePayment(UUID contractId, UUID paymentId, RentalPaymentInputDTO dto) {
+        contractRepository.lockById(contractId);
         RentalPayment payment = requirePayment(paymentId, contractId);
         RentalContract contract = requireContract(contractId);
+        requirePaymentMutation(contract, dto);
         validatePaidInstallmentMutationAllowed(contract, payment, "atualizar");
         validateLockedContractSettlementIntegrity(contract, payment, dto);
         validatePaymentDate(dto, contract);
@@ -115,7 +119,9 @@ public class RentalPaymentService {
     }
 
     public void cancelPayment(UUID contractId, UUID paymentId) {
+        contractRepository.lockById(contractId);
         RentalContract contract = requireContract(contractId);
+        requirePaymentMutation(contract, null);
 
         RentalPayment payment = requirePayment(paymentId, contractId);
         validatePaidInstallmentMutationAllowed(contract, payment, "cancelar");
@@ -285,6 +291,15 @@ public class RentalPaymentService {
             throw new ValidationException(
                     "Ao marcar parcela como PAGA em contrato assinado/finalizado/em revisão, "
                             + "não é permitido alterar número, data, forma ou valor da parcela");
+        }
+    }
+
+    private void requirePaymentMutation(RentalContract contract, RentalPaymentInputDTO dto) {
+        if (contract.getStatus() == ContractStatus.SUPERSEDED) {
+            throw new ValidationException("Contrato " + contract.getId() + " SUPERSEDED: pagamentos são somente leitura");
+        }
+        if (contract.getStatus() == ContractStatus.REVISION && dto != null && "PAID".equalsIgnoreCase(dto.status())) {
+            throw new ValidationException("Contrato " + contract.getId() + " REVISION: esperado pagamento PENDING sem novo recebimento");
         }
     }
 

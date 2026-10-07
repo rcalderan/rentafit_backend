@@ -73,13 +73,14 @@ public class UserRoleService {
         }
 
         RoleName actorRole = actor.getRole();
+        userAccountRepository.lockById(targetUserId);
         UserAccount target = userAccountRepository.findById(targetUserId)
                 .orElseThrow(() -> ResourceNotFoundException.forId("UserAccount", targetUserId));
         RoleName targetCurrentRole = target.getRole();
 
         validateChangeAllowed(actorRole, targetCurrentRole, newRole);
 
-        if (newRole == RoleName.EMPLOYEE || newRole == RoleName.MANAGER) {
+        if (newRole == RoleName.EMPLOYEE || newRole == RoleName.MANAGER || newRole == RoleName.ADMIN) {
             employeeService.ensureEmployeeForPerson(targetUserId, initials, roleLevel);
         }
 
@@ -103,17 +104,13 @@ public class UserRoleService {
             throw new ValidationException("MANAGER cannot assign role ADMIN");
         }
         int managerRank = RANK.get(RoleName.MANAGER);
-        if (rankOf(targetCurrentRole) >= managerRank) {
+        // Conta sem linha em user_roles (migração não atribui role) vale 0 —
+        // MANAGER precisa conseguir dar a primeira role a esses usuários.
+        int targetRank = targetCurrentRole == null ? 0 : RANK.get(targetCurrentRole);
+        if (targetRank >= managerRank) {
             throw new ValidationException(
                     "MANAGER cannot modify a user whose current role is '" + targetCurrentRole + "'");
         }
-    }
-
-    private int rankOf(RoleName role) {
-        if (role == null || !RANK.containsKey(role)) {
-            throw new ValidationException("Unknown role: " + role);
-        }
-        return RANK.get(role);
     }
 
     private void applyRole(UserAccount target, RoleName newRole) {

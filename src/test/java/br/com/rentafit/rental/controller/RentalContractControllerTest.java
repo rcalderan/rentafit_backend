@@ -3,6 +3,7 @@ package br.com.rentafit.rental.controller;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.dto.*;
+import br.com.rentafit.rental.service.ItemReservationService;
 import br.com.rentafit.rental.service.RentalContractService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +34,7 @@ import static org.mockito.Mockito.*;
 class RentalContractControllerTest {
 
     @Mock private RentalContractService contractService;
+    @Mock private ItemReservationService itemReservations;
 
     @InjectMocks
     private RentalContractController controller;
@@ -106,9 +108,9 @@ class RentalContractControllerTest {
     @DisplayName("GET / deve retornar 200 com página de contratos")
     void testFindAll_returns200() {
         Page<RentalContractSummaryDTO> page = new PageImpl<>(List.of(summaryDTO));
-        when(contractService.findAll(any())).thenReturn(page);
+        when(contractService.search(isNull(), isNull(), any())).thenReturn(page);
 
-        ResponseEntity<Page<RentalContractSummaryDTO>> response = controller.findAll(PageRequest.of(0, 10));
+        ResponseEntity<Page<RentalContractSummaryDTO>> response = controller.findAll(null, null, PageRequest.of(0, 10));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
@@ -348,6 +350,27 @@ class RentalContractControllerTest {
         ResponseEntity<RentalContractDetailsDTO> response = controller.deliverItem(contractId, itemId, attendantId);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
+    // ── findItemReservations ───────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("GET /byItem/{rentalItemId} deve retornar 200 com reservas ativas do item")
+    void testFindItemReservations_returns200() {
+        UUID rentalItemId = UUID.randomUUID();
+        UUID excludeId = UUID.randomUUID();
+        List<ItemReservationDTO> reservations = List.of(new ItemReservationDTO(
+                contractId, legacyId, customerId, "Ana Lima", 101,
+                LocalDate.now().plusDays(7), LocalDate.now().plusDays(5), LocalDate.now().plusDays(9),
+                "SIGNED", "Assinado"));
+        when(itemReservations.findReservationsByItem(rentalItemId, excludeId)).thenReturn(reservations);
+
+        ResponseEntity<List<ItemReservationDTO>> response =
+                controller.findItemReservations(rentalItemId, excludeId);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).containsExactlyElementsOf(reservations);
+        verify(itemReservations).findReservationsByItem(rentalItemId, excludeId);
     }
 
     // ── warnings field ────────────────────────────────────────────────────────

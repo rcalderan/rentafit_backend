@@ -2,6 +2,8 @@ package br.com.rentafit.product.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.search.SearchMode;
+import br.com.rentafit.common.search.TsQueryBuilder;
 import br.com.rentafit.product.domain.Category;
 import br.com.rentafit.product.domain.RentalItem;
 import br.com.rentafit.product.dto.rental.*;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -74,12 +77,27 @@ public class RentalItemService {
                 .map(RentalItem::toDTO);
     }
 
+    @Transactional(readOnly = true)
+    public Page<RentalItemDetailsDTO> search(String q, SearchMode mode, Pageable pageable) {
+        String tsQuery = TsQueryBuilder.toTsQuery(q, mode);
+        if (tsQuery == null) {
+            return findAll(pageable);
+        }
+        List<UUID> categoryIds = TsQueryBuilder.idsOrNeverMatch(categoryRepository.findIdsMatchingTsQuery(tsQuery));
+        return rentalItemRepository.searchByFullText(tsQuery, TsQueryBuilder.toExactQuery(q), categoryIds, pageable)
+                .map(RentalItem::toDTO);
+    }
+
     public RentalItemDetailsDTO update(UUID id, RentalItemUpdateDTO dto) {
         log.debug("Updating rental item: {}", id);
 
         RentalItem product = rentalItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product Rental update", "id", id.toString()));
+        rentalItemRepository.lockItems(java.util.List.of(id));
         product.updateFromDTO(dto);
+        if ("AVAILABLE".equals(dto.status()) && rentalItemRepository.hasPendingReservation(id)) {
+            product.setStatus(br.com.rentafit.product.domain.enums.ProductStatus.RESERVED);
+        }
 
         RentalItem saved = rentalItemRepository.save(product);
 

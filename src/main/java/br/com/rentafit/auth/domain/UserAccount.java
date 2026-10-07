@@ -74,6 +74,12 @@ public class UserAccount implements UserDetails {
         return roles.get(0).getRole();
     }
 
+    public boolean hasOperationalRole() {
+        return roles != null && roles.stream().anyMatch(role -> role != null
+                && (role.getRole() == RoleName.EMPLOYEE || role.getRole() == RoleName.MANAGER
+                || role.getRole() == RoleName.ADMIN));
+    }
+
     public UserAccount() { }
 
     public UserAccount(Person person, String password) {

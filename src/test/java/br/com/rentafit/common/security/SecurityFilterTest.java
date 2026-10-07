@@ -76,6 +76,32 @@ class SecurityFilterTest {
     }
 
     @Test
+    void rejectsDisabledAccountWithValidToken() throws ServletException, IOException {
+        UserAccount user = new UserAccount();
+        user.setIsActive(false);
+        when(request.getHeader("Authorization")).thenReturn("Bearer valid-token");
+        when(tokenService.validateToken("valid-token")).thenReturn("user");
+        when(userRepository.findByUsername("user")).thenReturn(Optional.of(user));
+
+        securityFilter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
+    void rejectsDeletedAccountWithoutInternalServerError() throws ServletException, IOException {
+        when(request.getHeader("Authorization")).thenReturn("Bearer valid-token");
+        when(tokenService.validateToken("valid-token")).thenReturn("deleted-user");
+        when(userRepository.findByUsername("deleted-user")).thenReturn(Optional.empty());
+
+        securityFilter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
     @DisplayName("Should not authenticate with missing header")
     void doFilterInternal_noHeader() throws ServletException, IOException {
         when(request.getHeader("Authorization")).thenReturn(null);

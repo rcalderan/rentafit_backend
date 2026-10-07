@@ -16,6 +16,14 @@ public interface RentalContractItemRepository extends JpaRepository<RentalContra
 
     List<RentalContractItem> findByContractId(UUID contractId);
 
+    @Query("SELECT COUNT(item) FROM RentalContractItem item WHERE item.rentalItemId = :itemId "
+            + "AND item.contract.status = 'FINALIZED' AND item.delivered = true AND item.returned = false")
+    long countOutstandingDeliveries(@Param("itemId") UUID itemId);
+
+    @Query("SELECT COUNT(item) FROM RentalContractItem item WHERE item.rentalItemId = :itemId "
+            + "AND item.contract.id <> :excludedId AND item.contract.status = 'FINALIZED'")
+    long countOtherReservations(@Param("itemId") UUID itemId, @Param("excludedId") UUID excludedId);
+
     /**
      * Busca itens de contrato que possuem o mesmo rentalItemId e cujo contrato pai tem
      * eventDate no intervalo [startDate, endDate] e status dentro da lista informada.

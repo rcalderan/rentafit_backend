@@ -3,6 +3,7 @@ package br.com.rentafit.rental.validation;
 import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalContractItem;
 import br.com.rentafit.rental.domain.enums.ContractStatus;
+import br.com.rentafit.rental.dto.ContractItemInputDTO;
 import br.com.rentafit.rental.repository.RentalContractItemRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.*;
 class ItemConflictCheckerTest {
 
     @Mock private RentalContractItemRepository contractItemRepository;
+    @Mock private br.com.rentafit.settings.service.ApplicationSettingsService settings;
 
     @InjectMocks
     private ItemConflictChecker conflictChecker;
@@ -41,6 +43,7 @@ class ItemConflictCheckerTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(settings.rentalWindowDays()).thenReturn(3);
         rentalItemId         = UUID.randomUUID();
         contractId           = UUID.randomUUID();
         conflictingContractId = UUID.randomUUID();
@@ -84,6 +87,17 @@ class ItemConflictCheckerTest {
     /** Overload de conveniência: usa rentalItemId padrão */
     private RentalContractItem buildCandidateItem(LocalDate candidateEventDate) {
         return buildCandidateItem(rentalItemId, candidateEventDate);
+    }
+
+    @Test
+    void configuredTwoDayWindowAllowsThreeDaysAndBlocksTwoDays() {
+        when(settings.rentalWindowDays()).thenReturn(2);
+        when(contractItemRepository.findConflictCandidates(eq(rentalItemId), any(), any(), any()))
+                .thenReturn(List.of(buildCandidateItem(eventDate.plusDays(2)), buildCandidateItem(eventDate.minusDays(3))));
+        var result = conflictChecker.check(List.of(myItem), eventDate, contractId);
+        assertThat(result).hasSize(1).allMatch(c -> c.severity() == ConflictSeverity.BLOCKING);
+        verify(contractItemRepository).findConflictCandidates(eq(rentalItemId),
+                eq(eventDate.minusDays(2)), eq(eventDate.plusDays(2)), any());
     }
 
     // ── Sem conflito ──────────────────────────────────────────────────────────
@@ -178,7 +192,7 @@ class ItemConflictCheckerTest {
             List<ItemConflict> result = conflictChecker.check(List.of(myItem), eventDate, contractId);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.WARNING);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -191,7 +205,7 @@ class ItemConflictCheckerTest {
             List<ItemConflict> result = conflictChecker.check(List.of(myItem), eventDate, contractId);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.WARNING);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -204,7 +218,7 @@ class ItemConflictCheckerTest {
             List<ItemConflict> result = conflictChecker.check(List.of(myItem), eventDate, contractId);
 
             assertThat(result).hasSize(1);
-            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.WARNING);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -219,7 +233,7 @@ class ItemConflictCheckerTest {
             assertThat(result.get(0).toMessage())
                     .contains("Vestido de Noiva Premium")
                     .contains(conflictingContractId.toString())
-                    .contains("ALERTA");
+                    .contains("BLOQUEIO");
         }
     }
 
@@ -368,7 +382,7 @@ class ItemConflictCheckerTest {
 
             assertThat(result).hasSize(2);
             assertThat(result).anyMatch(c -> c.severity() == ConflictSeverity.BLOCKING);
-            assertThat(result).anyMatch(c -> c.severity() == ConflictSeverity.WARNING);
+            assertThat(result).allMatch(c -> c.severity() == ConflictSeverity.BLOCKING);
         }
 
         @Test
@@ -428,6 +442,52 @@ class ItemConflictCheckerTest {
             verify(contractItemRepository).findConflictCandidates(
                     any(), any(), any(),
                     eq(List.of(ContractStatus.SIGNED, ContractStatus.FINALIZED)));
+        }
+    }
+
+    // ── checkDraft (salvamento de proposta) ───────────────────────────────────
+
+    @Nested
+    @DisplayName("checkDraft — checagem antes de persistir")
+    class DraftChecks {
+
+        private ContractItemInputDTO draftItem(UUID itemId) {
+            return new ContractItemInputDTO(itemId, "001", "Vestido de Noiva Premium",
+                    new BigDecimal("800.00"), UUID.randomUUID(), List.of());
+        }
+
+        @Test
+        @DisplayName("Deve detectar conflito antes da entidade existir")
+        void detectsConflictBeforePersistence() {
+            when(contractItemRepository.findConflictCandidates(eq(rentalItemId), any(), any(), any()))
+                    .thenReturn(List.of(buildCandidateItem(eventDate)));
+
+            List<ItemConflict> result = conflictChecker.checkDraft(
+                    List.of(draftItem(rentalItemId)), eventDate, null, null);
+
+            assertThat(result).hasSize(1);
+            assertThat(result.get(0).severity()).isEqualTo(ConflictSeverity.BLOCKING);
+            assertThat(result.get(0).conflictingContractId()).isEqualTo(conflictingContractId);
+        }
+
+        @Test
+        @DisplayName("Deve excluir o contrato-pai ao salvar uma revisão")
+        void excludesParentContractOnRevision() {
+            when(contractItemRepository.findConflictCandidates(eq(rentalItemId), any(), any(), any()))
+                    .thenReturn(List.of(buildCandidateItem(eventDate)));
+
+            List<ItemConflict> result = conflictChecker.checkDraft(
+                    List.of(draftItem(rentalItemId)), eventDate, UUID.randomUUID(), conflictingContractId);
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("Deve ignorar itens sem vínculo de catálogo e lista nula")
+        void ignoresUnlinkedAndNullItems() {
+            assertThat(conflictChecker.checkDraft(null, eventDate, null, null)).isEmpty();
+            assertThat(conflictChecker.checkDraft(List.of(draftItem(null)), eventDate, null, null)).isEmpty();
+            verify(contractItemRepository, never()).findConflictCandidates(any(), any(), any(), any());
         }
     }
 }

@@ -47,6 +47,8 @@ class RentalContractServiceTest {
     @Mock private RentalWorkflowService workflowService;
     @Mock private CustomerPort customerPort;
     @Mock private RentalMapper mapper;
+    @Mock private br.com.rentafit.auth.service.CurrentAccountId currentAccountId;
+    @Mock private RentalReservationDelta reservationDelta;
 
     @InjectMocks
     private RentalContractService contractService;
@@ -64,6 +66,10 @@ class RentalContractServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(contractService, "legacyIdPattern", "yyMMdd");
+        ReflectionTestUtils.setField(contractService, "revisionService", new RentalRevisionService(
+                contractRepository, mapper, currentAccountId, reservationDelta));
+        ReflectionTestUtils.setField(contractService, "proposalDuplication", new RentalProposalDuplication(contractRepository, validator, mapper));
+        lenient().when(currentAccountId.requireId()).thenReturn(UUID.randomUUID());
         contractId = UUID.randomUUID();
         customerId = UUID.randomUUID();
         legacyId = "CTR001";
@@ -181,6 +187,37 @@ class RentalContractServiceTest {
         assertThat(result.getContent()).isEmpty();
         verify(contractRepository, never()).sumItemValuesByContractIds(any());
         verify(contractRepository, never()).sumPaidValuesByContractIds(any());
+    }
+
+    // ── search (FTS) ───────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("search deve delegar ao FTS com tsquery construída")
+    void testSearch_delegatesToFullText() {
+        Page<RentalContract> page = new PageImpl<>(List.of(draftContract));
+        when(contractRepository.searchByFullText(eq("maria:*"), eq("maria"), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+        when(contractRepository.sumItemValuesByContractIds(any())).thenReturn(List.of());
+        when(contractRepository.sumPaidValuesByContractIds(any())).thenReturn(List.of());
+        when(mapper.toSummaryDTO(draftContract, BigDecimal.ZERO, BigDecimal.ZERO)).thenReturn(summaryDTO);
+
+        Page<RentalContractSummaryDTO> result = contractService.search("maria", null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(contractRepository).searchByFullText(eq("maria:*"), eq("maria"), any(org.springframework.data.domain.Pageable.class));
+        verify(contractRepository, never()).findAll(any(org.springframework.data.domain.Pageable.class));
+    }
+
+    @Test
+    @DisplayName("search sem token cai para findAll")
+    void testSearch_blankFallsBackToFindAll() {
+        Page<RentalContract> page = new PageImpl<>(List.of());
+        when(contractRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
+
+        Page<RentalContractSummaryDTO> result = contractService.search("  ", null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).isEmpty();
+        verify(contractRepository, never()).searchByFullText(anyString(), anyString(), any());
     }
 
     // ── findById ──────────────────────────────────────────────────────────────
@@ -320,6 +357,20 @@ class RentalContractServiceTest {
         assertThatThrownBy(() -> contractService.create(dtoComItemSemAttendant))
                 .isInstanceOf(ValidationException.class)
                 .hasMessageContaining("attendantEmployeeId");
+    }
+
+    @Test
+    @DisplayName("create deve bloquear o salvamento quando há conflito de reserva")
+    void testCreate_blockedByReservationConflict() {
+        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
+        doThrow(new ValidationException("Conflito de reserva: Item 'Vestido de Noiva' indisponível"))
+                .when(validator).validateNoReservationConflicts(any(), any(), isNull(), isNull());
+
+        assertThatThrownBy(() -> contractService.create(createDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Conflito de reserva");
+
+        verify(contractRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -531,6 +582,47 @@ class RentalContractServiceTest {
         verify(mapper).updateEntityFromDTO(any(), eq(updateDTO), argThat(payments ->
                 payments.size() == 1
         ));
+    }
+
+    @Test
+    @DisplayName("update em REVISION deve excluir o contrato original da checagem de conflitos")
+    void testUpdate_revisionExcludesParentFromConflictCheck() {
+        UUID parentId = UUID.randomUUID();
+        RentalContract revisionContract = RentalContract.builder()
+                .id(contractId).parentContractId(parentId)
+                .customerId(customerId).customerName("Ana Lima")
+                .status(ContractStatus.REVISION)
+                .pickupDate(LocalDate.now().plusDays(5))
+                .eventDate(LocalDate.now().plusDays(7))
+                .returnDate(LocalDate.now().plusDays(9))
+                .returned(false).items(new ArrayList<>()).payments(new ArrayList<>())
+                .build();
+        RentalContract parentContract = RentalContract.builder()
+                .id(parentId).status(ContractStatus.SIGNED)
+                .items(new ArrayList<>()).payments(new ArrayList<>()).build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(revisionContract));
+        when(contractRepository.findById(parentId)).thenReturn(Optional.of(parentContract));
+        when(validator.calculatePaymentDeficit(any(), any())).thenReturn(BigDecimal.ZERO);
+        when(contractRepository.save(any())).thenReturn(revisionContract);
+        when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
+
+        UpdateRentalContractDTO updateDTO = new UpdateRentalContractDTO(
+                0, null,
+                LocalDate.now().plusDays(5),
+                LocalDate.now().plusDays(7),
+                LocalDate.now().plusDays(9),
+                "Obs",
+                List.of(new ContractItemInputDTO(UUID.randomUUID(), "001", "Vestido",
+                        new BigDecimal("500.00"), UUID.randomUUID(), List.of())),
+                List.of(new RentalPaymentInputDTO(1, LocalDate.now().plusDays(5),
+                        "PIX", new BigDecimal("500.00"), 1, null, "PENDING"))
+        );
+
+        contractService.update(contractId, updateDTO);
+
+        verify(validator).validateNoReservationConflicts(
+                updateDTO.items(), updateDTO.eventDate(), contractId, parentId);
     }
 
     @Test
@@ -858,7 +950,6 @@ class RentalContractServiceTest {
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(signedContract));
         when(contractRepository.findByParentContractIdAndStatusNot(contractId, ContractStatus.SUPERSEDED))
                 .thenReturn(Optional.empty());
-        when(validator.validateAndGetCustomer(customerId)).thenReturn(customerSnapshot);
         when(contractRepository.findMaxLegacyIdByPrefix(todayPrefix)).thenReturn(Optional.empty());
         when(contractRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(mapper.toDetailsDTO(any(), isNull())).thenReturn(detailsDTO);
@@ -940,6 +1031,8 @@ class RentalContractServiceTest {
                 .payments(new ArrayList<>())
                 .build();
 
+        revisionContract.setParentSnapshot(ReflectionTestUtils.invokeMethod(
+                new RentalRevisionService(contractRepository, mapper, currentAccountId, reservationDelta), "snapshot", parentContract));
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(revisionContract));
         when(contractRepository.findById(parentId)).thenReturn(Optional.of(parentContract));
         when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(null);

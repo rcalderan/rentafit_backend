@@ -2,6 +2,7 @@ package br.com.rentafit.people.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.search.SearchMode;
 import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.domain.PersonAddressDetails;
@@ -101,18 +102,18 @@ class CustomerServiceTest {
     // ==================== findById Tests ====================
 
     @Test
-    @DisplayName("Deve buscar clientes por nome com LIKE e paginação")
+    @DisplayName("Deve buscar clientes por nome com FTS e paginação")
     void shouldFindCustomersByNameLikeWithPagination() {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
 
-        when(customerRepository.findByNameContainingIgnoreCase("test", pageable)).thenReturn(customerPage);
+        when(customerRepository.searchByFullText("test:*", "test", pageable)).thenReturn(customerPage);
 
-        Page<CustomerDetailsDTO> result = customerService.findByName("test", pageable);
+        Page<CustomerDetailsDTO> result = customerService.findByName("test", SearchMode.PREFIX_LAST, pageable);
 
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
-        verify(customerRepository).findByNameContainingIgnoreCase("test", pageable);
+        verify(customerRepository).searchByFullText("test:*", "test", pageable);
         verify(customerRepository, never()).findAll(pageable);
     }
 
@@ -124,11 +125,11 @@ class CustomerServiceTest {
 
         when(customerRepository.findAll(pageable)).thenReturn(customerPage);
 
-        Page<CustomerDetailsDTO> result = customerService.findByName("  ", pageable);
+        Page<CustomerDetailsDTO> result = customerService.findByName("  ", null, pageable);
 
         assertThat(result).isNotNull();
         verify(customerRepository).findAll(pageable);
-        verify(customerRepository, never()).findByNameContainingIgnoreCase(anyString(), any(Pageable.class));
+        verify(customerRepository, never()).searchByFullText(anyString(), anyString(), any(Pageable.class));
     }
 
     @Test
@@ -605,13 +606,27 @@ class CustomerServiceTest {
         Pageable pageable = PageRequest.of(0, 10);
         Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
 
-        when(customerRepository.findByNameContainingIgnoreCase("test", pageable)).thenReturn(customerPage);
+        when(customerRepository.searchByFullText("test:*", "test", pageable)).thenReturn(customerPage);
 
-        Page<CustomerDetailsDTO> result = customerService.search("test", pageable);
+        Page<CustomerDetailsDTO> result = customerService.search("test", null, pageable);
 
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
-        verify(customerRepository).findByNameContainingIgnoreCase("test", pageable);
+        verify(customerRepository).searchByFullText("test:*", "test", pageable);
+    }
+
+    @Test
+    @DisplayName("Deve montar tsquery PREFIX_ALL com prefixo em todos os tokens")
+    void shouldBuildPrefixAllTsQuery() {
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<Customer> customerPage = new PageImpl<>(List.of(testCustomer), pageable, 1);
+
+        when(customerRepository.searchByFullText("maria:* & sil:*", "maria | sil", pageable)).thenReturn(customerPage);
+
+        Page<CustomerDetailsDTO> result = customerService.findByName("maria sil", SearchMode.PREFIX_ALL, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(customerRepository).searchByFullText("maria:* & sil:*", "maria | sil", pageable);
     }
 
     // ==================== getNextLegacyId Tests ====================

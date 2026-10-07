@@ -1,5 +1,6 @@
 package br.com.rentafit.people.controller;
 
+import br.com.rentafit.common.search.SearchMode;
 import br.com.rentafit.people.dto.AddressHistoryDTO;
 import br.com.rentafit.people.dto.CustomerDTO;
 import br.com.rentafit.people.dto.CustomerDetailsDTO;
@@ -28,12 +29,15 @@ public class CustomerController {
     private final CustomerService customerService;
 
     @GetMapping
-    @Operation(summary = "List all customers with pagination")
+    @Operation(summary = "List all customers with pagination",
+            description = "Full-text search em nome/email ordenada por relevância. "
+                    + "mode=PREFIX_LAST (default): último token vira prefixo; PREFIX_ALL: todos viram prefixo.")
     @ApiResponse(responseCode = "200", description = "Customers retrieved successfully")
     public ResponseEntity<Page<CustomerDetailsDTO>> findAll(
             @RequestParam(required = false) String name,
+            @RequestParam(required = false) SearchMode mode,
             @Valid Pageable pageable) {
-        return ResponseEntity.ok(customerService.search(name, pageable));
+        return ResponseEntity.ok(customerService.search(name, mode, pageable));
     }
 
     @GetMapping("/byName/{name}")
@@ -44,7 +48,7 @@ public class CustomerController {
             @ApiResponse(responseCode = "500", description = "Server error")
     })
     public ResponseEntity<Page<CustomerDetailsDTO>> findByName(@PathVariable String name,@Valid Pageable pageable) {
-        return ResponseEntity.ok(customerService.findByName(name,pageable));
+        return ResponseEntity.ok(customerService.findByName(name, SearchMode.PREFIX_LAST, pageable));
     }
 
     @GetMapping("/byNamePrefix/{namePrefix}")

@@ -22,10 +22,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,6 +49,7 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final CryptoService cryptoService;
     private final UserAccountService userAccountService;
+    private final br.com.rentafit.auth.service.LoginSessionIssuer loginSessionIssuer;
 
 
     private static final Pattern BCRYPT_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
@@ -63,7 +65,6 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    @Transactional
     @Operation(summary = "Realiza o login do usuário", description = "Retorna um access token JWT e um refresh token.")
     public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid LoginRequestDTO data) {
 
@@ -79,10 +80,7 @@ public class AuthController {
             var user = (UserAccount)authentication.getPrincipal();
             log.info("Usuário autenticado: {} com roles: {}", user.getUsername(), user.getAuthorities());
 
-            var accessToken = tokenService.generateToken(user.getUsername());
-            var refreshToken = refreshTokenService.createRefreshToken(user);
-
-            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
+            return ResponseEntity.ok(loginSessionIssuer.issue(user));
 //            String incomingPassword = data.password();
 //            String decryptedPassword = cryptoService.decrypt(data.password());
 //            if (cryptoService.isRsaEnabled()) {
@@ -139,8 +137,10 @@ public class AuthController {
 //
 //            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
 
-        } catch (Exception e) {
-            log.warn("Falha na autenticação para username: {} - {}", data.username(), e.getMessage());
+        } catch (AuthenticationServiceException e) {
+            throw e;
+        } catch (AuthenticationException e) {
+            log.warn("Falha na autenticação para username: {}", data.username());
             return ResponseEntity.status(403).build();
         }
     }

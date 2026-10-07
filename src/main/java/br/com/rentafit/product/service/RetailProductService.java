@@ -2,6 +2,8 @@ package br.com.rentafit.product.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.search.SearchMode;
+import br.com.rentafit.common.search.TsQueryBuilder;
 import br.com.rentafit.product.domain.Category;
 import br.com.rentafit.product.domain.RetailProduct;
 import br.com.rentafit.product.domain.Stock;
@@ -19,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -96,6 +99,17 @@ public class RetailProductService {
 
     public Page<ProductRetailDetailsDTO> findAll(@Valid Pageable pageable) {
         return retailProductRepository.findAll(pageable)
+                .map(RetailProduct::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<ProductRetailDetailsDTO> search(String q, SearchMode mode, Pageable pageable) {
+        String tsQuery = TsQueryBuilder.toTsQuery(q, mode);
+        if (tsQuery == null) {
+            return findAll(pageable);
+        }
+        List<UUID> categoryIds = TsQueryBuilder.idsOrNeverMatch(categoryRepository.findIdsMatchingTsQuery(tsQuery));
+        return retailProductRepository.searchByFullText(tsQuery, TsQueryBuilder.toExactQuery(q), categoryIds, pageable)
                 .map(RetailProduct::toDTO);
     }
 

@@ -1,5 +1,6 @@
 package br.com.rentafit.rental.controller;
 
+import br.com.rentafit.common.search.SearchMode;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.service.RentalContractService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -15,6 +16,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -24,12 +26,24 @@ import java.util.UUID;
 public class RentalContractController {
 
     private final RentalContractService contractService;
+    private final br.com.rentafit.rental.service.RentalRevisionService revisions;
+    private final br.com.rentafit.rental.service.ItemReservationService itemReservations;
+
+    @PostMapping("/{id}/revision-restart")
+    public ResponseEntity<RentalContractDetailsDTO> restartRevision(@PathVariable UUID id) {
+        return ResponseEntity.ok(revisions.restart(id));
+    }
 
     @GetMapping
-    @Operation(summary = "Listar contratos (paginado)")
+    @Operation(summary = "Listar contratos (paginado)",
+            description = "q ativa full-text search (legacyId, nome do cliente) ordenada por relevância. "
+                    + "mode=PREFIX_LAST (default) ou PREFIX_ALL.")
     @ApiResponse(responseCode = "200", description = "Contratos retornados com sucesso")
-    public ResponseEntity<Page<RentalContractSummaryDTO>> findAll(Pageable pageable) {
-        return ResponseEntity.ok(contractService.findAll(pageable));
+    public ResponseEntity<Page<RentalContractSummaryDTO>> findAll(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) SearchMode mode,
+            Pageable pageable) {
+        return ResponseEntity.ok(contractService.search(q, mode, pageable));
     }
 
     @GetMapping("/{id}")
@@ -65,6 +79,18 @@ public class RentalContractController {
     public ResponseEntity<Page<RentalContractSummaryDTO>> findByCustomer(
             @PathVariable UUID customerId, Pageable pageable) {
         return ResponseEntity.ok(contractService.findByCustomer(customerId, pageable));
+    }
+
+    @GetMapping("/byItem/{rentalItemId}")
+    @Operation(summary = "Listar reservas ativas de um item",
+            description = "Retorna contratos SIGNED/FINALIZED com eventDate >= hoje que reservam o item. "
+                    + "Usado pelo frontend para alertar o operador ao carregar um item já reservado.")
+    @ApiResponse(responseCode = "200", description = "Reservas retornadas (lista vazia se nenhuma)")
+    public ResponseEntity<List<ItemReservationDTO>> findItemReservations(
+            @PathVariable UUID rentalItemId,
+            @Parameter(description = "Contrato a excluir da lista (ex.: contrato em edição)")
+            @RequestParam(required = false) UUID excludeContractId) {
+        return ResponseEntity.ok(itemReservations.findReservationsByItem(rentalItemId, excludeContractId));
     }
 
     @PostMapping

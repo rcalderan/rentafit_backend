@@ -186,6 +186,22 @@ class UserRoleServiceTest {
     }
 
     @Test
+    @DisplayName("setRole com MANAGER permite mudar usuário sem role (migração deixa user_roles vazio)")
+    void setRole_managerCanAssignFirstRoleToRolelessUser() {
+        admin.setRoles(List.of(roleWithName(RoleName.MANAGER)));
+        target.setRoles(List.of());
+
+        Role employeeRole = roleWithName(RoleName.EMPLOYEE);
+        when(userAccountRepository.findById(targetId)).thenReturn(Optional.of(target));
+        when(roleRepository.findByRole(RoleName.EMPLOYEE)).thenReturn(Optional.of(employeeRole));
+        when(userAccountRepository.save(any())).thenReturn(target);
+
+        service.setRole(admin, targetId, RoleName.EMPLOYEE, "JD", 1);
+
+        verify(userAccountRepository).save(target);
+    }
+
+    @Test
     @DisplayName("setRole lança ValidationException quando actor não tem permissão suficiente")
     void setRole_insufficientPermission() {
         admin.setRoles(List.of(roleWithName(RoleName.EMPLOYEE)));

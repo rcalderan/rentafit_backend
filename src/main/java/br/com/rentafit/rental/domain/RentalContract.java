@@ -68,6 +68,12 @@ public class RentalContract {
     @Column(name = "replaced_by_contract_id")
     private UUID replacedByContractId;
 
+    private UUID revisedByAccountId;
+    private UUID confirmedByAccountId;
+    private OffsetDateTime revisionConfirmedAt;
+    @Column(columnDefinition = "TEXT")
+    private String parentSnapshot;
+
     // ── Datas do contrato ──────────────────────────────────────────────────────
     @Column(name = "pickup_date", nullable = false)
     private LocalDate pickupDate;

@@ -1,5 +1,7 @@
 package br.com.rentafit.rental.port;
 
+import java.util.Collection;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,6 +15,13 @@ import java.util.UUID;
 public interface CustomerPort {
 
     Optional<CustomerSnapshot> findById(UUID customerId);
+
+    /**
+     * Lookup em lote de legacyId dos clientes (Person.legacyId, nullable).
+     * Usado em listagens para evitar N+1 — ausência no mapa ou valor null
+     * significa cliente sem legacyId.
+     */
+    Map<UUID, Integer> findLegacyIdsByIds(Collection<UUID> customerIds);
 
     /**
      * Snapshot imutável dos dados do cliente gravados no contrato.

@@ -441,6 +441,26 @@ class RentalContractValidatorTest {
     class ValidateRevisionPaymentIntegrity {
 
         @Test
+        void rejectsChangedPaidDate() {
+            UUID employeeId = UUID.randomUUID();
+            RentalPayment paid = RentalPayment.builder().installmentNumber(1).value(BigDecimal.TEN)
+                    .paymentMethod(PaymentMethod.PIX).status(PaymentStatus.PAID)
+                    .paymentDate(LocalDate.of(2026, 1, 1)).installments(1).processedByEmployeeId(employeeId).build();
+            RentalPaymentInputDTO changed = new RentalPaymentInputDTO(1, LocalDate.of(2026, 1, 2),
+                    "PIX", BigDecimal.TEN, 1, employeeId, "PAID");
+            assertThatThrownBy(() -> validator.validateRevisionPaymentIntegrity(List.of(changed), List.of(paid)))
+                    .isInstanceOf(ValidationException.class);
+        }
+
+        @Test
+        void rejectsNewPaidPaymentDuringRevision() {
+            RentalPaymentInputDTO added = new RentalPaymentInputDTO(1, LocalDate.now(), "PIX",
+                    BigDecimal.TEN, 1, UUID.randomUUID(), "PAID");
+            assertThatThrownBy(() -> validator.validateRevisionPaymentIntegrity(List.of(added), List.of()))
+                    .isInstanceOf(ValidationException.class);
+        }
+
+        @Test
         @DisplayName("Deve aceitar quando não há parcelas PAID existentes")
         void deveAceitarSemPaidExistentes() {
             RentalPayment pending = RentalPayment.builder()
@@ -629,6 +649,52 @@ class RentalContractValidatorTest {
             assertThatThrownBy(() -> validator.checkConflictsForTransition(List.of(), LocalDate.now(), contractId))
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("Conflito de reserva");
+        }
+    }
+
+    // ── validateNoReservationConflicts (salvar proposta) ─────────────────────
+
+    @Nested
+    @DisplayName("validateNoReservationConflicts")
+    class SaveConflicts {
+
+        private final ContractItemInputDTO item = new ContractItemInputDTO(
+                UUID.randomUUID(), "001", "Vestido", new BigDecimal("100.00"),
+                UUID.randomUUID(), List.of());
+
+        @Test
+        @DisplayName("Deve bloquear o salvamento quando há conflito de reserva")
+        void deveBloquearComConflito() {
+            ItemConflict blocking = new ItemConflict(item.rentalItemId(), "Vestido",
+                    LocalDate.now(), UUID.randomUUID(), ConflictSeverity.BLOCKING);
+            when(conflictChecker.checkDraft(any(), any(), any(), any())).thenReturn(List.of(blocking));
+
+            assertThatThrownBy(() -> validator.validateNoReservationConflicts(
+                    List.of(item), LocalDate.now(), UUID.randomUUID(), null))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Conflito de reserva");
+        }
+
+        @Test
+        @DisplayName("Deve repassar o contrato-pai ao validar uma revisão")
+        void deveRepassarContratoPai() {
+            UUID revisionId = UUID.randomUUID();
+            UUID parentId = UUID.randomUUID();
+            when(conflictChecker.checkDraft(any(), any(), any(), any())).thenReturn(List.of());
+
+            validator.validateNoReservationConflicts(List.of(item), LocalDate.now(), revisionId, parentId);
+
+            verify(conflictChecker).checkDraft(any(), any(), eq(revisionId), eq(parentId));
+        }
+
+        @Test
+        @DisplayName("Deve ignorar lista vazia, nula ou data nula")
+        void deveIgnorarEntradasVazias() {
+            validator.validateNoReservationConflicts(List.of(), LocalDate.now(), null, null);
+            validator.validateNoReservationConflicts(null, LocalDate.now(), null, null);
+            validator.validateNoReservationConflicts(List.of(item), null, null, null);
+
+            verify(conflictChecker, never()).checkDraft(any(), any(), any(), any());
         }
     }
 }

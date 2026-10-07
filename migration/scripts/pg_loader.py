@@ -27,8 +27,13 @@ def truncate_all(conn, tables: list[str]) -> None:
 
 def load_csv(conn, csv_path: Path, table_name: str) -> int:
     with open(csv_path, "r", encoding="utf-8") as f:
+        # Lista explícita vinda do header do CSV: colunas novas no schema
+        # (adicionadas após a geração do dump, ex. print_template_id) ficam
+        # NULL em vez de abortar o COPY com "missing data for column".
+        columns = ", ".join(f'"{col.strip()}"' for col in f.readline().split(","))
         with conn.cursor() as cursor:
-            cursor.copy_expert(f"COPY {table_name} FROM STDIN WITH (FORMAT CSV, HEADER true, ENCODING 'UTF-8', NULL '\\N')", f)
+            cursor.copy_expert(
+                f"COPY {table_name} ({columns}) FROM STDIN WITH (FORMAT CSV, ENCODING 'UTF-8', NULL '\\N')", f)
     conn.commit()
 
     with conn.cursor() as cursor:

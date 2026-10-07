@@ -19,6 +19,10 @@ import java.util.UUID;
 public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> {
     Optional<UserAccount> findByUsername(String username);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT account FROM UserAccount account WHERE account.id = :id")
+    Optional<UserAccount> lockById(@Param("id") UUID id);
+
     @Query("SELECT ua FROM UserAccount ua WHERE ua.username = :username")
     @EntityGraph(attributePaths = {"person", "roles"})
     Optional<UserAccount> findByUsernameWithDetails(@Param("username") String username);

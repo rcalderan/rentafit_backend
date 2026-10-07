@@ -34,6 +34,8 @@ public interface RentalItemPort {
 
     boolean isAvailable(UUID rentalItemId);
 
+    void lockItems(Collection<UUID> rentalItemIds);
+
     /**
      * Snapshot dos dados do item gravado no contrato no momento da criação.
      */

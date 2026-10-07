@@ -207,6 +207,41 @@ class RetailProductServiceTest {
     }
 
     @Test
+    @DisplayName("Should search retail products with full-text query and matched categories")
+    void testSearch() {
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<RetailProduct> page = new PageImpl<>(List.of(retailProduct), pageable, 1);
+        when(categoryRepository.findIdsMatchingTsQuery("camisa:*")).thenReturn(List.of(categoryId));
+        when(retailProductRepository.searchByFullText("camisa:*", "camisa", List.of(categoryId), pageable)).thenReturn(page);
+
+        // Act
+        Page<ProductRetailDetailsDTO> result = retailProductService.search("camisa", null, pageable);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        verify(retailProductRepository).searchByFullText("camisa:*", "camisa", List.of(categoryId), pageable);
+        verify(retailProductRepository, never()).findAll(pageable);
+    }
+
+    @Test
+    @DisplayName("Should fallback to findAll when search term has no token")
+    void testSearchFallsBackWhenBlank() {
+        // Arrange
+        Pageable pageable = PageRequest.of(0, 10);
+        Page<RetailProduct> page = new PageImpl<>(List.of(retailProduct), pageable, 1);
+        when(retailProductRepository.findAll(pageable)).thenReturn(page);
+
+        // Act
+        Page<ProductRetailDetailsDTO> result = retailProductService.search(null, null, pageable);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        verify(retailProductRepository).findAll(pageable);
+        verify(retailProductRepository, never()).searchByFullText(anyString(), anyString(), any(), any(Pageable.class));
+    }
+
+    @Test
     @DisplayName("Should update retail product successfully")
     void testUpdate() {
         // Arrange

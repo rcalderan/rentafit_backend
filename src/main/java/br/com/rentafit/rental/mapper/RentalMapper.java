@@ -66,7 +66,7 @@ public class RentalMapper {
     public void updateEntityFromDTO(RentalContract contract, UpdateRentalContractDTO dto,
                                      List<RentalPaymentInputDTO> payments) {
         // contractType não é alterável — definido na criação
-        contract.setCreatedByEmployeeId(dto.createdByEmployeeId() != null ? dto.createdByEmployeeId() : contract.getCreatedByEmployeeId());
+        if (contract.getCreatedByEmployeeId() == null) contract.setCreatedByEmployeeId(dto.createdByEmployeeId());
         contract.setPickupDate(dto.pickupDate());
         contract.setEventDate(dto.eventDate());
         contract.setReturnDate(dto.returnDate());
@@ -81,12 +81,32 @@ public class RentalMapper {
         }
 
         // Replace payments (using the provided list, which may include auto-generated entries)
-        contract.getPayments().clear();
-        if (payments != null) {
-            payments.stream()
-                    .map(paymentDto -> toPaymentEntity(paymentDto, contract))
-                    .forEach(contract.getPayments()::add);
+        reconcilePayments(contract, payments == null ? List.of() : payments);
+    }
+
+    private void reconcilePayments(RentalContract contract, List<RentalPaymentInputDTO> incoming) {
+        List<RentalPayment> existing = List.copyOf(contract.getPayments());
+        java.util.Set<RentalPayment> retained = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        for (RentalPaymentInputDTO dto : incoming) {
+            RentalPayment matched = existing.stream().filter(payment -> !retained.contains(payment))
+                    .filter(payment -> payment.getInstallmentNumber().equals(dto.installmentNumber()))
+                    .min(java.util.Comparator.comparing(payment -> payment.getStatus().name().equalsIgnoreCase(dto.status()) ? 0 : 1))
+                    .orElseGet(() -> toPaymentEntity(dto, contract));
+            if (contract.getStatus() != ContractStatus.REVISION || matched.getStatus() != PaymentStatus.PAID) applyPayment(matched, dto);
+            if (matched.getId() == null && !contract.getPayments().contains(matched)) contract.getPayments().add(matched);
+            retained.add(matched);
         }
+        contract.getPayments().removeIf(payment -> !retained.contains(payment));
+    }
+
+    private void applyPayment(RentalPayment payment, RentalPaymentInputDTO dto) {
+        payment.setInstallmentNumber(dto.installmentNumber());
+        payment.setPaymentDate(dto.paymentDate());
+        payment.setPaymentMethod(PaymentMethod.valueOf(dto.paymentMethod().toUpperCase(java.util.Locale.ROOT)));
+        payment.setValue(dto.value());
+        payment.setInstallments(dto.installments() == null ? 1 : dto.installments());
+        payment.setProcessedByEmployeeId(dto.processedByEmployeeId());
+        payment.setStatus(dto.status() == null ? PaymentStatus.PENDING : PaymentStatus.valueOf(dto.status().toUpperCase(java.util.Locale.ROOT)));
     }
 
     public RentalContractDetailsDTO toDetailsDTO(RentalContract contract, List<String> warnings) {
@@ -111,6 +131,9 @@ public class RentalMapper {
                 .returnedByEmployeeId(contract.getReturnedByEmployeeId())
                 .parentContractId(contract.getParentContractId())
                 .replacedByContractId(contract.getReplacedByContractId())
+                .revisedByAccountId(contract.getRevisedByAccountId())
+                .confirmedByAccountId(contract.getConfirmedByAccountId())
+                .revisionConfirmedAt(contract.getRevisionConfirmedAt())
                 .pickupDate(contract.getPickupDate())
                 .eventDate(contract.getEventDate())
                 .returnDate(contract.getReturnDate())
@@ -154,6 +177,25 @@ public class RentalMapper {
                 .paidValue(paidValue)
                 .createdAt(contract.getCreatedAt())
                 .build();
+    }
+
+    /**
+     * DTO de reserva ativa por item (endpoint byItem). Não acessa items/payments —
+     * apenas campos escalares do contrato + legacyId do cliente resolvido via CustomerPort.
+     */
+    public ItemReservationDTO toItemReservationDTO(RentalContract contract, Integer customerLegacyId) {
+        return new ItemReservationDTO(
+                contract.getId(),
+                contract.getLegacyId(),
+                contract.getCustomerId(),
+                contract.getCustomerName(),
+                customerLegacyId,
+                contract.getEventDate(),
+                contract.getPickupDate(),
+                contract.getReturnDate(),
+                contract.getStatus().name(),
+                contract.getStatus().getDescription()
+        );
     }
 
     // ── Item ──────────────────────────────────────────────────────────────────

@@ -64,6 +64,7 @@ public class ReturnService {
     // ── Marcação de itens ─────────────────────────────────────────────────────
 
     public ReturnSummaryDTO markItemsReturned(UUID contractId, MarkReturnRequestDTO dto) {
+        contractRepository.lockById(contractId);
         RentalContract contract = requireFinalized(contractId);
 
         for (ReturnEntryDTO entry : dto.entries()) {
@@ -88,6 +89,7 @@ public class ReturnService {
     // ── Fechamento ────────────────────────────────────────────────────────────
 
     public ReturnSummaryDTO closeReturn(UUID contractId, CloseReturnRequestDTO dto) {
+        contractRepository.lockById(contractId);
         RentalContract contract = requireFinalized(contractId);
 
         validateAllItemsReturned(contract);

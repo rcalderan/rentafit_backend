@@ -21,11 +21,34 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
 
     Optional<RentalContract> findByLegacyId(String legacyId);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT contract FROM RentalContract contract WHERE contract.id = :id")
+    Optional<RentalContract> lockById(@Param("id") UUID id);
+
+    @Query(value = "SELECT pg_advisory_xact_lock(1917463412)", nativeQuery = true)
+    void lockLegacyIdGeneration();
+
     Page<RentalContract> findByCustomerId(UUID customerId, Pageable pageable);
+
+    // contract_search_vec cobre legacy_id (B) e customer_name (A) — idx_contracts_fts (V39).
+    @Query("""
+            SELECT c FROM RentalContract c
+            WHERE function('fts_match',
+                    function('contract_search_vec', c.legacyId, c.customerName),
+                    function('to_tsquery', 'pt_unaccent', :tsQuery)) = true
+            ORDER BY function('fts_rank_boosted',
+                    function('contract_search_vec', c.legacyId, c.customerName),
+                    function('to_tsquery', 'pt_unaccent', :tsQuery),
+                    function('to_tsquery', 'raw_unaccent', :exactTsQuery)) DESC, c.customerName ASC
+            """)
+    Page<RentalContract> searchByFullText(@Param("tsQuery") String tsQuery,
+                                          @Param("exactTsQuery") String exactTsQuery,
+                                          Pageable pageable);
 
     List<RentalContract> findByCustomerIdAndStatus(UUID customerId, ContractStatus status);
 
-    @Query("SELECT MAX(r.legacyId) FROM RentalContract r WHERE r.legacyId LIKE :prefix || '%'")
+    @Query(value = "SELECT legacy_id FROM rental_contracts WHERE legacy_id LIKE :prefix || '%' "
+            + "ORDER BY length(legacy_id) DESC, legacy_id DESC LIMIT 1", nativeQuery = true)
     Optional<String> findMaxLegacyIdByPrefix(@Param("prefix") String prefix);
 
     Optional<RentalContract> findByParentContractIdAndStatusNot(UUID parentContractId, ContractStatus excludeStatus);
@@ -44,6 +67,26 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
      */
     List<RentalContract> findByEventDateBetweenAndStatusInOrderByEventDateAscCustomerNameAsc(
             LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses);
+
+    /**
+     * Contratos que reservam um item (status na lista, eventDate a partir de fromDate),
+     * ordenados pelo evento mais próximo.
+     *
+     * <p>DISTINCT porque o mesmo rentalItemId pode aparecer em mais de um item do
+     * mesmo contrato. A coleção items não é lida após o join — sem custo de SUBSELECT.</p>
+     */
+    @Query("""
+            SELECT DISTINCT c FROM RentalContract c
+            JOIN c.items i
+            WHERE i.rentalItemId = :rentalItemId
+              AND c.status IN :statuses
+              AND c.eventDate >= :fromDate
+            ORDER BY c.eventDate ASC
+            """)
+    List<RentalContract> findReservationsByRentalItemId(
+            @Param("rentalItemId") UUID rentalItemId,
+            @Param("statuses") List<ContractStatus> statuses,
+            @Param("fromDate") LocalDate fromDate);
 
     /**
      * Agregado de valores por contrato para listagens paginadas.
