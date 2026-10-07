@@ -76,10 +76,10 @@ class CustomerControllerTest {
         CustomerDetailsDTO detailsDTO = new CustomerDetailsDTO(customerId, null, "João Silva", "12345678900",
                 "joao@example.com", true, "VIP", addressDTO, "123", "Apto 10", List.of());
         Page<CustomerDetailsDTO> page = new PageImpl<>(List.of(detailsDTO), pageable, 1);
-        when(customerService.search(null, pageable)).thenReturn(page);
+        when(customerService.search(null, null, pageable)).thenReturn(page);
 
         // Act
-        ResponseEntity<Page<CustomerDetailsDTO>> response = customerController.findAll(null, pageable);
+        ResponseEntity<Page<CustomerDetailsDTO>> response = customerController.findAll(null, null, pageable);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -89,7 +89,7 @@ class CustomerControllerTest {
         assertThat(response.getBody().getContent().getFirst().name()).isEqualTo("João Silva");
         assertThat(response.getBody().getTotalElements()).isEqualTo(1);
 
-        verify(customerService, times(1)).search(null, pageable);
+        verify(customerService, times(1)).search(null, null, pageable);
     }
 
     @Test

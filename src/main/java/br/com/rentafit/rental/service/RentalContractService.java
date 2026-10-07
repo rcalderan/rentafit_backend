@@ -2,6 +2,8 @@ package br.com.rentafit.rental.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.search.SearchMode;
+import br.com.rentafit.common.search.TsQueryBuilder;
 import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalContractItem;
 import br.com.rentafit.rental.domain.RentalContractItemMeta;
@@ -69,6 +71,15 @@ public class RentalContractService {
     @Transactional(readOnly = true)
     public Page<RentalContractSummaryDTO> findAll(Pageable pageable) {
         return toSummaryPage(contractRepository.findAll(pageable));
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RentalContractSummaryDTO> search(String q, SearchMode mode, Pageable pageable) {
+        String tsQuery = TsQueryBuilder.toTsQuery(q, mode);
+        if (tsQuery == null) {
+            return findAll(pageable);
+        }
+        return toSummaryPage(contractRepository.searchByFullText(tsQuery, TsQueryBuilder.toExactQuery(q), pageable));
     }
 
     @Transactional(readOnly = true)

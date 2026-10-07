@@ -108,9 +108,9 @@ class RentalContractControllerTest {
     @DisplayName("GET / deve retornar 200 com página de contratos")
     void testFindAll_returns200() {
         Page<RentalContractSummaryDTO> page = new PageImpl<>(List.of(summaryDTO));
-        when(contractService.findAll(any())).thenReturn(page);
+        when(contractService.search(isNull(), isNull(), any())).thenReturn(page);
 
-        ResponseEntity<Page<RentalContractSummaryDTO>> response = controller.findAll(PageRequest.of(0, 10));
+        ResponseEntity<Page<RentalContractSummaryDTO>> response = controller.findAll(null, null, PageRequest.of(0, 10));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();

@@ -138,10 +138,10 @@ class RentalItemControllerTest {
         // Arrange
         Pageable pageable = PageRequest.of(0, 10);
         Page<RentalItemDetailsDTO> page = new PageImpl<>(List.of(rentalItemDetailsDTO), pageable, 1);
-        when(rentalItemService.findAll(any(Pageable.class))).thenReturn(page);
+        when(rentalItemService.search(isNull(), isNull(), any(Pageable.class))).thenReturn(page);
 
         // Act
-        ResponseEntity<Page<RentalItemDetailsDTO>> response = rentalItemController.findAll(pageable);
+        ResponseEntity<Page<RentalItemDetailsDTO>> response = rentalItemController.findAll(null, null, pageable);
 
         // Assert
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -149,7 +149,7 @@ class RentalItemControllerTest {
         assertThat(response.getBody().getContent()).hasSize(1);
         assertThat(response.getBody().getContent().getFirst().id()).isEqualTo(productId);
 
-        verify(rentalItemService, times(1)).findAll(any(Pageable.class));
+        verify(rentalItemService, times(1)).search(isNull(), isNull(), any(Pageable.class));
     }
 
     @Test

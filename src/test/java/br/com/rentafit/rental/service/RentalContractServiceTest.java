@@ -189,6 +189,37 @@ class RentalContractServiceTest {
         verify(contractRepository, never()).sumPaidValuesByContractIds(any());
     }
 
+    // ── search (FTS) ───────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("search deve delegar ao FTS com tsquery construída")
+    void testSearch_delegatesToFullText() {
+        Page<RentalContract> page = new PageImpl<>(List.of(draftContract));
+        when(contractRepository.searchByFullText(eq("maria:*"), eq("maria"), any(org.springframework.data.domain.Pageable.class)))
+                .thenReturn(page);
+        when(contractRepository.sumItemValuesByContractIds(any())).thenReturn(List.of());
+        when(contractRepository.sumPaidValuesByContractIds(any())).thenReturn(List.of());
+        when(mapper.toSummaryDTO(draftContract, BigDecimal.ZERO, BigDecimal.ZERO)).thenReturn(summaryDTO);
+
+        Page<RentalContractSummaryDTO> result = contractService.search("maria", null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).hasSize(1);
+        verify(contractRepository).searchByFullText(eq("maria:*"), eq("maria"), any(org.springframework.data.domain.Pageable.class));
+        verify(contractRepository, never()).findAll(any(org.springframework.data.domain.Pageable.class));
+    }
+
+    @Test
+    @DisplayName("search sem token cai para findAll")
+    void testSearch_blankFallsBackToFindAll() {
+        Page<RentalContract> page = new PageImpl<>(List.of());
+        when(contractRepository.findAll(any(org.springframework.data.domain.Pageable.class))).thenReturn(page);
+
+        Page<RentalContractSummaryDTO> result = contractService.search("  ", null, PageRequest.of(0, 10));
+
+        assertThat(result.getContent()).isEmpty();
+        verify(contractRepository, never()).searchByFullText(anyString(), anyString(), any());
+    }
+
     // ── findById ──────────────────────────────────────────────────────────────
 
     @Test

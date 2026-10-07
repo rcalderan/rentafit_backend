@@ -30,6 +30,21 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
 
     Page<RentalContract> findByCustomerId(UUID customerId, Pageable pageable);
 
+    // contract_search_vec cobre legacy_id (B) e customer_name (A) — idx_contracts_fts (V39).
+    @Query("""
+            SELECT c FROM RentalContract c
+            WHERE function('fts_match',
+                    function('contract_search_vec', c.legacyId, c.customerName),
+                    function('to_tsquery', 'pt_unaccent', :tsQuery)) = true
+            ORDER BY function('fts_rank_boosted',
+                    function('contract_search_vec', c.legacyId, c.customerName),
+                    function('to_tsquery', 'pt_unaccent', :tsQuery),
+                    function('to_tsquery', 'raw_unaccent', :exactTsQuery)) DESC, c.customerName ASC
+            """)
+    Page<RentalContract> searchByFullText(@Param("tsQuery") String tsQuery,
+                                          @Param("exactTsQuery") String exactTsQuery,
+                                          Pageable pageable);
+
     List<RentalContract> findByCustomerIdAndStatus(UUID customerId, ContractStatus status);
 
     @Query(value = "SELECT legacy_id FROM rental_contracts WHERE legacy_id LIKE :prefix || '%' "

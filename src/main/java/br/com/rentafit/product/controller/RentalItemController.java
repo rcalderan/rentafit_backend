@@ -1,5 +1,6 @@
 package br.com.rentafit.product.controller;
 
+import br.com.rentafit.common.search.SearchMode;
 import br.com.rentafit.product.dto.rental.RentalItemDTO;
 import br.com.rentafit.product.dto.rental.RentalItemDetailsDTO;
 import br.com.rentafit.product.dto.rental.RentalItemUpdateDTO;
@@ -50,10 +51,15 @@ public class RentalItemController {
     }
 
     @GetMapping
-    @Operation(summary = "List all products with pagination")
+    @Operation(summary = "List all products with pagination",
+            description = "q ativa full-text search (legacyId, nome, categoria, descrição, tamanho, grife/marca, cor) "
+                    + "ordenada por relevância. mode=PREFIX_LAST (default) ou PREFIX_ALL.")
     @ApiResponse(responseCode = "200", description = "Products retrieved successfully")
-    public ResponseEntity<Page<RentalItemDetailsDTO>> findAll(@Valid Pageable pageable) {
-        return ResponseEntity.ok(rentalItemService.findAll(pageable));
+    public ResponseEntity<Page<RentalItemDetailsDTO>> findAll(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) SearchMode mode,
+            @Valid Pageable pageable) {
+        return ResponseEntity.ok(rentalItemService.search(q, mode, pageable));
     }
 
 

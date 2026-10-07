@@ -2,6 +2,8 @@ package br.com.rentafit.product.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.search.SearchMode;
+import br.com.rentafit.common.search.TsQueryBuilder;
 import br.com.rentafit.product.domain.Category;
 import br.com.rentafit.product.domain.RentalItem;
 import br.com.rentafit.product.dto.rental.*;
@@ -15,6 +17,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -71,6 +74,17 @@ public class RentalItemService {
 
     public Page<RentalItemDetailsDTO> findAll(Pageable pageable) {
         return rentalItemRepository.findAll(pageable)
+                .map(RentalItem::toDTO);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RentalItemDetailsDTO> search(String q, SearchMode mode, Pageable pageable) {
+        String tsQuery = TsQueryBuilder.toTsQuery(q, mode);
+        if (tsQuery == null) {
+            return findAll(pageable);
+        }
+        List<UUID> categoryIds = TsQueryBuilder.idsOrNeverMatch(categoryRepository.findIdsMatchingTsQuery(tsQuery));
+        return rentalItemRepository.searchByFullText(tsQuery, TsQueryBuilder.toExactQuery(q), categoryIds, pageable)
                 .map(RentalItem::toDTO);
     }
 

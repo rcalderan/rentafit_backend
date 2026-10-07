@@ -1,5 +1,6 @@
 package br.com.rentafit.rental.controller;
 
+import br.com.rentafit.common.search.SearchMode;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.service.RentalContractService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,10 +35,15 @@ public class RentalContractController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar contratos (paginado)")
+    @Operation(summary = "Listar contratos (paginado)",
+            description = "q ativa full-text search (legacyId, nome do cliente) ordenada por relevância. "
+                    + "mode=PREFIX_LAST (default) ou PREFIX_ALL.")
     @ApiResponse(responseCode = "200", description = "Contratos retornados com sucesso")
-    public ResponseEntity<Page<RentalContractSummaryDTO>> findAll(Pageable pageable) {
-        return ResponseEntity.ok(contractService.findAll(pageable));
+    public ResponseEntity<Page<RentalContractSummaryDTO>> findAll(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) SearchMode mode,
+            Pageable pageable) {
+        return ResponseEntity.ok(contractService.search(q, mode, pageable));
     }
 
     @GetMapping("/{id}")

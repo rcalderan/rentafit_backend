@@ -2,6 +2,8 @@ package br.com.rentafit.people.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.search.SearchMode;
+import br.com.rentafit.common.search.TsQueryBuilder;
 import br.com.rentafit.people.domain.Address;
 import br.com.rentafit.people.domain.Customer;
 import br.com.rentafit.people.domain.PersonAddressDetails;
@@ -42,12 +44,13 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
-    public Page<CustomerDetailsDTO> findByName(String name, @Valid Pageable pageable) {
-        if (name == null || name.isBlank()) {
+    public Page<CustomerDetailsDTO> findByName(String name, SearchMode mode, @Valid Pageable pageable) {
+        String tsQuery = TsQueryBuilder.toTsQuery(name, mode);
+        if (tsQuery == null) {
             return findAll(pageable);
         }
 
-        return customerRepository.findByNameContainingIgnoreCase(name.trim(), pageable)
+        return customerRepository.searchByFullText(tsQuery, TsQueryBuilder.toExactQuery(name), pageable)
                 .map(Customer::toDTO);
     }
 
@@ -62,8 +65,8 @@ public class CustomerService {
     }
 
     @Transactional(readOnly = true)
-    public Page<CustomerDetailsDTO> search(String name, @Valid Pageable pageable) {
-        return findByName(name, pageable);
+    public Page<CustomerDetailsDTO> search(String name, SearchMode mode, @Valid Pageable pageable) {
+        return findByName(name, mode, pageable);
     }
 
     @Transactional(readOnly = true)
