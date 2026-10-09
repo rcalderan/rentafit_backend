@@ -4,7 +4,6 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 
 import java.math.BigDecimal;
-import java.util.List;
 import java.util.UUID;
 
 /**
@@ -13,7 +12,7 @@ import java.util.UUID;
  * <p>Chamado apenas após o operador confirmar que o Termo de Desistência foi
  * impresso e assinado pelo cliente (gate no frontend).</p>
  *
- * <p>Exemplo: {"employeeId": "uuid", "refundPaymentIds": ["uuid", ...],
+ * <p>Exemplo: {"employeeId": "uuid", "refundAmount": 50.00,
  * "applyFine": true, "fineAmount": 135.00}</p>
  */
 public record WithdrawContractDTO(
@@ -21,8 +20,9 @@ public record WithdrawContractDTO(
         @NotNull(message = "employeeId é obrigatório")
         UUID employeeId,
 
-        /** Parcelas PAID a reembolsar. Vazio/nulo = sem devolução de valores. */
-        List<UUID> refundPaymentIds,
+        /** Valor a devolver ao cliente: 0 < refundAmount <= soma das parcelas PAID. Nulo = sem devolução. */
+        @DecimalMin(value = "0.01", message = "refundAmount deve ser maior que zero quando informado")
+        BigDecimal refundAmount,
 
         @NotNull(message = "applyFine é obrigatório")
         Boolean applyFine,

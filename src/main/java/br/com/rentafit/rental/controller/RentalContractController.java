@@ -181,14 +181,14 @@ public class RentalContractController {
     @PostMapping("/{id}/withdraw")
     @Operation(summary = "Registrar desistência (SIGNED|FINALIZED → CANCELLED)",
             description = "Encerra o contrato por desistência do cliente. Deve ser chamado somente após o Termo de "
-                    + "Desistência ter sido impresso e assinado. Reembolsa as parcelas PAID listadas em "
-                    + "refundPaymentIds, cancela parcelas pendentes, registra multa rescisória opcional e libera "
-                    + "itens/estoque reservados.")
+                    + "Desistência ter sido impresso e assinado. Registra o reembolso de refundAmount "
+                    + "(limitado ao total pago), cancela parcelas pendentes, registra multa rescisória "
+                    + "opcional e libera itens/estoque reservados.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Desistência registrada"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
             @ApiResponse(responseCode = "404", description = "Contrato ou funcionário não encontrado"),
-            @ApiResponse(responseCode = "422", description = "Status inválido ou parcela de reembolso não é PAID")
+            @ApiResponse(responseCode = "422", description = "Status inválido ou refundAmount excede o total pago")
     })
     public ResponseEntity<RentalContractDetailsDTO> withdraw(
             @PathVariable UUID id, @Valid @RequestBody WithdrawContractDTO dto) {

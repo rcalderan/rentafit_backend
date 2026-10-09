@@ -121,8 +121,16 @@ class WithdrawalServiceTest {
         pendingPayment.setContract(contract);
     }
 
-    private WithdrawContractDTO dto(List<UUID> refundIds, boolean applyFine, BigDecimal fineAmount) {
-        return new WithdrawContractDTO(employeeId, refundIds, applyFine, fineAmount);
+    private WithdrawContractDTO dto(BigDecimal refundAmount, boolean applyFine, BigDecimal fineAmount) {
+        return new WithdrawContractDTO(employeeId, refundAmount, applyFine, fineAmount);
+    }
+
+    private RentalPayment savedPaymentWithStatus(PaymentStatus status) {
+        ArgumentCaptor<RentalPayment> captor = ArgumentCaptor.forClass(RentalPayment.class);
+        verify(paymentRepository, atLeastOnce()).save(captor.capture());
+        return captor.getAllValues().stream()
+                .filter(p -> status.equals(p.getStatus()))
+                .findFirst().orElseThrow();
     }
 
     private void stubHappyPath() {
@@ -132,10 +140,11 @@ class WithdrawalServiceTest {
     }
 
     @Test
-    @DisplayName("desistência de FINALIZED: cancela contrato, reembolsa parcela e dispara workflow")
+    @DisplayName("desistência de FINALIZED: cancela contrato, registra reembolso e dispara workflow")
     void shouldWithdrawFinalizedContract() {
         stubHappyPath();
-        WithdrawContractDTO request = dto(List.of(paidPayment.getId()), false, null);
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(2);
+        WithdrawContractDTO request = dto(BigDecimal.valueOf(300), false, null);
 
         withdrawalService.withdraw(contractId, request);
 
@@ -143,7 +152,11 @@ class WithdrawalServiceTest {
         assertThat(contract.getReturned()).isTrue();
         assertThat(contract.getActualReturnDate()).isEqualTo(LocalDate.now());
         assertThat(contract.getReturnedByEmployeeId()).isEqualTo(employeeId);
-        assertThat(paidPayment.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        assertThat(paidPayment.getStatus()).isEqualTo(PaymentStatus.PAID);
+        RentalPayment refund = savedPaymentWithStatus(PaymentStatus.REFUNDED);
+        assertThat(refund.getValue()).isEqualByComparingTo(BigDecimal.valueOf(300));
+        assertThat(refund.getInstallmentNumber()).isEqualTo(3);
+        assertThat(refund.getProcessedByEmployeeId()).isEqualTo(employeeId);
         assertThat(pendingPayment.getStatus()).isEqualTo(PaymentStatus.CANCELLED);
         assertThat(item.getReturned()).isTrue();
         assertThat(item.getReturnedByName()).contains("Desistência");
@@ -176,50 +189,42 @@ class WithdrawalServiceTest {
     }
 
     @Test
-    @DisplayName("reembolso parcial: só a parcela selecionada vira REFUNDED")
-    void shouldRefundOnlySelectedPayments() {
-        RentalPayment secondPaid = RentalPayment.builder()
-                .id(UUID.randomUUID())
-                .installmentNumber(3)
-                .paymentDate(LocalDate.now().minusDays(1))
-                .paymentMethod(PaymentMethod.CASH)
-                .value(BigDecimal.valueOf(100))
-                .status(PaymentStatus.PAID)
-                .build();
-        secondPaid.setContract(contract);
-        contract.getPayments().add(secondPaid);
+    @DisplayName("reembolso parcial: valor arbitrário gera lançamento REFUNDED")
+    void shouldRecordPartialRefundAmount() {
         stubHappyPath();
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(2);
 
-        withdrawalService.withdraw(contractId, dto(List.of(secondPaid.getId()), false, null));
+        withdrawalService.withdraw(contractId, dto(BigDecimal.valueOf(50), false, null));
 
-        assertThat(secondPaid.getStatus()).isEqualTo(PaymentStatus.REFUNDED);
+        RentalPayment refund = savedPaymentWithStatus(PaymentStatus.REFUNDED);
+        assertThat(refund.getValue()).isEqualByComparingTo(BigDecimal.valueOf(50));
         assertThat(paidPayment.getStatus()).isEqualTo(PaymentStatus.PAID);
     }
 
     @Test
-    @DisplayName("rejeita reembolso de parcela que não é PAID")
-    void shouldRejectRefundOfNonPaidPayment() {
+    @DisplayName("rejeita refundAmount maior que o total pago")
+    void shouldRejectRefundAbovePaidTotal() {
         stubHappyPath();
 
         assertThatThrownBy(() -> withdrawalService.withdraw(
-                contractId, dto(List.of(pendingPayment.getId()), false, null)))
+                contractId, dto(BigDecimal.valueOf(300.01), false, null)))
                 .isInstanceOf(ValidationException.class)
-                .hasMessageContaining(pendingPayment.getId().toString());
+                .hasMessageContaining("300.01");
 
         assertThat(contract.getStatus()).isEqualTo(ContractStatus.FINALIZED);
         verify(workflowService, never()).onWithdraw(any());
     }
 
     @Test
-    @DisplayName("rejeita reembolso de parcela inexistente no contrato")
-    void shouldRejectRefundOfUnknownPayment() {
+    @DisplayName("reembolso igual ao total pago é aceito")
+    void shouldAcceptRefundEqualToPaidTotal() {
         stubHappyPath();
-        UUID unknownId = UUID.randomUUID();
+        when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(2);
 
-        assertThatThrownBy(() -> withdrawalService.withdraw(
-                contractId, dto(List.of(unknownId), false, null)))
-                .isInstanceOf(ValidationException.class)
-                .hasMessageContaining(unknownId.toString());
+        withdrawalService.withdraw(contractId, dto(BigDecimal.valueOf(300), false, null));
+
+        assertThat(savedPaymentWithStatus(PaymentStatus.REFUNDED).getValue())
+                .isEqualByComparingTo(BigDecimal.valueOf(300));
     }
 
     @Test

@@ -381,9 +381,8 @@ class RentalContractControllerTest {
     @DisplayName("POST /{id}/withdraw deve retornar 200 com contrato cancelado")
     void testWithdraw_returns200() {
         UUID employeeId = UUID.randomUUID();
-        UUID paymentId = UUID.randomUUID();
         WithdrawContractDTO dto = new WithdrawContractDTO(
-                employeeId, List.of(paymentId), true, BigDecimal.valueOf(150));
+                employeeId, BigDecimal.valueOf(300), true, BigDecimal.valueOf(150));
         RentalContractDetailsDTO cancelled = detailsDTO.toBuilder()
                 .status(6).statusDescription("Desistência").build();
         when(withdrawalService.withdraw(contractId, dto)).thenReturn(cancelled);

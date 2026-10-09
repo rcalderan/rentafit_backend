@@ -24,9 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -39,7 +36,8 @@ import java.util.UUID;
  *
  * <p>Efeitos atômicos:
  * <ul>
- *   <li>Parcelas PAID listadas em refundPaymentIds → REFUNDED.</li>
+ *   <li>Reembolso opcional (refundAmount) → lançamento REFUNDED de valor
+ *   negativo, preservando o histórico das parcelas PAID recebidas.</li>
  *   <li>Parcelas PENDING → CANCELLED.</li>
  *   <li>Multa rescisória opcional → nova parcela MULTA (registro de retenção).</li>
  *   <li>Itens/acessórios marcados como devolvidos; estoque liberado via
@@ -69,7 +67,7 @@ public class WithdrawalService {
         Employee employee = employeeRepository.findById(dto.employeeId())
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", "id", dto.employeeId().toString()));
 
-        validateRefundSelection(contract, dto.refundPaymentIds());
+        validateRefundAmount(contract, dto.refundAmount());
 
         OffsetDateTime now = OffsetDateTime.now();
         String returnerName = "Desistência — " + employee.getName();
@@ -106,20 +104,18 @@ public class WithdrawalService {
         }
     }
 
-    private void validateRefundSelection(RentalContract contract, List<UUID> refundPaymentIds) {
-        if (refundPaymentIds == null || refundPaymentIds.isEmpty()) {
+    private void validateRefundAmount(RentalContract contract, BigDecimal refundAmount) {
+        if (refundAmount == null) {
             return;
         }
-        Set<UUID> paidIds = new HashSet<>(contract.getPayments().stream()
+        BigDecimal paidTotal = contract.getPayments().stream()
                 .filter(p -> PaymentStatus.PAID.equals(p.getStatus()))
-                .map(RentalPayment::getId)
-                .toList());
-        for (UUID id : refundPaymentIds) {
-            if (!paidIds.contains(id)) {
-                throw new ValidationException(
-                        "Parcela " + id + " não é um pagamento PAID do contrato " + contract.getId()
-                                + "; somente parcelas pagas podem ser reembolsadas");
-            }
+                .map(RentalPayment::getValue)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (refundAmount.compareTo(paidTotal) > 0) {
+            throw new ValidationException(
+                    "refundAmount " + refundAmount + " excede o total pago do contrato "
+                            + contract.getId() + " (" + paidTotal + ")");
         }
     }
 
@@ -140,20 +136,40 @@ public class WithdrawalService {
     }
 
     private void settlePayments(RentalContract contract, WithdrawContractDTO dto) {
-        Set<UUID> refundIds = dto.refundPaymentIds() == null
-                ? Set.of()
-                : new HashSet<>(dto.refundPaymentIds());
-
         for (RentalPayment payment : contract.getPayments()) {
-            if (refundIds.contains(payment.getId())) {
-                payment.setStatus(PaymentStatus.REFUNDED);
-                paymentRepository.save(payment);
-                log.info("Payment {} refunded for contract {}", payment.getId(), contract.getId());
-            } else if (PaymentStatus.PENDING.equals(payment.getStatus())) {
+            if (PaymentStatus.PENDING.equals(payment.getStatus())) {
                 payment.setStatus(PaymentStatus.CANCELLED);
                 paymentRepository.save(payment);
             }
         }
+        if (dto.refundAmount() != null) {
+            createRefundEntry(contract, dto.refundAmount(), dto.employeeId());
+        }
+    }
+
+    /**
+     * Lançamento REFUNDED com o valor devolvido: registra a devolução ao
+     * cliente sem apagar o histórico das parcelas PAID recebidas.
+     * chk_rental_payment_value exige value > 0 — o status REFUNDED é o
+     * marcador de saída, não o sinal do valor.
+     */
+    private void createRefundEntry(RentalContract contract, BigDecimal refundAmount, UUID employeeId) {
+        int nextInstallment = paymentRepository
+                .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
+
+        RentalPayment refund = RentalPayment.builder()
+                .contract(contract)
+                .installmentNumber(nextInstallment)
+                .paymentDate(LocalDate.now())
+                .paymentMethod(PaymentMethod.CASH)
+                .value(refundAmount)
+                .installments(1)
+                .status(PaymentStatus.REFUNDED)
+                .processedByEmployeeId(employeeId)
+                .build();
+
+        paymentRepository.save(refund);
+        log.info("Refund of {} recorded for contract {}", refundAmount, contract.getId());
     }
 
     private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId) {
