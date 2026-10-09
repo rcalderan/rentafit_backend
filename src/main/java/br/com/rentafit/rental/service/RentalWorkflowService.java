@@ -113,5 +113,45 @@ public class RentalWorkflowService {
             }
         }
     }
+
+    /**
+     * Processado na DESISTÊNCIA de um contrato que chegou a FINALIZED.
+     *
+     * <p>Difere de {@link #onReturn}: itens nunca entregues voltam direto a
+     * AVAILABLE (não saíram da loja — não precisam de higienização); itens
+     * entregues seguem para MAINTENANCE como na devolução normal.
+     * Acessórios catalogados → releaseStock().</p>
+     *
+     * <p>Contratos SIGNED não passam por aqui — a reserva é apenas lógica
+     * (ItemConflictChecker) e sai do ar com a mudança de status.</p>
+     */
+    public void onWithdraw(RentalContract contract) {
+        rentalItemPort.lockItems(contract.getItems().stream().map(RentalContractItem::getRentalItemId)
+                .filter(java.util.Objects::nonNull).distinct().sorted().toList());
+        UUID systemUserId = contract.getReturnedByEmployeeId() != null
+                ? contract.getReturnedByEmployeeId()
+                : contract.getCreatedByEmployeeId();
+
+        for (RentalContractItem item : contract.getItems()) {
+            if (item.getRentalItemId() != null) {
+                if (Boolean.TRUE.equals(item.getDelivered())) {
+                    if (contractItemRepository.countOutstandingDeliveries(item.getRentalItemId()) == 0) {
+                        rentalItemPort.updateStatus(item.getRentalItemId(), ProductStatus.MAINTENANCE);
+                        log.info("RentalItem {} → MAINTENANCE after withdrawal for contract {}", item.getRentalItemId(), contract.getId());
+                    }
+                } else {
+                    reservationDelta.releaseItem(item.getRentalItemId(), contract.getId());
+                    log.info("RentalItem {} released after withdrawal (never delivered) for contract {}", item.getRentalItemId(), contract.getId());
+                }
+            }
+
+            for (RentalContractItemMeta meta : item.getMetadata()) {
+                if (ItemMetaType.ACESSORIO.equals(meta.getType()) && meta.getAccessoryId() != null) {
+                    accessoryPort.releaseStock(meta.getAccessoryId(), systemUserId);
+                    log.info("Accessory {} stock released after withdrawal for contract {}", meta.getAccessoryId(), contract.getId());
+                }
+            }
+        }
+    }
 }
 

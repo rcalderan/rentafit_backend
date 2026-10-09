@@ -249,7 +249,8 @@ public class RentalPaymentService {
         boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
                 || ContractStatus.FINALIZED.equals(contract.getStatus())
                 || ContractStatus.REVISION.equals(contract.getStatus())
-                || ContractStatus.CLOSED.equals(contract.getStatus());
+                || ContractStatus.CLOSED.equals(contract.getStatus())
+                || ContractStatus.CANCELLED.equals(contract.getStatus());
 
         if (contractLocked && PaymentStatus.PAID.equals(payment.getStatus())) {
             throw new ValidationException(
@@ -267,7 +268,8 @@ public class RentalPaymentService {
         boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
                 || ContractStatus.FINALIZED.equals(contract.getStatus())
                 || ContractStatus.REVISION.equals(contract.getStatus())
-                || ContractStatus.CLOSED.equals(contract.getStatus());
+                || ContractStatus.CLOSED.equals(contract.getStatus())
+                || ContractStatus.CANCELLED.equals(contract.getStatus());
 
         boolean existingIsPaid = PaymentStatus.PAID.equals(existingPayment.getStatus());
         boolean incomingIsPaid = dto.status() != null && "PAID".equalsIgnoreCase(dto.status());
@@ -295,8 +297,9 @@ public class RentalPaymentService {
     }
 
     private void requirePaymentMutation(RentalContract contract, RentalPaymentInputDTO dto) {
-        if (contract.getStatus() == ContractStatus.SUPERSEDED) {
-            throw new ValidationException("Contrato " + contract.getId() + " SUPERSEDED: pagamentos são somente leitura");
+        if (contract.getStatus() == ContractStatus.SUPERSEDED || contract.getStatus() == ContractStatus.CANCELLED) {
+            throw new ValidationException("Contrato " + contract.getId() + " " + contract.getStatus()
+                    + ": pagamentos são somente leitura");
         }
         if (contract.getStatus() == ContractStatus.REVISION && dto != null && "PAID".equalsIgnoreCase(dto.status())) {
             throw new ValidationException("Contrato " + contract.getId() + " REVISION: esperado pagamento PENDING sem novo recebimento");

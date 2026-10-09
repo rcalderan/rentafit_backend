@@ -28,6 +28,7 @@ public class RentalContractController {
     private final RentalContractService contractService;
     private final br.com.rentafit.rental.service.RentalRevisionService revisions;
     private final br.com.rentafit.rental.service.ItemReservationService itemReservations;
+    private final br.com.rentafit.rental.service.WithdrawalService withdrawalService;
 
     @PostMapping("/{id}/revision-restart")
     public ResponseEntity<RentalContractDetailsDTO> restartRevision(@PathVariable UUID id) {
@@ -175,6 +176,23 @@ public class RentalContractController {
             @Parameter(description = "UUID do funcionário que registrou a entrega")
             @RequestParam(required = false) UUID attendantEmployeeId) {
         return ResponseEntity.ok(contractService.deliverItem(id, itemId, attendantEmployeeId));
+    }
+
+    @PostMapping("/{id}/withdraw")
+    @Operation(summary = "Registrar desistência (SIGNED|FINALIZED → CANCELLED)",
+            description = "Encerra o contrato por desistência do cliente. Deve ser chamado somente após o Termo de "
+                    + "Desistência ter sido impresso e assinado. Reembolsa as parcelas PAID listadas em "
+                    + "refundPaymentIds, cancela parcelas pendentes, registra multa rescisória opcional e libera "
+                    + "itens/estoque reservados.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Desistência registrada"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "404", description = "Contrato ou funcionário não encontrado"),
+            @ApiResponse(responseCode = "422", description = "Status inválido ou parcela de reembolso não é PAID")
+    })
+    public ResponseEntity<RentalContractDetailsDTO> withdraw(
+            @PathVariable UUID id, @Valid @RequestBody WithdrawContractDTO dto) {
+        return ResponseEntity.ok(withdrawalService.withdraw(id, dto));
     }
 
     @PostMapping("/{id}/revise")

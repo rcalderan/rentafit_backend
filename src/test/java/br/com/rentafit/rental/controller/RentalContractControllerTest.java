@@ -5,6 +5,7 @@ import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.service.ItemReservationService;
 import br.com.rentafit.rental.service.RentalContractService;
+import br.com.rentafit.rental.service.WithdrawalService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class RentalContractControllerTest {
 
     @Mock private RentalContractService contractService;
     @Mock private ItemReservationService itemReservations;
+    @Mock private WithdrawalService withdrawalService;
 
     @InjectMocks
     private RentalContractController controller;
@@ -371,6 +373,40 @@ class RentalContractControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsExactlyElementsOf(reservations);
         verify(itemReservations).findReservationsByItem(rentalItemId, excludeId);
+    }
+
+    // ── withdraw (desistência) ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("POST /{id}/withdraw deve retornar 200 com contrato cancelado")
+    void testWithdraw_returns200() {
+        UUID employeeId = UUID.randomUUID();
+        UUID paymentId = UUID.randomUUID();
+        WithdrawContractDTO dto = new WithdrawContractDTO(
+                employeeId, List.of(paymentId), true, BigDecimal.valueOf(150));
+        RentalContractDetailsDTO cancelled = detailsDTO.toBuilder()
+                .status(6).statusDescription("Desistência").build();
+        when(withdrawalService.withdraw(contractId, dto)).thenReturn(cancelled);
+
+        ResponseEntity<RentalContractDetailsDTO> response = controller.withdraw(contractId, dto);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().status()).isEqualTo(6);
+        verify(withdrawalService).withdraw(contractId, dto);
+    }
+
+    @Test
+    @DisplayName("POST /{id}/withdraw deve propagar ValidationException em status inelegível")
+    void testWithdraw_wrongStatus() {
+        UUID employeeId = UUID.randomUUID();
+        WithdrawContractDTO dto = new WithdrawContractDTO(employeeId, null, false, null);
+        when(withdrawalService.withdraw(contractId, dto))
+                .thenThrow(new ValidationException("Desistência disponível apenas para SIGNED ou FINALIZED"));
+
+        assertThatThrownBy(() -> controller.withdraw(contractId, dto))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("SIGNED ou FINALIZED");
     }
 
     // ── warnings field ────────────────────────────────────────────────────────

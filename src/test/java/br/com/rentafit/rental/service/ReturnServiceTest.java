@@ -130,14 +130,25 @@ class ReturnServiceTest {
         }
 
         @Test
-        @DisplayName("lança 422 para contrato não FINALIZED")
-        void shouldRejectNonFinalizedContract() {
+        @DisplayName("aceita contrato SIGNED (entrada para desistência)")
+        void shouldReturnSummaryForSignedContract() {
             finalizedContract.setStatus(ContractStatus.SIGNED);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.contractStatus()).isEqualTo("SIGNED");
+        }
+
+        @Test
+        @DisplayName("lança 422 para contrato fora de SIGNED/FINALIZED")
+        void shouldRejectNonFinalizedContract() {
+            finalizedContract.setStatus(ContractStatus.CLOSED);
             when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
 
             assertThatThrownBy(() -> returnService.getReturnSummary(contractId))
                     .isInstanceOf(ValidationException.class)
-                    .hasMessageContaining("FINALIZED");
+                    .hasMessageContaining("SIGNED ou FINALIZED");
         }
 
         @Test

@@ -55,9 +55,21 @@ public class ReturnService {
 
     // ── Consulta ──────────────────────────────────────────────────────────────
 
+    /**
+     * Aceita SIGNED e FINALIZED: a tela de devolução também é o ponto de
+     * entrada da desistência, disponível para ambos os status. As mutações
+     * (mark/close) continuam restritas a FINALIZED.
+     */
     @Transactional(readOnly = true)
     public ReturnSummaryDTO getReturnSummary(UUID contractId) {
-        RentalContract contract = requireFinalized(contractId);
+        RentalContract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ResourceNotFoundException("RentalContract", "id", contractId.toString()));
+        if (!ContractStatus.FINALIZED.equals(contract.getStatus())
+                && !ContractStatus.SIGNED.equals(contract.getStatus())) {
+            throw new ValidationException(
+                    "Operação disponível apenas para contratos SIGNED ou FINALIZED. Status atual: "
+                            + contract.getStatus());
+        }
         return toSummaryDTO(contract);
     }
 
@@ -242,6 +254,7 @@ public class ReturnService {
 
         List<ReturnSummaryDTO.ReturnPaymentPreviewDTO> paymentsPreview = contract.getPayments().stream()
                 .map(p -> ReturnSummaryDTO.ReturnPaymentPreviewDTO.builder()
+                        .paymentId(p.getId())
                         .installmentNumber(p.getInstallmentNumber())
                         .value(p.getValue())
                         .status(p.getStatus().name())
@@ -258,12 +271,22 @@ public class ReturnService {
 
         boolean isFullyReturned = pendingCount == 0;
 
+        BigDecimal totalValue = contract.getItems().stream()
+                .map(RentalContractItem::getValue)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         return ReturnSummaryDTO.builder()
                 .contractId(contract.getId())
                 .legacyId(contract.getLegacyId())
                 .customerName(contract.getCustomerName())
+                .customerId(contract.getCustomerId())
+                .contractStatus(contract.getStatus().name())
+                .pickupDate(contract.getPickupDate())
+                .eventDate(contract.getEventDate())
                 .returnDate(contract.getReturnDate())
                 .actualReturnDate(contract.getActualReturnDate())
+                .totalValue(totalValue)
                 .pendingCount((int) pendingCount)
                 .isFullyReturned(isFullyReturned)
                 .delayDays(delayDays)

@@ -7,7 +7,8 @@ public enum PaymentStatus {
     PENDING(0, "Pendente"),
     PAID(1, "Pago"),
     CANCELLED(2, "Cancelado"),
-    MULTA(3, "Multa por atraso");
+    MULTA(3, "Multa por atraso"),
+    REFUNDED(4, "Reembolsado");
 
     private final int legacyCode;
     private final String description;
