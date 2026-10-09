@@ -1,5 +1,6 @@
 package br.com.rentafit.migration.service;
 
+import br.com.rentafit.common.exception.ConflictException;
 import br.com.rentafit.migration.config.MigrationProperties;
 import br.com.rentafit.migration.dto.MigrationFileDTO;
 import br.com.rentafit.migration.dto.MigrationReportDTO;
@@ -82,8 +83,12 @@ public class MigrationOrchestrationService {
         }
 
         String status = sessionService.readStatus(sessionId);
+        if ("promoted".equals(status)) {
+            log.info("Session {} already promoted; treating duplicate promote as success", sessionId);
+            return;
+        }
         if (!"valid".equals(status)) {
-            throw new IllegalStateException(
+            throw new ConflictException(
                     "Promote nao permitido. Status atual: " + status + ". Esperado: valid."
             );
         }

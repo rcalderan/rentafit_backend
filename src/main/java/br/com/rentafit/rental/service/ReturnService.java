@@ -56,19 +56,21 @@ public class ReturnService {
     // ── Consulta ──────────────────────────────────────────────────────────────
 
     /**
-     * Aceita SIGNED e FINALIZED: a tela de devolução também é o ponto de
-     * entrada da desistência, disponível para ambos os status. As mutações
-     * (mark/close) continuam restritas a FINALIZED.
+     * Consulta somente-leitura: aceita SIGNED, FINALIZED e status terminais
+     * (CLOSED, CANCELLED) para que a tela exiba o histórico da devolução/
+     * desistência. As mutações (mark/close/withdraw) continuam restritas
+     * por seus próprios guards de status.
      */
     @Transactional(readOnly = true)
     public ReturnSummaryDTO getReturnSummary(UUID contractId) {
         RentalContract contract = contractRepository.findById(contractId)
                 .orElseThrow(() -> new ResourceNotFoundException("RentalContract", "id", contractId.toString()));
-        if (!ContractStatus.FINALIZED.equals(contract.getStatus())
-                && !ContractStatus.SIGNED.equals(contract.getStatus())) {
+        if (ContractStatus.DRAFT.equals(contract.getStatus())
+                || ContractStatus.REVISION.equals(contract.getStatus())
+                || ContractStatus.SUPERSEDED.equals(contract.getStatus())) {
             throw new ValidationException(
-                    "Operação disponível apenas para contratos SIGNED ou FINALIZED. Status atual: "
-                            + contract.getStatus());
+                    "Devolução não se aplica a contratos " + contract.getStatus()
+                            + " (esperado: SIGNED, FINALIZED, CLOSED ou CANCELLED)");
         }
         return toSummaryDTO(contract);
     }

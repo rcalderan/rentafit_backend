@@ -141,14 +141,36 @@ class ReturnServiceTest {
         }
 
         @Test
-        @DisplayName("lança 422 para contrato fora de SIGNED/FINALIZED")
-        void shouldRejectNonFinalizedContract() {
+        @DisplayName("aceita contrato CLOSED para visualização (somente leitura)")
+        void shouldReturnSummaryForClosedContract() {
             finalizedContract.setStatus(ContractStatus.CLOSED);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.contractStatus()).isEqualTo("CLOSED");
+        }
+
+        @Test
+        @DisplayName("aceita contrato CANCELLED para visualização (somente leitura)")
+        void shouldReturnSummaryForCancelledContract() {
+            finalizedContract.setStatus(ContractStatus.CANCELLED);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.contractStatus()).isEqualTo("CANCELLED");
+        }
+
+        @Test
+        @DisplayName("lança 422 para contrato DRAFT/REVISION/SUPERSEDED")
+        void shouldRejectNonFinalizedContract() {
+            finalizedContract.setStatus(ContractStatus.DRAFT);
             when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
 
             assertThatThrownBy(() -> returnService.getReturnSummary(contractId))
                     .isInstanceOf(ValidationException.class)
-                    .hasMessageContaining("SIGNED ou FINALIZED");
+                    .hasMessageContaining("DRAFT");
         }
 
         @Test
