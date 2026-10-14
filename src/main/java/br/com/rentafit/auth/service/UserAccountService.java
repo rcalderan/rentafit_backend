@@ -3,6 +3,8 @@ package br.com.rentafit.auth.service;
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.auth.repository.UserAccountRepository;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.common.validation.PasswordRules;
+import br.com.rentafit.people.domain.Person;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.repository.query.Param;
@@ -55,6 +57,7 @@ public class UserAccountService implements UserDetailsService {
         if (user.getPin() != null) {
             throw new ValidationException("Credentials already configured. Use change-password to update your password.");
         }
+        rejectPasswordWithAccountIdentifiers(user, newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setPin(passwordEncoder.encode(pin));
         user.setPasswordChangedAt(OffsetDateTime.now());
@@ -66,9 +69,23 @@ public class UserAccountService implements UserDetailsService {
      */
     @Transactional
     public void changePassword(UserAccount user, String newPassword) {
+        if (passwordEncoder.matches(newPassword, user.getPassword())) {
+            throw new ValidationException("A nova senha deve ser diferente da senha atual");
+        }
+        rejectPasswordWithAccountIdentifiers(user, newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setPasswordChangedAt(OffsetDateTime.now());
         userAccountRepository.save(user);
+    }
+
+    private void rejectPasswordWithAccountIdentifiers(UserAccount user, String newPassword) {
+        String email = userAccountRepository.findByUsernameWithDetails(user.getUsername())
+                .map(UserAccount::getPerson)
+                .map(Person::getEmail)
+                .orElse(null);
+        PasswordRules.contextViolation(newPassword, user.getUsername(), email).ifPresent(message -> {
+            throw new ValidationException(message);
+        });
     }
 
     /**

@@ -7,6 +7,7 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Data
 @Builder
@@ -23,6 +24,12 @@ public class ErrorResponse {
     private String message;
 
     private String path;
+
+    /** Machine-readable error code for the frontend (e.g. INVALID_CREDENTIALS, ACCOUNT_LOCKED). */
+    private String code;
+
+    /** Extra values tied to {@link #code}, e.g. remainingAttempts or lockedUntil. */
+    private Map<String, Object> details;
 
     private List<FieldError> errors;
 

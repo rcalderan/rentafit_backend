@@ -324,6 +324,34 @@ class UserAccountServiceTest {
             verify(userAccountRepository, never()).save(any());
             verify(passwordEncoder, never()).encode(any());
         }
+
+        @Test
+        @DisplayName("rejeita senha que contém o username")
+        void testSetupCredentials_PasswordContainsUsername() {
+            userAccount.setPin(null);
+            String password = "X#" + userAccount.getUsername() + "2026";
+
+            assertThatThrownBy(() -> userAccountService.setupCredentials(userAccount, password, "4831"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("username");
+            verify(userAccountRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("rejeita senha que contém a parte local do e-mail")
+        void testSetupCredentials_PasswordContainsEmailLocalPart() {
+            userAccount.setPin(null);
+            br.com.rentafit.people.domain.Customer person = new br.com.rentafit.people.domain.Customer();
+            person.setEmail("mariana@ex.com");
+            UserAccount withPerson = new UserAccount();
+            withPerson.setPerson(person);
+            when(userAccountRepository.findByUsernameWithDetails(userAccount.getUsername()))
+                    .thenReturn(java.util.Optional.of(withPerson));
+
+            assertThatThrownBy(() -> userAccountService.setupCredentials(userAccount, "Mariana#2026x", "4831"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("e-mail");
+        }
     }
 
     @Nested
@@ -354,6 +382,17 @@ class UserAccountServiceTest {
             userAccountService.changePassword(userAccount, "ValidP@ss1");
 
             assertThat(userAccount.getPasswordChangedAt()).isAfter(before);
+        }
+
+        @Test
+        @DisplayName("rejeita nova senha igual à atual")
+        void testChangePassword_SameAsCurrent() {
+            when(passwordEncoder.matches("Vestido#Azul42", userAccount.getPassword())).thenReturn(true);
+
+            assertThatThrownBy(() -> userAccountService.changePassword(userAccount, "Vestido#Azul42"))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("diferente");
+            verify(userAccountRepository, never()).save(any());
         }
     }
 }

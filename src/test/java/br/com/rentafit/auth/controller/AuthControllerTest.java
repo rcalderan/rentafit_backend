@@ -11,6 +11,8 @@ import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import br.com.rentafit.auth.exception.InvalidCredentialsException;
+import br.com.rentafit.auth.service.PasswordLoginService;
 import br.com.rentafit.auth.service.RefreshTokenService;
 import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
@@ -24,9 +26,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 
 import java.util.Map;
@@ -48,7 +47,7 @@ class AuthControllerTest {
     }
 
     @Mock
-    private AuthenticationManager authenticationManager;
+    private PasswordLoginService passwordLoginService;
 
     @Mock
     private TokenService tokenService;
@@ -62,17 +61,8 @@ class AuthControllerTest {
     @Mock
     private UserAccountService userAccountService;
 
-    @Mock
-    private br.com.rentafit.auth.service.InstallationCompletionService installation;
-
     @InjectMocks
     private AuthController authController;
-
-    @org.junit.jupiter.api.BeforeEach
-    void initializeSessionIssuer() {
-        org.springframework.test.util.ReflectionTestUtils.setField(authController, "loginSessionIssuer",
-                new br.com.rentafit.auth.service.LoginSessionIssuer(tokenService, refreshTokenService, installation));
-    }
 
     @Test
     @DisplayName("Should return public key when enabled")
@@ -98,21 +88,11 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Should login successfully without RSA")
+    @DisplayName("login delega ao PasswordLoginService e retorna 200 com tokens")
     void login() {
         LoginRequestDTO request = new LoginRequestDTO("user", "plain-pass");
-        UserAccount user = new UserAccount();
-        user.setUsername("user");
-        user.setId(UUID.randomUUID());
-
-        Authentication auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
-
-        when(authenticationManager.authenticate(any())).thenReturn(auth);
-        when(tokenService.generateToken("user")).thenReturn("access-token");
-
-        RefreshToken refreshToken = new RefreshToken();
-        refreshToken.setToken("refresh-token");
-        when(refreshTokenService.createRefreshToken(user)).thenReturn(refreshToken);
+        when(passwordLoginService.login(request))
+                .thenReturn(new LoginResponseDTO("access-token", "refresh-token", "Bearer"));
 
         ResponseEntity<LoginResponseDTO> response = authController.login(request);
 
@@ -120,6 +100,16 @@ class AuthControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().accessToken()).isEqualTo("access-token");
         assertThat(response.getBody().refreshToken()).isEqualTo("refresh-token");
+    }
+
+    @Test
+    @DisplayName("login propaga InvalidCredentialsException para o AuthExceptionHandler")
+    void login_InvalidCredentialsPropagates() {
+        LoginRequestDTO request = new LoginRequestDTO("user", "wrong-password");
+        when(passwordLoginService.login(request)).thenThrow(new InvalidCredentialsException(3));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authController.login(request))
+                .isInstanceOf(InvalidCredentialsException.class);
     }
 
     @Test
@@ -164,67 +154,18 @@ class AuthControllerTest {
     }
 
     @Test
-    @DisplayName("Should return 403 when login with BCrypt hash password")
-    void login_WithBCryptHash() {
-        // BCrypt hash example
-        LoginRequestDTO request = new LoginRequestDTO("user", "$2a$10$" + "a".repeat(53));
-
-        // Act
-        ResponseEntity<LoginResponseDTO> response = authController.login(request);
-
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    @DisplayName("Should return 403 when authentication fails")
-    void login_AuthenticationFailure() {
-        LoginRequestDTO request = new LoginRequestDTO("user", "wrong-password");
-
-        when(authenticationManager.authenticate(any()))
-            .thenThrow(new BadCredentialsException("Bad credentials"));
-
-        // Act
-        ResponseEntity<LoginResponseDTO> response = authController.login(request);
-
-        // Assert
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-    }
-
-    @Test
-    void login_DoesNotHideAuthenticationInfrastructureFailure() {
-        when(authenticationManager.authenticate(any()))
-                .thenThrow(new org.springframework.security.authentication.AuthenticationServiceException("Infrastructure failed"));
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authController.login(new LoginRequestDTO("user", "password")))
-                .isInstanceOf(org.springframework.security.authentication.AuthenticationServiceException.class);
-    }
-
-    @Test
-    void login_DoesNotHidePersistenceFailureAsInvalidCredentials() {
-        UserAccount user = new UserAccount();
-        user.setUsername("user");
-        when(authenticationManager.authenticate(any()))
-                .thenReturn(new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
-        when(tokenService.generateToken("user")).thenReturn("access-token");
-        when(refreshTokenService.createRefreshToken(user)).thenThrow(new IllegalStateException("Persistence failed"));
-
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authController.login(new LoginRequestDTO("user", "password")))
-                .isInstanceOf(IllegalStateException.class).hasMessage("Persistence failed");
-    }
-
-    @Test
     @DisplayName("Should setup credentials successfully on first access")
     void setupCredentials_Success() {
         UserAccount principal = new UserAccount();
         principal.setUsername("user");
         principal.setPin(null);
 
-        SetupCredentialsRequestDTO request = new SetupCredentialsRequestDTO("NewP@ss1", "1234");
+        SetupCredentialsRequestDTO request = new SetupCredentialsRequestDTO("NewP@ssw0rd!", "4831");
 
         ResponseEntity<Void> response = authController.setupCredentials(principal, request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(userAccountService).setupCredentials(principal, "NewP@ss1", "1234");
+        verify(userAccountService).setupCredentials(principal, "NewP@ssw0rd!", "4831");
     }
 
     @Test

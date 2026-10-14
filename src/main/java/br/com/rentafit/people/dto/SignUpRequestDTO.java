@@ -1,6 +1,7 @@
 package br.com.rentafit.people.dto;
 
 import br.com.rentafit.common.validation.ValidCpfCnpj;
+import br.com.rentafit.common.validation.ValidUsername;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -14,7 +15,8 @@ import java.util.List;
 /**
  * Public self-registration payload. Creates a Customer + UserAccount (CUSTOMER role).
  * No password is collected here: the account is created with a random placeholder
- * password and a null PIN, and the user finishes setup at /auth/setup-credentials.
+ * password and a null PIN, stays disabled until the e-mail link is confirmed, and the
+ * user finishes setup at /auth/setup-credentials.
  */
 @Builder
 @Schema(description = "Public self-registration request")
@@ -23,6 +25,11 @@ public record SignUpRequestDTO(
         @NotBlank(message = "Name is required")
         @Size(max = 255, message = "Name must not exceed 255 characters")
         String name,
+
+        @NotBlank(message = "Username é obrigatório")
+        @ValidUsername
+        @Schema(description = "Login escolhido pelo usuário (minúsculas, 3 a 30 caracteres)", example = "joao.silva")
+        String username,
 
         @NotBlank(message = "Email is required")
         @Email(message = "Email must be valid")

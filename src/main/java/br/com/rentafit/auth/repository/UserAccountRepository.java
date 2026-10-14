@@ -31,6 +31,13 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> 
     @EntityGraph(attributePaths = {"person", "roles"})
     Page<UserAccount> findAllWithDetails(Pageable pageable);
 
+    @Query("SELECT ua FROM UserAccount ua WHERE lower(ua.person.email) = lower(:email)")
+    @EntityGraph(attributePaths = {"person"})
+    List<UserAccount> findAllByPersonEmail(@Param("email") String email);
+
+    @Query("SELECT ua FROM UserAccount ua WHERE lower(ua.username) = lower(:username)")
+    Optional<UserAccount> findByUsernameIgnoreCase(@Param("username") String username);
+
     @Query("SELECT DISTINCT ua FROM UserAccount ua JOIN ua.roles role "
             + "WHERE ua.isActive = true AND role.role IN :roles "
             + "AND EXISTS (SELECT employee.id FROM Employee employee WHERE employee.id = ua.id) "

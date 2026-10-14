@@ -65,7 +65,7 @@ class OperatorIdentityPersistenceTest {
         customer.setPhones(List.of("0000000000"));
         entities.persistAndFlush(customer);
         var role = entities.persistAndFlush(new Role(null, roleName));
-        var account = new UserAccount(customer, "test-password-hash");
+        var account = new UserAccount(customer, customer.getEmail(), "test-password-hash");
         account.setUsername("test-operator");
         account.setPin("test-pin-hash");
         account.setPasswordChangedAt(OffsetDateTime.now());

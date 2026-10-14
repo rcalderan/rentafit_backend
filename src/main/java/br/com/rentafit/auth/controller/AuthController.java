@@ -9,6 +9,7 @@ import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
 import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
+import br.com.rentafit.auth.service.PasswordLoginService;
 import br.com.rentafit.auth.service.RefreshTokenService;
 import br.com.rentafit.auth.service.UserAccountService;
 import br.com.rentafit.common.security.CryptoService;
@@ -21,12 +22,8 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationServiceException;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -34,8 +31,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
-import java.util.Optional;
-import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -44,15 +39,11 @@ import java.util.regex.Pattern;
 @Tag(name = "Autenticação", description = "Endpoints para login e gerenciamento de tokens")
 public class AuthController {
 
-    private final AuthenticationManager authenticationManager;
+    private final PasswordLoginService passwordLoginService;
     private final TokenService tokenService;
     private final RefreshTokenService refreshTokenService;
     private final CryptoService cryptoService;
     private final UserAccountService userAccountService;
-    private final br.com.rentafit.auth.service.LoginSessionIssuer loginSessionIssuer;
-
-
-    private static final Pattern BCRYPT_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
 
     @GetMapping("/public-key")
     @Operation(summary = "Obtém a chave pública RSA", description = "Retorna a chave pública atual para criptografia de dados sensíveis no front-end")
@@ -66,83 +57,13 @@ public class AuthController {
 
     @PostMapping("/login")
     @Operation(summary = "Realiza o login do usuário", description = "Retorna um access token JWT e um refresh token.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Login realizado"),
+        @ApiResponse(responseCode = "403", description = "INVALID_CREDENTIALS (details.remainingAttempts) ou EMAIL_NOT_VERIFIED"),
+        @ApiResponse(responseCode = "423", description = "ACCOUNT_LOCKED (details.lockedUntil)")
+    })
     public ResponseEntity<LoginResponseDTO> login(@RequestBody @Valid LoginRequestDTO data) {
-
-        try{
-            log.info("Tentativa de login para username: {}", data.username());
-            if (BCRYPT_PATTERN.matcher(data.password()).matches()) {
-                log.warn("Login negado: senha recebida em formato BCrypt hash para username: {}", data.username());
-                return ResponseEntity.status(403).build();
-            }
-            var autenticationToken = new UsernamePasswordAuthenticationToken(data.username(), data.password());
-            var authentication = authenticationManager.authenticate(autenticationToken);
-
-            var user = (UserAccount)authentication.getPrincipal();
-            log.info("Usuário autenticado: {} com roles: {}", user.getUsername(), user.getAuthorities());
-
-            return ResponseEntity.ok(loginSessionIssuer.issue(user));
-//            String incomingPassword = data.password();
-//            String decryptedPassword = cryptoService.decrypt(data.password());
-//            if (cryptoService.isRsaEnabled()) {
-//                try {
-//                    incomingPassword = cryptoService.decrypt(incomingPassword);
-//                } catch (Exception ex) {
-//                    // Falha ao descriptografar: mantém a senha original para compatibilidade
-//                    System.out.println("Falha ao descriptografar senha RSA: " + ex.getMessage());
-//                }
-//            }
-//
-//            var usernamePassword = new UsernamePasswordAuthenticationToken(data.username(), decryptedPassword);
-//            var auth = this.authenticationManager.authenticate(usernamePassword);
-//
-//            var user = (UserAccount) auth.getPrincipal();
-//            var accessToken = tokenService.generateToken(user.getUsername());
-//            var refreshToken = refreshTokenService.createRefreshToken(user.getId());
-//
-//            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
-//            String incomingPassword = data.password();
-//
-//            // Se o RSA estiver habilitado, tenta descriptografar a senha recebida do front-end
-//            if (cryptoService.isRsaEnabled()) {
-//                try {
-//                    incomingPassword = cryptoService.decrypt(incomingPassword);
-//                } catch (Exception ex) {
-//                    // Falha ao descriptografar: mantém a senha original para compatibilidade
-//                    System.out.println("Falha ao descriptografar senha RSA: " + ex.getMessage());
-//                }
-//            }
-//
-//            // Se o cliente enviar a senha já criptografada em BCrypt, faz um fallback seguro:
-//            // carrega o usuário e compara diretamente os hashes (útil para migrações/legados)
-//            if (BCRYPT_PATTERN.matcher(incomingPassword).matches()) {
-//                var userOpt = userAccountRepository.findByUsername(data.username());
-//                if (userOpt.isPresent()) {
-//                    var user = userOpt.get();
-//                    if (Boolean.TRUE.equals(user.getIsActive()) && incomingPassword.equals(user.getPassword())) {
-//                        String accessToken = tokenService.generateToken(user.getUsername());
-//                        RefreshToken newRefreshToken = refreshTokenService.createRefreshToken(user.getId());
-//                        return ResponseEntity.ok(new LoginResponseDTO(accessToken, newRefreshToken.getToken(), "Bearer"));
-//                    }
-//                }
-//                // Se o fallback não funcionar, segue para fluxo padrão e deixará falhar
-//            }
-//
-//            // Fluxo padrão: autenticação com senha em texto puro (raw)
-//            var usernamePassword = new UsernamePasswordAuthenticationToken(data.username(), incomingPassword);
-//            var auth = this.authenticationManager.authenticate(usernamePassword);
-//
-//            var user = (UserAccount) auth.getPrincipal();
-//            var accessToken = tokenService.generateToken(user.getUsername());
-//            var refreshToken = refreshTokenService.createRefreshToken(user.getId());
-//
-//            return ResponseEntity.ok(new LoginResponseDTO(accessToken, refreshToken.getToken(), "Bearer"));
-
-        } catch (AuthenticationServiceException e) {
-            throw e;
-        } catch (AuthenticationException e) {
-            log.warn("Falha na autenticação para username: {}", data.username());
-            return ResponseEntity.status(403).build();
-        }
+        return ResponseEntity.ok(passwordLoginService.login(data));
     }
 
     @PostMapping("/refresh")
