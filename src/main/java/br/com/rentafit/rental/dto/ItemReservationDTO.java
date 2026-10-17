@@ -10,6 +10,9 @@ import java.util.UUID;
  * <p>Retornado por {@code GET /api/v1/rental/contracts/byItem/{rentalItemId}}.
  * O frontend usa {@code contractId} para abrir a aba do contrato
  * ({@code /rental/new?id=...}), no mesmo padrão de "Últimos Contratos".</p>
+ *
+ * <p>{@code pendingReturn = true} indica contrato FINALIZED ainda não devolvido
+ * cujo evento já passou — exibido como "Devolução Pendente" no modal.</p>
  */
 public record ItemReservationDTO(
         UUID contractId,
@@ -21,5 +24,6 @@ public record ItemReservationDTO(
         LocalDate pickupDate,
         LocalDate returnDate,
         String status,
-        String statusDescription
+        String statusDescription,
+        boolean pendingReturn
 ) {}

@@ -85,13 +85,18 @@ public class RentalContractController {
     @GetMapping("/byItem/{rentalItemId}")
     @Operation(summary = "Listar reservas ativas de um item",
             description = "Retorna contratos SIGNED/FINALIZED com eventDate >= hoje que reservam o item. "
-                    + "Usado pelo frontend para alertar o operador ao carregar um item já reservado.")
+                    + "Usado pelo frontend para alertar o operador ao carregar um item já reservado. "
+                    + "Com includePendingReturn=true, inclui contratos FINALIZED ainda não devolvidos "
+                    + "mesmo com evento passado, marcados com pendingReturn=true.")
     @ApiResponse(responseCode = "200", description = "Reservas retornadas (lista vazia se nenhuma)")
     public ResponseEntity<List<ItemReservationDTO>> findItemReservations(
             @PathVariable UUID rentalItemId,
             @Parameter(description = "Contrato a excluir da lista (ex.: contrato em edição)")
-            @RequestParam(required = false) UUID excludeContractId) {
-        return ResponseEntity.ok(itemReservations.findReservationsByItem(rentalItemId, excludeContractId));
+            @RequestParam(required = false) UUID excludeContractId,
+            @Parameter(description = "Inclui devoluções pendentes (FINALIZED não devolvido)")
+            @RequestParam(defaultValue = "false") boolean includePendingReturn) {
+        return ResponseEntity.ok(
+                itemReservations.findReservationsByItem(rentalItemId, excludeContractId, includePendingReturn));
     }
 
     @PostMapping

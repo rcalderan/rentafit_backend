@@ -182,8 +182,10 @@ public class RentalMapper {
     /**
      * DTO de reserva ativa por item (endpoint byItem). Não acessa items/payments —
      * apenas campos escalares do contrato + legacyId do cliente resolvido via CustomerPort.
+     * pendingReturn=true quando o contrato está na lista por devolução pendente
+     * (FINALIZED não devolvido com evento passado), não por reserva futura.
      */
-    public ItemReservationDTO toItemReservationDTO(RentalContract contract, Integer customerLegacyId) {
+    public ItemReservationDTO toItemReservationDTO(RentalContract contract, Integer customerLegacyId, boolean pendingReturn) {
         return new ItemReservationDTO(
                 contract.getId(),
                 contract.getLegacyId(),
@@ -194,7 +196,8 @@ public class RentalMapper {
                 contract.getPickupDate(),
                 contract.getReturnDate(),
                 contract.getStatus().name(),
-                contract.getStatus().getDescription()
+                contract.getStatus().getDescription(),
+                pendingReturn
         );
     }
 

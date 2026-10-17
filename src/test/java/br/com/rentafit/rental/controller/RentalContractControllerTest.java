@@ -364,15 +364,28 @@ class RentalContractControllerTest {
         List<ItemReservationDTO> reservations = List.of(new ItemReservationDTO(
                 contractId, legacyId, customerId, "Ana Lima", 101,
                 LocalDate.now().plusDays(7), LocalDate.now().plusDays(5), LocalDate.now().plusDays(9),
-                "SIGNED", "Assinado"));
-        when(itemReservations.findReservationsByItem(rentalItemId, excludeId)).thenReturn(reservations);
+                "SIGNED", "Assinado", false));
+        when(itemReservations.findReservationsByItem(rentalItemId, excludeId, false)).thenReturn(reservations);
 
         ResponseEntity<List<ItemReservationDTO>> response =
-                controller.findItemReservations(rentalItemId, excludeId);
+                controller.findItemReservations(rentalItemId, excludeId, false);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsExactlyElementsOf(reservations);
-        verify(itemReservations).findReservationsByItem(rentalItemId, excludeId);
+        verify(itemReservations).findReservationsByItem(rentalItemId, excludeId, false);
+    }
+
+    @Test
+    @DisplayName("GET /byItem/{rentalItemId}?includePendingReturn=true repassa a flag ao service")
+    void testFindItemReservations_forwardsIncludePendingReturn() {
+        UUID rentalItemId = UUID.randomUUID();
+        when(itemReservations.findReservationsByItem(rentalItemId, null, true)).thenReturn(List.of());
+
+        ResponseEntity<List<ItemReservationDTO>> response =
+                controller.findItemReservations(rentalItemId, null, true);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(itemReservations).findReservationsByItem(rentalItemId, null, true);
     }
 
     // ── withdraw (desistência) ────────────────────────────────────────────────
