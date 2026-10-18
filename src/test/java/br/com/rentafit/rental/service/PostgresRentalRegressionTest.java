@@ -266,6 +266,23 @@ class PostgresRentalRegressionTest {
     }
 
     @Test
+    void closedLegacyContractDoesNotBlockItemRelease() {
+        UUID itemId = createCatalogItem();
+        UUID closed = createFinalizedContract();
+        database.update("UPDATE rental_contracts SET status = 'CLOSED', is_returned = true WHERE id = ?", closed);
+        database.update("INSERT INTO rental_contract_items (id, contract_id, rental_item_id, legacy_product_code, description, value, attendant_employee_id) VALUES (?, ?, ?, 'fixture', 'Closed item', 10, ?)",
+                UUID.randomUUID(), closed, itemId, BOOTSTRAP);
+        UUID active = createFinalizedContract();
+        database.update("UPDATE rental_items SET status = 'RESERVED' WHERE id = ?", itemId);
+
+        delta.releaseItem(itemId, active);
+        entities.clear();
+
+        assertThat(database.queryForObject("SELECT status FROM rental_items WHERE id = ?", String.class, itemId))
+                .isEqualTo("AVAILABLE");
+    }
+
+    @Test
     void returnedFinalizedContractDoesNotCountAsPendingReservation() {
         UUID itemId = createCatalogItem();
         UUID legacyReturned = createFinalizedContract();

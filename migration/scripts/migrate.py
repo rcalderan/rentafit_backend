@@ -16,6 +16,7 @@ from report import build_report, write_report
 from transformers import (
     EPOCH,
     new_uuid,
+    reconcile_rental_items_from_contracts,
     transform_categories,
     transform_contracts,
     transform_people_from_cliente,
@@ -157,6 +158,8 @@ def main():
             contract_rows, contract_item_rows, payment_rows, meta_rows = transform_contracts(
                 all_docs["contrato"], customer_map, customer_name_map, employee_map, rental_item_map, default_customer_id
             )
+            usage = reconcile_rental_items_from_contracts(rental_item_rows, contract_rows, contract_item_rows)
+            warnings.append(f"rental_items reconciliados a partir de contratos: {len(usage)} peça(s) com histórico")
 
         # 6. Deduplicar documents, emails e legacy_ids em people (unique constraints)
         seen_docs = set()
