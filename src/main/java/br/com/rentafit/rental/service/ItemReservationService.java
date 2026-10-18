@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -65,8 +66,18 @@ public class ItemReservationService {
                 .map(RentalContract::getId)
                 .collect(Collectors.toSet());
 
+        Set<UUID> excludedIds = new HashSet<>();
+        if (excludeContractId != null) {
+            excludedIds.add(excludeContractId);
+            // Revisão aberta: o contrato original (ainda SIGNED/FINALIZED) não pode
+            // aparecer como conflito ao revalidar itens na tela de alteração.
+            contractRepository.findById(excludeContractId)
+                    .map(RentalContract::getParentContractId)
+                    .ifPresent(excludedIds::add);
+        }
+
         List<RentalContract> contracts = Stream.concat(pendingReturns.stream(), upcoming.stream())
-                .filter(c -> !c.getId().equals(excludeContractId))
+                .filter(c -> !excludedIds.contains(c.getId()))
                 .toList();
 
         if (contracts.isEmpty()) return List.of();

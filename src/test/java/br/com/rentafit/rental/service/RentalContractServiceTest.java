@@ -67,7 +67,7 @@ class RentalContractServiceTest {
     void setUp() {
         ReflectionTestUtils.setField(contractService, "legacyIdPattern", "yyMMdd");
         ReflectionTestUtils.setField(contractService, "revisionService", new RentalRevisionService(
-                contractRepository, mapper, currentAccountId, reservationDelta));
+                contractRepository, mapper, currentAccountId, reservationDelta, mock(br.com.rentafit.billing.repository.FiscalDocumentRepository.class)));
         ReflectionTestUtils.setField(contractService, "proposalDuplication", new RentalProposalDuplication(contractRepository, validator, mapper));
         lenient().when(currentAccountId.requireId()).thenReturn(UUID.randomUUID());
         contractId = UUID.randomUUID();
@@ -1032,7 +1032,8 @@ class RentalContractServiceTest {
                 .build();
 
         revisionContract.setParentSnapshot(ReflectionTestUtils.invokeMethod(
-                new RentalRevisionService(contractRepository, mapper, currentAccountId, reservationDelta), "snapshot", parentContract));
+                new RentalRevisionService(contractRepository, mapper, currentAccountId, reservationDelta,
+                        mock(br.com.rentafit.billing.repository.FiscalDocumentRepository.class)), "snapshot", parentContract));
         when(contractRepository.findById(contractId)).thenReturn(Optional.of(revisionContract));
         when(contractRepository.findById(parentId)).thenReturn(Optional.of(parentContract));
         when(validator.checkConflictsForTransition(any(), any(), any())).thenReturn(null);

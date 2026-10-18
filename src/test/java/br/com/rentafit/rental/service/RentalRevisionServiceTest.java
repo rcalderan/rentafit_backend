@@ -1,6 +1,9 @@
 package br.com.rentafit.rental.service;
 
 import br.com.rentafit.auth.service.CurrentAccountId;
+import br.com.rentafit.billing.domain.FiscalDocument;
+import br.com.rentafit.billing.domain.enums.FiscalOrigin;
+import br.com.rentafit.billing.repository.FiscalDocumentRepository;
 import br.com.rentafit.rental.domain.*;
 import br.com.rentafit.rental.domain.enums.*;
 import br.com.rentafit.rental.mapper.RentalMapper;
@@ -10,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import static org.assertj.core.api.Assertions.*;
@@ -19,7 +23,8 @@ class RentalRevisionServiceTest {
     private final RentalContractRepository repository = mock(RentalContractRepository.class);
     private final CurrentAccountId actor = mock(CurrentAccountId.class);
     private final RentalReservationDelta delta = mock(RentalReservationDelta.class);
-    private final RentalRevisionService revisions = new RentalRevisionService(repository, new RentalMapper(), actor, delta);
+    private final FiscalDocumentRepository fiscalDocuments = mock(FiscalDocumentRepository.class);
+    private final RentalRevisionService revisions = new RentalRevisionService(repository, new RentalMapper(), actor, delta, fiscalDocuments);
     private RentalContract original;
     private RentalContract revision;
 
@@ -68,6 +73,17 @@ class RentalRevisionServiceTest {
         revisions.confirm(revision);
         assertThat(revision.getStatus()).isEqualTo(ContractStatus.SIGNED);
         verifyNoInteractions(delta);
+    }
+
+    @Test
+    void confirmationRelinksFiscalDocumentsToRevision() {
+        var document = FiscalDocument.builder().id(UUID.randomUUID()).origin(FiscalOrigin.RENTAL)
+                .originId(original.getId()).build();
+        when(fiscalDocuments.findByOriginAndOriginId(FiscalOrigin.RENTAL, original.getId()))
+                .thenReturn(List.of(document));
+        revisions.create(original.getId(), () -> "new-1");
+        revisions.confirm(revision);
+        assertThat(document.getOriginId()).isEqualTo(revision.getId());
     }
 
     @Test

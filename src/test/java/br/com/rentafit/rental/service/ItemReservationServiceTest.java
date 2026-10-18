@@ -123,6 +123,24 @@ class ItemReservationServiceTest {
     }
 
     @Test
+    @DisplayName("deve excluir o contrato original ao revalidar itens de uma revisão")
+    void deveExcluirContratoPaiDeRevisao() {
+        RentalContract parent = contract(ContractStatus.FINALIZED, LocalDate.now().plusDays(8));
+        RentalContract other = contract(ContractStatus.SIGNED, LocalDate.now().plusDays(10));
+        RentalContract revision = contract(ContractStatus.REVISION, LocalDate.now().plusDays(8));
+        revision.setParentContractId(parent.getId());
+        when(contractRepository.findById(revision.getId())).thenReturn(java.util.Optional.of(revision));
+        when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
+                .thenReturn(List.of(parent, other));
+        when(customerPort.findLegacyIdsByIds(any())).thenReturn(Map.of());
+
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, revision.getId(), false);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().contractId()).isEqualTo(other.getId());
+    }
+
+    @Test
     @DisplayName("includePendingReturn=true traz contrato FINALIZED não devolvido com evento passado, marcado")
     void deveIncluirDevolucoesPendentesMarcadas() {
         RentalContract pending = contract(ContractStatus.FINALIZED, LocalDate.now().minusDays(3));

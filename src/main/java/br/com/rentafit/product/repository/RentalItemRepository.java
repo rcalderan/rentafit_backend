@@ -43,7 +43,8 @@ public interface RentalItemRepository extends JpaRepository<RentalItem, UUID> {
     java.util.List<RentalItem> lockItems(@org.springframework.data.repository.query.Param("ids") java.util.Collection<UUID> ids);
 
     @Query("SELECT COUNT(item) > 0 FROM RentalContractItem item WHERE item.rentalItemId = :id "
-            + "AND item.contract.status = 'FINALIZED' AND item.delivered = false")
+            + "AND item.contract.status = 'FINALIZED' AND item.delivered = false "
+            + "AND item.contract.returned = false")
     boolean hasPendingReservation(@org.springframework.data.repository.query.Param("id") UUID id);
 
     @Query(value = "SELECT pg_advisory_xact_lock(1917463411)", nativeQuery = true)

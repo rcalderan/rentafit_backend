@@ -1,6 +1,8 @@
 package br.com.rentafit.rental.service;
 
 import br.com.rentafit.auth.service.CurrentAccountId;
+import br.com.rentafit.billing.domain.enums.FiscalOrigin;
+import br.com.rentafit.billing.repository.FiscalDocumentRepository;
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.domain.*;
@@ -10,6 +12,7 @@ import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.PaidPaymentSnapshot;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
@@ -22,11 +25,13 @@ import java.util.function.Supplier;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class RentalRevisionService {
     private final RentalContractRepository repository;
     private final RentalMapper mapper;
     private final CurrentAccountId currentAccountId;
     private final RentalReservationDelta reservationDelta;
+    private final FiscalDocumentRepository fiscalDocuments;
 
     public RentalContractDetailsDTO create(UUID id, Supplier<String> legacyId) {
         RentalContract original = requireOriginal(id);
@@ -92,6 +97,16 @@ public class RentalRevisionService {
         original.setStatus(ContractStatus.SUPERSEDED);
         original.setReplacedByContractId(revision.getId());
         repository.save(original);
+        relinkFiscalDocuments(original, revision);
+    }
+
+    private void relinkFiscalDocuments(RentalContract original, RentalContract revision) {
+        var documents = fiscalDocuments.findByOriginAndOriginId(FiscalOrigin.RENTAL, original.getId());
+        documents.forEach(doc -> doc.setOriginId(revision.getId()));
+        if (!documents.isEmpty()) {
+            log.info("Re-vinculados {} documento(s) fiscal(is) do contrato {} para a revisão {}",
+                    documents.size(), original.getId(), revision.getId());
+        }
     }
 
     public static void requireEligible(RentalContract contract) {

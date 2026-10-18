@@ -44,7 +44,10 @@ public interface RentalPaymentRepository extends JpaRepository<RentalPayment, UU
             JOIN FETCH p.contract c
             WHERE p.paymentDate BETWEEN :startDate AND :endDate
               AND p.status <> br.com.rentafit.rental.domain.enums.PaymentStatus.CANCELLED
-              AND c.status <> br.com.rentafit.rental.domain.enums.ContractStatus.SUPERSEDED
+              AND c.status NOT IN (
+                  br.com.rentafit.rental.domain.enums.ContractStatus.SUPERSEDED,
+                  br.com.rentafit.rental.domain.enums.ContractStatus.REVISION
+              )
               AND (p.status <> br.com.rentafit.rental.domain.enums.PaymentStatus.PENDING
                    OR c.status NOT IN (
                        br.com.rentafit.rental.domain.enums.ContractStatus.CANCELLED,

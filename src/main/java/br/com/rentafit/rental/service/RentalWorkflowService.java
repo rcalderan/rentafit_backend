@@ -13,6 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 /**
@@ -81,6 +82,7 @@ public class RentalWorkflowService {
                 throw new br.com.rentafit.common.exception.ValidationException("Item " + physical.id() + " em " + physical.status() + ": esperado AVAILABLE ou RESERVED para entrega");
             }
             rentalItemPort.updateStatus(item.getRentalItemId(), ProductStatus.RENTED);
+            rentalItemPort.recordRentalUsage(item.getRentalItemId(), LocalDateTime.now());
             log.info("RentalItem {} RENTED (delivered) for contract {}", item.getRentalItemId(), item.getContract().getId());
         }
         item.setDelivered(true);
@@ -102,6 +104,9 @@ public class RentalWorkflowService {
         for (RentalContractItem item : contract.getItems()) {
             if (item.getRentalItemId() != null && contractItemRepository.countOutstandingDeliveries(item.getRentalItemId()) == 0) {
                 rentalItemPort.updateStatus(item.getRentalItemId(), ProductStatus.MAINTENANCE);
+                if (!Boolean.TRUE.equals(item.getDelivered())) {
+                    rentalItemPort.recordRentalUsage(item.getRentalItemId(), LocalDateTime.now());
+                }
                 log.info("RentalItem {} → MAINTENANCE after return for contract {}", item.getRentalItemId(), contract.getId());
             }
 

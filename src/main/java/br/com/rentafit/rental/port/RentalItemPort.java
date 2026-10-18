@@ -3,6 +3,7 @@ package br.com.rentafit.rental.port;
 import br.com.rentafit.product.domain.enums.ProductStatus;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -35,6 +36,12 @@ public interface RentalItemPort {
     boolean isAvailable(UUID rentalItemId);
 
     void lockItems(Collection<UUID> rentalItemIds);
+
+    /**
+     * Registra o uso físico do item: incrementa rentalCount e atualiza lastRentalDate.
+     * Chamado quando a peça sai da loja (entrega) ou é devolvida sem registro de entrega.
+     */
+    void recordRentalUsage(UUID rentalItemId, LocalDateTime rentalDate);
 
     /**
      * Snapshot dos dados do item gravado no contrato no momento da criação.

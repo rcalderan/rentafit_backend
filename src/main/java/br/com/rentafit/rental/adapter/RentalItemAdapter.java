@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
@@ -75,6 +76,18 @@ public class RentalItemAdapter implements RentalItemPort {
         if (rentalItemIds.isEmpty()) return;
         rentalItemRepository.lockItems(rentalItemIds).forEach(item ->
                 entityManager.refresh(item, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
+    }
+
+    @Override
+    @Transactional
+    public void recordRentalUsage(UUID rentalItemId, LocalDateTime rentalDate) {
+        RentalItem item = rentalItemRepository.findById(rentalItemId)
+                .orElseThrow(() -> new ResourceNotFoundException("RentalItem", "id", rentalItemId.toString()));
+        item.setRentalCount((item.getRentalCount() == null ? 0 : item.getRentalCount()) + 1);
+        item.setLastRentalDate(rentalDate);
+        rentalItemRepository.save(item);
+        log.info("RentalItem {} rentalCount incremented to {} (lastRentalDate={})",
+                rentalItemId, item.getRentalCount(), rentalDate);
     }
 
     private RentalItemSnapshot toSnapshot(RentalItem item) {
