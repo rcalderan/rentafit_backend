@@ -11,7 +11,11 @@ import java.util.UUID;
 public record EmployeeCheckResponseDTO(
         UUID id,
         String initials,
-        String name
+        String name,
+        String role
 ) {
+    public EmployeeCheckResponseDTO(UUID id, String initials, String name) {
+        this(id, initials, name, null);
+    }
 }
 

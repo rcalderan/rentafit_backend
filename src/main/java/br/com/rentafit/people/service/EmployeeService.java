@@ -151,7 +151,8 @@ public class EmployeeService {
             throw new ValidationException("Credenciais inválidas. Verifique as iniciais e o PIN.");
         }
 
-        return new EmployeeCheckResponseDTO(employee.getId(), employee.getInitials(), employee.getName());
+        String role = account.getRole() != null ? account.getRole().name() : null;
+        return new EmployeeCheckResponseDTO(employee.getId(), employee.getInitials(), employee.getName(), role);
     }
 
     @Transactional

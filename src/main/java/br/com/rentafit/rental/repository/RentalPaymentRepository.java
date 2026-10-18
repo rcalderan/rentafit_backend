@@ -38,4 +38,29 @@ public interface RentalPaymentRepository extends JpaRepository<RentalPayment, UU
             @Param("contractId") UUID contractId,
             @Param("statuses") List<PaymentStatus> statuses
     );
+
+    @Query("""
+            SELECT p FROM RentalPayment p
+            JOIN FETCH p.contract c
+            WHERE p.paymentDate BETWEEN :startDate AND :endDate
+              AND p.status <> br.com.rentafit.rental.domain.enums.PaymentStatus.CANCELLED
+              AND c.status <> br.com.rentafit.rental.domain.enums.ContractStatus.SUPERSEDED
+              AND (p.status <> br.com.rentafit.rental.domain.enums.PaymentStatus.PENDING
+                   OR c.status NOT IN (
+                       br.com.rentafit.rental.domain.enums.ContractStatus.CANCELLED,
+                       br.com.rentafit.rental.domain.enums.ContractStatus.DRAFT
+                   ))
+            ORDER BY p.paymentDate ASC, p.installmentNumber ASC
+            """)
+    List<RentalPayment> findActiveMovementsBetween(
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+            SELECT DISTINCT EXTRACT(YEAR FROM p.paymentDate) FROM RentalPayment p
+            WHERE p.status <> br.com.rentafit.rental.domain.enums.PaymentStatus.CANCELLED
+            ORDER BY EXTRACT(YEAR FROM p.paymentDate) DESC
+            """)
+    List<Integer> findDistinctPaymentYears();
 }

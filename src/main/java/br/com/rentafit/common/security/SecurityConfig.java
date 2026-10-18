@@ -96,6 +96,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers("/api/fiscal-documents/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
+                        // Movimentação financeira — restrito a MANAGER e ADMIN
+                        .requestMatchers("/api/v1/finance/**").hasAnyRole("MANAGER", "ADMIN")
+
                         // Admin de usuários (já tem @PreAuthorize, defense-in-depth)
                         .requestMatchers("/api/auth/users/**").hasAnyRole("MANAGER", "ADMIN")
 

@@ -275,6 +275,7 @@ class EmployeeServiceTest {
 
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo(employeeId);
+        assertThat(result.role()).isEqualTo("EMPLOYEE");
     }
 
     @Test
