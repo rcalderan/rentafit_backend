@@ -16,6 +16,8 @@ import br.com.rentafit.rental.dto.WithdrawContractDTO;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -57,8 +59,10 @@ public class WithdrawalService {
     private final EmployeeRepository employeeRepository;
     private final RentalWorkflowService workflowService;
     private final RentalMapper mapper;
+    private final TerminalSectorResolver sectorResolver;
 
     public RentalContractDetailsDTO withdraw(UUID contractId, WithdrawContractDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         contractRepository.lockById(contractId);
         RentalContract contract = requireContract(contractId);
         requireWithdrawable(contract);
@@ -71,18 +75,19 @@ public class WithdrawalService {
 
         OffsetDateTime now = OffsetDateTime.now();
         String returnerName = "Desistência — " + employee.getName();
-        markAllReturned(contract, now, returnerName);
-        settlePayments(contract, dto);
+        markAllReturned(contract, now, returnerName, sector.getId());
+        settlePayments(contract, dto, sector.getId());
 
         if (Boolean.TRUE.equals(dto.applyFine()) && dto.fineAmount() != null
                 && dto.fineAmount().compareTo(BigDecimal.ZERO) > 0) {
-            createFinePayment(contract, dto.fineAmount(), dto.employeeId());
+            createFinePayment(contract, dto.fineAmount(), dto.employeeId(), sector.getId());
         }
 
         contract.setStatus(ContractStatus.CANCELLED);
         contract.setReturned(true);
         contract.setActualReturnDate(LocalDate.now());
         contract.setReturnedByEmployeeId(dto.employeeId());
+        contract.setReturnSectorId(sector.getId());
         RentalContract saved = contractRepository.save(contract);
 
         // SIGNED nunca reservou estoque/itens — só FINALIZED tem efeitos físicos.
@@ -119,12 +124,13 @@ public class WithdrawalService {
         }
     }
 
-    private void markAllReturned(RentalContract contract, OffsetDateTime now, String returnerName) {
+    private void markAllReturned(RentalContract contract, OffsetDateTime now, String returnerName, UUID sectorId) {
         for (RentalContractItem item : contract.getItems()) {
             if (!Boolean.TRUE.equals(item.getReturned())) {
                 item.setReturned(true);
                 item.setReturnedAt(now);
                 item.setReturnedByName(returnerName);
+                item.setReturnedSectorId(sectorId);
             }
             for (RentalContractItemMeta meta : item.getMetadata()) {
                 if (!Boolean.TRUE.equals(meta.getReturned())) {
@@ -135,7 +141,7 @@ public class WithdrawalService {
         }
     }
 
-    private void settlePayments(RentalContract contract, WithdrawContractDTO dto) {
+    private void settlePayments(RentalContract contract, WithdrawContractDTO dto, UUID sectorId) {
         for (RentalPayment payment : contract.getPayments()) {
             if (PaymentStatus.PENDING.equals(payment.getStatus())) {
                 payment.setStatus(PaymentStatus.CANCELLED);
@@ -143,7 +149,7 @@ public class WithdrawalService {
             }
         }
         if (dto.refundAmount() != null) {
-            createRefundEntry(contract, dto.refundAmount(), dto.employeeId());
+            createRefundEntry(contract, dto.refundAmount(), dto.employeeId(), sectorId);
         }
     }
 
@@ -153,7 +159,7 @@ public class WithdrawalService {
      * chk_rental_payment_value exige value > 0 — o status REFUNDED é o
      * marcador de saída, não o sinal do valor.
      */
-    private void createRefundEntry(RentalContract contract, BigDecimal refundAmount, UUID employeeId) {
+    private void createRefundEntry(RentalContract contract, BigDecimal refundAmount, UUID employeeId, UUID sectorId) {
         int nextInstallment = paymentRepository
                 .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
 
@@ -166,13 +172,14 @@ public class WithdrawalService {
                 .installments(1)
                 .status(PaymentStatus.REFUNDED)
                 .processedByEmployeeId(employeeId)
+                .sectorId(sectorId)
                 .build();
 
         paymentRepository.save(refund);
         log.info("Refund of {} recorded for contract {}", refundAmount, contract.getId());
     }
 
-    private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId) {
+    private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId, UUID sectorId) {
         int nextInstallment = paymentRepository
                 .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
 
@@ -185,6 +192,7 @@ public class WithdrawalService {
                 .installments(1)
                 .status(PaymentStatus.MULTA)
                 .processedByEmployeeId(employeeId)
+                .sectorId(sectorId)
                 .build();
 
         paymentRepository.save(fine);

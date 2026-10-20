@@ -12,6 +12,8 @@ import br.com.rentafit.sales.dto.SalesPaymentInputDTO;
 import br.com.rentafit.sales.mapper.SalesMapper;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import br.com.rentafit.sales.repository.SalesPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -46,6 +48,7 @@ public class SalesPaymentService {
     private final SalesOrderRepository orderRepository;
     private final SalesOrderService orderService;
     private final SalesMapper mapper;
+    private final TerminalSectorResolver sectorResolver;
 
     @Transactional(readOnly = true)
     public List<SalesPaymentDetailsDTO> listPayments(UUID orderId) {
@@ -56,6 +59,7 @@ public class SalesPaymentService {
     }
 
     public SalesOrderDetailsDTO addPayment(UUID orderId, SalesPaymentInputDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         SalesOrder order = orderService.findEntityById(orderId);
 
         if (order.getStatus() == SalesOrderStatus.DRAFT
@@ -82,6 +86,10 @@ public class SalesPaymentService {
         }
 
         SalesPayment payment = mapper.toPaymentEntity(dto, order);
+        // Parcela que já nasce quitada (baixa no ato) registra o setor do terminal recebedor
+        if (payment.getStatus().isCashMovement()) {
+            payment.setSectorId(sector.getId());
+        }
         order.getPayments().add(payment);
 
         checkAndTransitionToPaid(order);
@@ -92,6 +100,7 @@ public class SalesPaymentService {
     }
 
     public SalesOrderDetailsDTO updatePayment(UUID orderId, UUID paymentId, SalesPaymentInputDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         SalesOrder order = orderService.findEntityById(orderId);
         SalesPayment payment = findPayment(order, paymentId);
 
@@ -107,6 +116,7 @@ public class SalesPaymentService {
         }
 
         // Atualizar campos
+        boolean wasSettled = payment.getStatus().isCashMovement();
         payment.setInstallmentNumber(dto.installmentNumber());
         payment.setPaymentDate(dto.paymentDate());
         payment.setPaymentMethod(
@@ -118,6 +128,12 @@ public class SalesPaymentService {
             payment.setStatus(PaymentStatus.valueOf(dto.status().toUpperCase()));
         }
 
+        // Baixa (PENDING→PAID) ou estorno nesta operação registra o setor do terminal recebedor;
+        // parcela já quitada preserva o setor original — ou null (legado pré-V44)
+        if (!wasSettled && payment.getSectorId() == null && payment.getStatus().isCashMovement()) {
+            payment.setSectorId(sector.getId());
+        }
+
         checkAndTransitionToPaid(order);
 
         SalesOrder saved = orderRepository.save(order);
@@ -126,6 +142,7 @@ public class SalesPaymentService {
     }
 
     public SalesOrderDetailsDTO cancelPayment(UUID orderId, UUID paymentId) {
+        sectorResolver.requireTerminalSector();
         SalesOrder order = orderService.findEntityById(orderId);
         SalesPayment payment = findPayment(order, paymentId);
 

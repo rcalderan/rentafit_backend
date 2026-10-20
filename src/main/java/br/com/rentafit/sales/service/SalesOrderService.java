@@ -12,6 +12,8 @@ import br.com.rentafit.sales.port.RetailProductPort.RetailProductSnapshot;
 import br.com.rentafit.sales.port.SalesCustomerPort;
 import br.com.rentafit.sales.port.SalesCustomerPort.CustomerSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,7 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -40,15 +44,18 @@ public class SalesOrderService {
     private final SalesCustomerPort customerPort;
     private final RetailProductPort productPort;
     private final SalesMapper mapper;
+    private final TerminalSectorResolver sectorResolver;
 
     @Value("${rentafit.legacy-id.pattern:yyMMdd}")
     private String legacyIdPattern;
 
     public SalesOrderDetailsDTO create(CreateSalesOrderDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         CustomerSnapshot customer = resolveCustomer(dto.customerId());
 
         SalesOrder order = mapper.toEntity(dto, customer);
         order.setLegacyId(generateLegacyId());
+        order.setSectorId(sector.getId());
 
         // Adicionar itens resolvendo produto via port
         if (dto.items() != null) {
@@ -68,6 +75,12 @@ public class SalesOrderService {
             order.setPayments(dto.payments().stream()
                     .map(p -> mapper.toPaymentEntity(p, order))
                     .collect(Collectors.toList()));
+            // Parcela que já nasce quitada (baixa no ato) registra o setor do terminal recebedor
+            order.getPayments().forEach(p -> {
+                if (p.getStatus().isCashMovement()) {
+                    p.setSectorId(sector.getId());
+                }
+            });
         }
 
         SalesOrder saved = orderRepository.save(order);
@@ -76,12 +89,19 @@ public class SalesOrderService {
     }
 
     public SalesOrderDetailsDTO update(UUID orderId, UpdateSalesOrderDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         SalesOrder order = findEntityById(orderId);
 
         if (order.getStatus() != SalesOrderStatus.DRAFT) {
             throw new ValidationException(
                     "Pedido só pode ser editado no status DRAFT, status atual: " + order.getStatus());
         }
+
+        // Parcelas já quitadas preservam o setor em que foram recebidas (recriadas por installmentNumber)
+        Map<Integer, UUID> settledSectorByInstallment = new HashMap<>();
+        order.getPayments().stream()
+                .filter(p -> p.getStatus().isCashMovement() && p.getInstallmentNumber() != null)
+                .forEach(p -> settledSectorByInstallment.put(p.getInstallmentNumber(), p.getSectorId()));
 
         CustomerSnapshot customer = resolveCustomer(dto.customerId());
         mapper.updateEntityFromDTO(order, dto, customer);
@@ -105,6 +125,13 @@ public class SalesOrderService {
             dto.payments().stream()
                     .map(p -> mapper.toPaymentEntity(p, order))
                     .forEach(order.getPayments()::add);
+            order.getPayments().forEach(p -> {
+                if (!p.getStatus().isCashMovement()) {
+                    return;
+                }
+                UUID priorSector = settledSectorByInstallment.get(p.getInstallmentNumber());
+                p.setSectorId(priorSector != null ? priorSector : sector.getId());
+            });
         }
 
         SalesOrder saved = orderRepository.save(order);
@@ -141,11 +168,12 @@ public class SalesOrderService {
     public Page<SalesOrderSummaryDTO> findWithFilters(SalesOrderStatus status,
                                                        OffsetDateTime dateFrom,
                                                        OffsetDateTime dateTo,
+                                                       UUID sectorId,
                                                        Pageable pageable) {
-        if (status != null && dateFrom == null && dateTo == null) {
+        if (status != null && dateFrom == null && dateTo == null && sectorId == null) {
             return orderRepository.findByStatus(status, pageable).map(mapper::toSummaryDTO);
         }
-        return orderRepository.findWithFilters(status, dateFrom, dateTo, pageable)
+        return orderRepository.findWithFilters(status, dateFrom, dateTo, sectorId, pageable)
                 .map(mapper::toSummaryDTO);
     }
 

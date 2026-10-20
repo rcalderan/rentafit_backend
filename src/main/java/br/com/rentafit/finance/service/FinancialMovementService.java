@@ -7,6 +7,7 @@ import br.com.rentafit.finance.dto.MonthlyBucketDTO;
 import br.com.rentafit.finance.dto.MonthlyMovementResponseDTO;
 import br.com.rentafit.finance.dto.MovementSourceFilter;
 import br.com.rentafit.finance.dto.PaymentMethodBreakdownDTO;
+import br.com.rentafit.finance.dto.SectorMovementBreakdownDTO;
 import br.com.rentafit.finance.dto.YearlyMovementResponseDTO;
 import br.com.rentafit.rental.domain.RentalContract;
 import br.com.rentafit.rental.domain.RentalPayment;
@@ -16,6 +17,8 @@ import br.com.rentafit.rental.repository.RentalPaymentRepository;
 import br.com.rentafit.sales.domain.SalesOrder;
 import br.com.rentafit.sales.domain.SalesPayment;
 import br.com.rentafit.sales.repository.SalesPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.repository.SectorRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,7 +33,10 @@ import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.TreeSet;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Serviço de consolidação da movimentação financeira de locações e vendas.
@@ -46,22 +52,29 @@ public class FinancialMovementService {
 
     private final RentalPaymentRepository rentalPaymentRepository;
     private final SalesPaymentRepository salesPaymentRepository;
+    private final SectorRepository sectorRepository;
 
     /**
-     * Gera o consolidado mensal (resumo diário 1..31, meios de pagamento e extrato de parcelas).
+     * Gera o consolidado mensal (resumo diário 1..31, meios de pagamento, setores e extrato de parcelas).
      *
-     * <p>Exemplo: {@code service.getMonthlyMovement(2026, 10, "ALL");}</p>
+     * <p>{@code sectorId} restringe às movimentações daquele setor (caixa recebedor,
+     * com fallback ao setor de origem do contrato/pedido para registros legados).
+     * {@code issuerCnpj} restringe às movimentações de setores do estabelecimento.</p>
+     *
+     * <p>Exemplo: {@code service.getMonthlyMovement(2026, 10, "ALL", null, null);}</p>
      */
-    public MonthlyMovementResponseDTO getMonthlyMovement(int year, int month, String sourceParam) {
+    public MonthlyMovementResponseDTO getMonthlyMovement(int year, int month, String sourceParam,
+                                                       UUID sectorId, String issuerCnpj) {
         validateYearAndMonth(year, month);
         MovementSourceFilter filter = MovementSourceFilter.fromParam(sourceParam);
         YearMonth yearMonth = YearMonth.of(year, month);
         List<FinancialTransactionDTO> transactions = loadTransactions(
-                yearMonth.atDay(1), yearMonth.atEndOfMonth(), filter);
+                yearMonth.atDay(1), yearMonth.atEndOfMonth(), filter, sectorId, issuerCnpj);
 
         MovementAccumulator totals = accumulateAll(transactions);
         List<DailyMovementSummaryDTO> days = buildDailySummaries(yearMonth, transactions);
         List<PaymentMethodBreakdownDTO> byMethod = buildMethodBreakdown(transactions);
+        List<SectorMovementBreakdownDTO> bySector = buildSectorBreakdown(transactions);
 
         log.info("Loaded monthly financial movement for {}/{} (source={}, count={})",
                 year, month, filter, transactions.size());
@@ -78,26 +91,29 @@ public class FinancialMovementService {
                 .rentalPendingTotal(totals.getRentalPendingAmount())
                 .salePendingTotal(totals.getSalePendingAmount())
                 .byPaymentMethod(byMethod)
+                .bySector(bySector)
                 .days(days)
                 .transactions(transactions)
                 .build();
     }
 
     /**
-     * Gera o consolidado anual (12 meses de Jan a Dez e meios de pagamento).
+     * Gera o consolidado anual (12 meses de Jan a Dez, meios de pagamento e setores).
      *
-     * <p>Exemplo: {@code service.getYearlyMovement(2026, "ALL");}</p>
+     * <p>Exemplo: {@code service.getYearlyMovement(2026, "ALL", null, null);}</p>
      */
-    public YearlyMovementResponseDTO getYearlyMovement(int year, String sourceParam) {
+    public YearlyMovementResponseDTO getYearlyMovement(int year, String sourceParam,
+                                                      UUID sectorId, String issuerCnpj) {
         validateYear(year);
         MovementSourceFilter filter = MovementSourceFilter.fromParam(sourceParam);
         LocalDate start = LocalDate.of(year, 1, 1);
         LocalDate end = LocalDate.of(year, 12, 31);
-        List<FinancialTransactionDTO> transactions = loadTransactions(start, end, filter);
+        List<FinancialTransactionDTO> transactions = loadTransactions(start, end, filter, sectorId, issuerCnpj);
 
         MovementAccumulator totals = accumulateAll(transactions);
         List<MonthlyBucketDTO> months = buildMonthlyBuckets(transactions);
         List<PaymentMethodBreakdownDTO> byMethod = buildMethodBreakdown(transactions);
+        List<SectorMovementBreakdownDTO> bySector = buildSectorBreakdown(transactions);
         List<Integer> availableYears = resolveAvailableYears(year);
 
         log.info("Loaded yearly financial movement for {} (source={}, count={})",
@@ -115,6 +131,7 @@ public class FinancialMovementService {
                 .rentalPendingTotal(totals.getRentalPendingAmount())
                 .salePendingTotal(totals.getSalePendingAmount())
                 .byPaymentMethod(byMethod)
+                .bySector(bySector)
                 .months(months)
                 .build();
     }
@@ -135,7 +152,8 @@ public class FinancialMovementService {
     }
 
     private List<FinancialTransactionDTO> loadTransactions(
-            LocalDate startDate, LocalDate endDate, MovementSourceFilter filter) {
+            LocalDate startDate, LocalDate endDate, MovementSourceFilter filter,
+            UUID sectorId, String issuerCnpj) {
         List<FinancialTransactionDTO> items = new ArrayList<>();
         if (filter.includesRental()) {
             rentalPaymentRepository.findActiveMovementsBetween(startDate, endDate).stream()
@@ -147,10 +165,68 @@ public class FinancialMovementService {
                     .map(this::mapSalesPayment)
                     .forEach(items::add);
         }
+
+        Map<UUID, Sector> sectorsById = resolveSectorMap(items);
+        items = items.stream()
+                .map(tx -> enrichWithSector(tx, sectorsById))
+                .filter(tx -> matchesSectorFilter(tx, sectorsById, sectorId, issuerCnpj))
+                .collect(Collectors.toCollection(ArrayList::new));
+
         items.sort(Comparator.comparing(FinancialTransactionDTO::paymentDate)
                 .thenComparing(FinancialTransactionDTO::source)
                 .thenComparing(FinancialTransactionDTO::referenceCode, Comparator.nullsLast(String::compareTo)));
         return items;
+    }
+
+    /** Carrega em lote os setores referenciados pelas transações. */
+    private Map<UUID, Sector> resolveSectorMap(List<FinancialTransactionDTO> items) {
+        List<UUID> ids = items.stream()
+                .map(FinancialTransactionDTO::sectorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return sectorRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(Sector::getId, s -> s));
+    }
+
+    private FinancialTransactionDTO enrichWithSector(FinancialTransactionDTO tx, Map<UUID, Sector> sectorsById) {
+        Sector sector = tx.sectorId() == null ? null : sectorsById.get(tx.sectorId());
+        if (sector == null) {
+            return tx;
+        }
+        return FinancialTransactionDTO.builder()
+                .paymentId(tx.paymentId())
+                .source(tx.source())
+                .referenceId(tx.referenceId())
+                .referenceCode(tx.referenceCode())
+                .customerName(tx.customerName())
+                .installmentNumber(tx.installmentNumber())
+                .installments(tx.installments())
+                .paymentDate(tx.paymentDate())
+                .paymentMethod(tx.paymentMethod())
+                .status(tx.status())
+                .value(tx.value())
+                .signedValue(tx.signedValue())
+                .sectorId(sector.getId())
+                .sectorName(sector.getName())
+                .sectorCode(sector.getCode())
+                .issuerCnpj(sector.getIssuerCnpj())
+                .build();
+    }
+
+    private boolean matchesSectorFilter(FinancialTransactionDTO tx, Map<UUID, Sector> sectorsById,
+                                        UUID sectorId, String issuerCnpj) {
+        if (sectorId != null && !sectorId.equals(tx.sectorId())) {
+            return false;
+        }
+        if (issuerCnpj == null || issuerCnpj.isBlank()) {
+            return true;
+        }
+        Sector sector = tx.sectorId() == null ? null : sectorsById.get(tx.sectorId());
+        return sector != null && issuerCnpj.equals(sector.getIssuerCnpj());
     }
 
     private FinancialTransactionDTO mapRentalPayment(RentalPayment payment) {
@@ -171,6 +247,7 @@ public class FinancialMovementService {
                 .status(payment.getStatus().name())
                 .value(payment.getValue())
                 .signedValue(resolveSignedValue(payment.getStatus(), payment.getValue()))
+                .sectorId(resolvePaymentSector(payment.getSectorId(), contract.getSectorId()))
                 .build();
     }
 
@@ -195,7 +272,17 @@ public class FinancialMovementService {
                 .status(payment.getStatus().name())
                 .value(payment.getValue())
                 .signedValue(resolveSignedValue(payment.getStatus(), payment.getValue()))
+                .sectorId(resolvePaymentSector(payment.getSectorId(), order.getSectorId()))
                 .build();
+    }
+
+    /**
+     * Setor contábil da parcela: para movimentações de caixa (PAID/MULTA/REFUNDED)
+     * é o setor do terminal recebedor; para PENDING (ou registros legados sem
+     * setor na parcela) cai no setor de origem do contrato/pedido.
+     */
+    private UUID resolvePaymentSector(UUID paymentSectorId, UUID originSectorId) {
+        return paymentSectorId != null ? paymentSectorId : originSectorId;
     }
 
     private BigDecimal resolveSignedValue(PaymentStatus status, BigDecimal value) {
@@ -255,6 +342,29 @@ public class FinancialMovementService {
         }
         return byMethod.entrySet().stream()
                 .map(entry -> entry.getValue().toMethodBreakdown(entry.getKey().name()))
+                .toList();
+    }
+
+    /**
+     * Consolida as movimentações por setor de caixa para o fechamento diário/mensal.
+     * Transações sem setor (legado pré-V44) caem no grupo {@code null} — "Sem setor".
+     */
+    private List<SectorMovementBreakdownDTO> buildSectorBreakdown(List<FinancialTransactionDTO> transactions) {
+        Map<UUID, MovementAccumulator> bySector = new LinkedHashMap<>();
+        Map<UUID, FinancialTransactionDTO> labelSource = new LinkedHashMap<>();
+        for (FinancialTransactionDTO tx : transactions) {
+            bySector.computeIfAbsent(tx.sectorId(), k -> new MovementAccumulator()).accept(tx);
+            labelSource.putIfAbsent(tx.sectorId(), tx);
+        }
+        return bySector.entrySet().stream()
+                .map(e -> {
+                    FinancialTransactionDTO label = labelSource.get(e.getKey());
+                    return e.getValue().toSectorBreakdown(
+                            e.getKey(),
+                            e.getKey() == null ? "Sem setor (Legado)" : label.sectorName(),
+                            label.sectorCode(),
+                            label.issuerCnpj());
+                })
                 .toList();
     }
 

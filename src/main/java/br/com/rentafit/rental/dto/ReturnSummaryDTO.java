@@ -29,6 +29,8 @@ public record ReturnSummaryDTO(
         boolean isFullyReturned,
         long delayDays,
         BigDecimal suggestedFine,
+        UUID sectorId,
+        UUID returnSectorId,
         List<ReturnItemDTO> items,
         List<ReturnPaymentPreviewDTO> paymentsPreview
 ) {

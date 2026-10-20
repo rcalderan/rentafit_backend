@@ -25,6 +25,7 @@ public record RentalContractSummaryDTO(
         LocalDate pickupDate,
         LocalDate returnDate,
         Boolean returned,
+        UUID sectorId,
         BigDecimal totalValue,
         BigDecimal paidValue,
         OffsetDateTime createdAt

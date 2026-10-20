@@ -21,6 +21,11 @@ public enum PaymentStatus {
     public int getLegacyCode() { return legacyCode; }
     public String getDescription() { return description; }
 
+    /** Indica que a parcela representa movimentação de caixa (entrada ou saída efetiva). */
+    public boolean isCashMovement() {
+        return this == PAID || this == MULTA || this == REFUNDED;
+    }
+
     public static PaymentStatus fromLegacyCode(int code) {
         for (PaymentStatus s : values()) {
             if (s.legacyCode == code) return s;

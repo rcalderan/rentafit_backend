@@ -22,6 +22,10 @@ public record FinancialTransactionDTO(
         String paymentMethod,
         String status,
         BigDecimal value,
-        BigDecimal signedValue
+        BigDecimal signedValue,
+        UUID sectorId,
+        String sectorName,
+        String sectorCode,
+        String issuerCnpj
 ) {
 }

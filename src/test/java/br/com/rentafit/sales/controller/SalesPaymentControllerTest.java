@@ -53,7 +53,8 @@ class SalesPaymentControllerTest {
                 1,
                 UUID.randomUUID(),
                 "PENDING",
-                "Pendente"
+                "Pendente",
+                null
         );
 
         paymentInputDTO = new SalesPaymentInputDTO(

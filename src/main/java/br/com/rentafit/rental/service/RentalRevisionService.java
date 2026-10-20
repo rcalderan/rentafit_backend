@@ -130,6 +130,7 @@ public class RentalRevisionService {
                 .customerId(original.getCustomerId()).customerName(original.getCustomerName()).customerDocument(original.getCustomerDocument())
                 .createdByEmployeeId(original.getCreatedByEmployeeId()).pickupDate(original.getPickupDate())
                 .eventDate(original.getEventDate()).returnDate(original.getReturnDate()).notes(original.getNotes())
+                .sectorId(original.getSectorId())
                 .printTemplateId(original.getPrintTemplateId()).status(ContractStatus.REVISION).parentContractId(original.getId())
                 .revisedByAccountId(currentAccountId.requireId()).parentSnapshot(snapshot(original)).build();
         revision.setItems(copyItems(original, revision));
@@ -154,7 +155,7 @@ public class RentalRevisionService {
         return new ArrayList<>(original.getPayments().stream().map(payment -> RentalPayment.builder().contract(revision)
                 .installmentNumber(payment.getInstallmentNumber()).paymentDate(payment.getPaymentDate()).paymentMethod(payment.getPaymentMethod())
                 .value(payment.getValue()).installments(payment.getInstallments()).processedByEmployeeId(payment.getProcessedByEmployeeId())
-                .status(payment.getStatus()).build()).toList());
+                .status(payment.getStatus()).sectorId(payment.getSectorId()).build()).toList());
     }
 
     private String snapshot(RentalContract original) {

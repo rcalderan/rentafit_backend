@@ -45,8 +45,12 @@ public class FinancialMovementController {
             @Parameter(description = "Ano (ex.: 2026)", required = true) @RequestParam int year,
             @Parameter(description = "Mês (1 a 12)", required = true) @RequestParam int month,
             @Parameter(description = "Origem: ALL, RENTAL ou SALE")
-            @RequestParam(defaultValue = "ALL") String source) {
-        return ResponseEntity.ok(movementService.getMonthlyMovement(year, month, source));
+            @RequestParam(defaultValue = "ALL") String source,
+            @Parameter(description = "Setor de caixa (UUID); omitir para todos")
+            @RequestParam(required = false) java.util.UUID sectorId,
+            @Parameter(description = "CNPJ do estabelecimento (Matriz/Filial); omitir para todos")
+            @RequestParam(required = false) String issuerCnpj) {
+        return ResponseEntity.ok(movementService.getMonthlyMovement(year, month, source, sectorId, issuerCnpj));
     }
 
     /**
@@ -64,7 +68,11 @@ public class FinancialMovementController {
     public ResponseEntity<YearlyMovementResponseDTO> getYearly(
             @Parameter(description = "Ano (ex.: 2026)", required = true) @RequestParam int year,
             @Parameter(description = "Origem: ALL, RENTAL ou SALE")
-            @RequestParam(defaultValue = "ALL") String source) {
-        return ResponseEntity.ok(movementService.getYearlyMovement(year, source));
+            @RequestParam(defaultValue = "ALL") String source,
+            @Parameter(description = "Setor de caixa (UUID); omitir para todos")
+            @RequestParam(required = false) java.util.UUID sectorId,
+            @Parameter(description = "CNPJ do estabelecimento (Matriz/Filial); omitir para todos")
+            @RequestParam(required = false) String issuerCnpj) {
+        return ResponseEntity.ok(movementService.getYearlyMovement(year, source, sectorId, issuerCnpj));
     }
 }

@@ -11,6 +11,7 @@ import br.com.rentafit.sales.dto.SalesOrderDetailsDTO;
 import br.com.rentafit.sales.mapper.SalesMapper;
 import br.com.rentafit.sales.port.RetailProductPort;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
@@ -39,6 +40,7 @@ public class SalesWorkflowService {
     private final SalesOrderService orderService;
     private final RetailProductPort productPort;
     private final SalesMapper mapper;
+    private final TerminalSectorResolver sectorResolver;
 
     /**
      * DRAFT → CONFIRMED: valida estoque e reserva.
@@ -153,6 +155,7 @@ public class SalesWorkflowService {
         item.setItemStatus(SalesItemStatus.DELIVERED);
         item.setDeliveredAt(OffsetDateTime.now());
         item.setDeliveredByEmployeeId(employeeId);
+        item.setDeliveredSectorId(sectorResolver.requireTerminalSector().getId());
 
         // Auto-complete: se todos entregues, ordem → COMPLETED
         boolean allDelivered = order.getItems().stream()

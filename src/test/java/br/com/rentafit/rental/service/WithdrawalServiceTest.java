@@ -16,6 +16,8 @@ import br.com.rentafit.rental.dto.WithdrawContractDTO;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,6 +47,7 @@ class WithdrawalServiceTest {
     @Mock private EmployeeRepository employeeRepository;
     @Mock private RentalWorkflowService workflowService;
     @Mock private RentalMapper mapper;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private WithdrawalService withdrawalService;
@@ -61,6 +64,9 @@ class WithdrawalServiceTest {
     void setUp() {
         contractId = UUID.randomUUID();
         employeeId = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
 
         employee = mock(Employee.class);
         lenient().when(employee.getName()).thenReturn("Richard");

@@ -42,7 +42,9 @@ public class RentalReportController {
             @Parameter(description = "Data final do período (YYYY-MM-DD); omitir para dia único")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @Parameter(description = "Status a incluir (default: SIGNED, FINALIZED)")
-            @RequestParam(required = false) List<ContractStatus> statuses) {
-        return ResponseEntity.ok(reportService.generate(date, endDate, statuses));
+            @RequestParam(required = false) List<ContractStatus> statuses,
+            @Parameter(description = "Setor de retirada (UUID); omitir para todos os setores")
+            @RequestParam(required = false) java.util.UUID sectorId) {
+        return ResponseEntity.ok(reportService.generate(date, endDate, statuses, sectorId));
     }
 }

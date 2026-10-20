@@ -51,7 +51,8 @@ class RentalPaymentControllerTest {
                 1,
                 UUID.randomUUID(),
                 "COMPLETED",
-                "Paga"
+                "Paga",
+                null
         );
 
         paymentInputDTO = new RentalPaymentInputDTO(

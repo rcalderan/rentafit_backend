@@ -11,6 +11,7 @@ import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.port.*;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.*;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import br.com.rentafit.settings.service.ApplicationSettingsService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -41,7 +42,8 @@ import static org.mockito.Mockito.*;
 @Import({InstallationMigrationConfiguration.class, InstallationCompletionService.class, UserAccountService.class,
         RefreshTokenService.class, RentalContractService.class, RentalRevisionService.class, RentalMapper.class,
         RentalWorkflowService.class, RentalReservationDelta.class, RentalContractValidator.class, ItemConflictChecker.class,
-        RentalItemAdapter.class, ApplicationSettingsService.class, RentalProposalDuplication.class})
+        RentalItemAdapter.class, ApplicationSettingsService.class, RentalProposalDuplication.class,
+        TerminalSectorResolver.class})
 class PostgresRentalRegressionTest {
     @Autowired private JdbcTemplate database;
     @Autowired private InstallationCompletionService installation;

@@ -86,6 +86,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/api/v1/products/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/products/**").hasRole("ADMIN")
 
+                        // Setores: leitura EMPLOYEE/MANAGER/ADMIN; escrita MANAGER/ADMIN
+                        .requestMatchers(HttpMethod.GET,   "/api/v1/sectors/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,  "/api/v1/sectors/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT,   "/api/v1/sectors/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/sectors/**").hasAnyRole("MANAGER", "ADMIN")
+
                         // Locação e pagamentos: EMPLOYEE, MANAGER, ADMIN
                         .requestMatchers("/api/v1/rental/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 

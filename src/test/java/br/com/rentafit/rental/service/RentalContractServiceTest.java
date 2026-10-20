@@ -14,6 +14,8 @@ import br.com.rentafit.rental.port.CustomerPort;
 import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -49,6 +51,7 @@ class RentalContractServiceTest {
     @Mock private RentalMapper mapper;
     @Mock private br.com.rentafit.auth.service.CurrentAccountId currentAccountId;
     @Mock private RentalReservationDelta reservationDelta;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private RentalContractService contractService;
@@ -68,8 +71,14 @@ class RentalContractServiceTest {
         ReflectionTestUtils.setField(contractService, "legacyIdPattern", "yyMMdd");
         ReflectionTestUtils.setField(contractService, "revisionService", new RentalRevisionService(
                 contractRepository, mapper, currentAccountId, reservationDelta, mock(br.com.rentafit.billing.repository.FiscalDocumentRepository.class)));
-        ReflectionTestUtils.setField(contractService, "proposalDuplication", new RentalProposalDuplication(contractRepository, validator, mapper));
+        ReflectionTestUtils.setField(contractService, "proposalDuplication", new RentalProposalDuplication(contractRepository, validator, mapper, sectorResolver));
         lenient().when(currentAccountId.requireId()).thenReturn(UUID.randomUUID());
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
+        lenient().when(sectorResolver.resolveTerminalSector())
+                .thenReturn(Optional.of(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build()));
         contractId = UUID.randomUUID();
         customerId = UUID.randomUUID();
         legacyId = "CTR001";

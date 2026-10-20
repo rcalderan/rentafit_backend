@@ -39,6 +39,14 @@ public class RentalContract {
     @Column(name = "legacy_id", unique = true)
     private String legacyId;
 
+    /** Setor do terminal onde o contrato foi aberto — define onde a peça é retirada. */
+    @Column(name = "sector_id")
+    private UUID sectorId;
+
+    /** Setor do terminal onde a devolução foi concluída. */
+    @Column(name = "return_sector_id")
+    private UUID returnSectorId;
+
     @Column(name = "contract_type", nullable = false)
     @Builder.Default
     private Integer contractType = 0;

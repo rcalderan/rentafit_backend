@@ -20,6 +20,8 @@ import br.com.rentafit.rental.repository.RentalContractItemMetaRepository;
 import br.com.rentafit.rental.repository.RentalContractItemRepository;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,6 +54,7 @@ class ReturnServiceTest {
     @Mock private RentalPaymentRepository paymentRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private RentalWorkflowService workflowService;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private ReturnService returnService;
@@ -68,6 +71,12 @@ class ReturnServiceTest {
         contractId = UUID.randomUUID();
         employeeId = UUID.randomUUID();
         itemId = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
+        lenient().when(sectorResolver.resolveTerminalSector())
+                .thenReturn(Optional.of(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build()));
 
         item = RentalContractItem.builder()
                 .id(itemId)

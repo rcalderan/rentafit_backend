@@ -12,6 +12,8 @@ import br.com.rentafit.sales.mapper.SalesMapper;
 import br.com.rentafit.sales.port.RetailProductPort;
 import br.com.rentafit.sales.port.RetailProductPort.RetailProductSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -44,6 +46,7 @@ class SalesWorkflowServiceTest {
     @Mock private SalesOrderService orderService;
     @Mock private RetailProductPort productPort;
     @Mock private SalesMapper mapper;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private SalesWorkflowService workflowService;
@@ -64,6 +67,9 @@ class SalesWorkflowServiceTest {
         productId  = UUID.randomUUID();
         itemId     = UUID.randomUUID();
         userId     = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
 
         productSnapshot = new RetailProductSnapshot(
                 productId, "SKU-001", "Camiseta", "Vestuário",

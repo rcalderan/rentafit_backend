@@ -49,13 +49,13 @@ class FinancialMovementControllerTest {
                 .transactions(List.of())
                 .build();
 
-        when(movementService.getMonthlyMovement(2026, 10, "ALL")).thenReturn(dto);
+        when(movementService.getMonthlyMovement(2026, 10, "ALL", null, null)).thenReturn(dto);
 
-        ResponseEntity<MonthlyMovementResponseDTO> response = controller.getMonthly(2026, 10, "ALL");
+        ResponseEntity<MonthlyMovementResponseDTO> response = controller.getMonthly(2026, 10, "ALL", null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(dto);
-        verify(movementService).getMonthlyMovement(2026, 10, "ALL");
+        verify(movementService).getMonthlyMovement(2026, 10, "ALL", null, null);
     }
 
     @Test
@@ -77,12 +77,12 @@ class FinancialMovementControllerTest {
                 .months(List.of())
                 .build();
 
-        when(movementService.getYearlyMovement(2026, "RENTAL")).thenReturn(dto);
+        when(movementService.getYearlyMovement(2026, "RENTAL", null, null)).thenReturn(dto);
 
-        ResponseEntity<YearlyMovementResponseDTO> response = controller.getYearly(2026, "RENTAL");
+        ResponseEntity<YearlyMovementResponseDTO> response = controller.getYearly(2026, "RENTAL", null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isEqualTo(dto);
-        verify(movementService).getYearlyMovement(2026, "RENTAL");
+        verify(movementService).getYearlyMovement(2026, "RENTAL", null, null);
     }
 }

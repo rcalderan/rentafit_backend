@@ -4,10 +4,12 @@ import br.com.rentafit.finance.dto.DailyMovementSummaryDTO;
 import br.com.rentafit.finance.dto.FinancialTransactionDTO;
 import br.com.rentafit.finance.dto.MonthlyBucketDTO;
 import br.com.rentafit.finance.dto.PaymentMethodBreakdownDTO;
+import br.com.rentafit.finance.dto.SectorMovementBreakdownDTO;
 import lombok.Getter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 /**
  * Acumulador aritmético para consolidar parcelas (PAID, MULTA, REFUNDED e PENDING)
@@ -94,6 +96,27 @@ public class MovementAccumulator {
     public PaymentMethodBreakdownDTO toMethodBreakdown(String paymentMethod) {
         return PaymentMethodBreakdownDTO.builder()
                 .paymentMethod(paymentMethod)
+                .paidAmount(paidAmount)
+                .fineAmount(fineAmount)
+                .refundedAmount(refundedAmount)
+                .netRealizedAmount(getNetRealizedAmount())
+                .pendingAmount(pendingAmount)
+                .transactionCount(transactionCount)
+                .build();
+    }
+
+    /**
+     * Converte o estado acumulado em {@link SectorMovementBreakdownDTO}.
+     *
+     * <p>Exemplo: {@code SectorMovementBreakdownDTO dto = accumulator.toSectorBreakdown(id, "Balcão", "BALCAO", cnpj);}</p>
+     */
+    public SectorMovementBreakdownDTO toSectorBreakdown(UUID sectorId, String sectorName, String sectorCode,
+                                                      String issuerCnpj) {
+        return SectorMovementBreakdownDTO.builder()
+                .sectorId(sectorId)
+                .sectorName(sectorName)
+                .sectorCode(sectorCode)
+                .issuerCnpj(issuerCnpj)
                 .paidAmount(paidAmount)
                 .fineAmount(fineAmount)
                 .refundedAmount(refundedAmount)

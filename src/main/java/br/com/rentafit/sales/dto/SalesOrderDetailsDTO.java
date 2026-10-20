@@ -25,6 +25,9 @@ public record SalesOrderDetailsDTO(
 
         UUID createdByEmployeeId,
 
+        // Setor do terminal onde a venda foi aberta
+        UUID sectorId,
+
         String notes,
         BigDecimal discountValue,
 

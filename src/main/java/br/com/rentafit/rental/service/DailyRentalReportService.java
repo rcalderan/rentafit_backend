@@ -11,6 +11,8 @@ import br.com.rentafit.rental.dto.report.ReportItemDTO;
 import br.com.rentafit.rental.port.RentalItemPort;
 import br.com.rentafit.rental.port.RentalItemPort.RentalItemSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.repository.SectorRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,19 +49,24 @@ public class DailyRentalReportService {
 
     private final RentalContractRepository contractRepository;
     private final RentalItemPort rentalItemPort;
+    private final SectorRepository sectorRepository;
 
     /**
-     * Gera o relatório para um único dia. Delega para {@link #generate(LocalDate, LocalDate, List)}.
+     * Gera o relatório para um único dia. Delega para {@link #generate(LocalDate, LocalDate, List, UUID)}.
      */
     public DailyRentalReportDTO generate(LocalDate eventDate, List<ContractStatus> statuses) {
-        return generate(eventDate, eventDate, statuses);
+        return generate(eventDate, eventDate, statuses, null);
     }
 
     /**
      * Gera o relatório para um período (startDate a endDate, ambos inclusivos).
      * Se endDate for nulo, assume o mesmo que startDate.
+     * Se sectorId for informado, restringe aos contratos abertos nesse setor
+     * (a peça deve estar disponível para retirada nele); contratos legados sem
+     * setor (pré-V44) só aparecem quando sectorId é omitido.
      */
-    public DailyRentalReportDTO generate(LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses) {
+    public DailyRentalReportDTO generate(LocalDate startDate, LocalDate endDate, List<ContractStatus> statuses,
+                                         UUID sectorId) {
         LocalDate effectiveEnd = (endDate == null) ? startDate : endDate;
         List<ContractStatus> effectiveStatuses =
                 (statuses == null || statuses.isEmpty()) ? DEFAULT_STATUSES : statuses;
@@ -69,8 +76,15 @@ public class DailyRentalReportService {
                 : contractRepository.findByEventDateBetweenAndStatusInOrderByEventDateAscCustomerNameAsc(
                         startDate, effectiveEnd, effectiveStatuses);
 
+        if (sectorId != null) {
+            contracts = contracts.stream()
+                    .filter(c -> sectorId.equals(c.getSectorId()))
+                    .collect(Collectors.toList());
+        }
+
+        Map<UUID, Sector> sectorsById = resolveSectors(contracts);
         Map<UUID, RentalItemSnapshot> snapshots = resolveSnapshots(contracts);
-        List<ClothingTypeGroupDTO> groups = buildGroups(contracts, snapshots);
+        List<ClothingTypeGroupDTO> groups = buildGroups(contracts, snapshots, sectorsById);
 
         int itemCount = groups.stream().mapToInt(ClothingTypeGroupDTO::itemCount).sum();
         int adjustmentCount = groups.stream()
@@ -96,18 +110,34 @@ public class DailyRentalReportService {
         return rentalItemPort.findByIds(ids);
     }
 
+    /** Resolve os setores dos contratos em lote para exibir nome/sigla no relatório. */
+    private Map<UUID, Sector> resolveSectors(List<RentalContract> contracts) {
+        List<UUID> sectorIds = contracts.stream()
+                .map(RentalContract::getSectorId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (sectorIds.isEmpty()) {
+            return Map.of();
+        }
+        return sectorRepository.findAllById(sectorIds).stream()
+                .collect(Collectors.toMap(Sector::getId, s -> s));
+    }
+
     /** Agrupa por tipo de roupa preservando a ordem por cliente; "Sem categoria" vai por último. */
     private List<ClothingTypeGroupDTO> buildGroups(
-            List<RentalContract> contracts, Map<UUID, RentalItemSnapshot> snapshots) {
+            List<RentalContract> contracts, Map<UUID, RentalItemSnapshot> snapshots,
+            Map<UUID, Sector> sectorsById) {
 
         Map<String, List<ReportItemDTO>> byType = new LinkedHashMap<>();
         for (RentalContract contract : contracts) {
+            Sector sector = contract.getSectorId() == null ? null : sectorsById.get(contract.getSectorId());
             for (RentalContractItem item : contract.getItems()) {
                 RentalItemSnapshot snapshot =
                         item.getRentalItemId() == null ? null : snapshots.get(item.getRentalItemId());
                 String clothingType = resolveClothingType(snapshot);
                 byType.computeIfAbsent(clothingType, k -> new ArrayList<>())
-                        .add(toReportItem(contract, item, snapshot));
+                        .add(toReportItem(contract, item, snapshot, sector));
             }
         }
 
@@ -131,7 +161,7 @@ public class DailyRentalReportService {
     }
 
     private ReportItemDTO toReportItem(
-            RentalContract contract, RentalContractItem item, RentalItemSnapshot snapshot) {
+            RentalContract contract, RentalContractItem item, RentalItemSnapshot snapshot, Sector sector) {
         return new ReportItemDTO(
                 contract.getLegacyId(),
                 contract.getCustomerName(),
@@ -140,7 +170,10 @@ public class DailyRentalReportService {
                 snapshot != null ? snapshot.size() : null,
                 snapshot != null ? snapshot.color() : null,
                 contract.getPickupDate(),
-                toAdjustments(item)
+                toAdjustments(item),
+                contract.getSectorId(),
+                sector != null ? sector.getName() : null,
+                sector != null ? sector.getCode() : null
         );
     }
 

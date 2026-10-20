@@ -22,6 +22,7 @@ public record MonthlyMovementResponseDTO(
         BigDecimal rentalPendingTotal,
         BigDecimal salePendingTotal,
         List<PaymentMethodBreakdownDTO> byPaymentMethod,
+        List<SectorMovementBreakdownDTO> bySector,
         List<DailyMovementSummaryDTO> days,
         List<FinancialTransactionDTO> transactions
 ) {

@@ -134,6 +134,8 @@ public class RentalMapper {
                 .revisedByAccountId(contract.getRevisedByAccountId())
                 .confirmedByAccountId(contract.getConfirmedByAccountId())
                 .revisionConfirmedAt(contract.getRevisionConfirmedAt())
+                .sectorId(contract.getSectorId())
+                .returnSectorId(contract.getReturnSectorId())
                 .pickupDate(contract.getPickupDate())
                 .eventDate(contract.getEventDate())
                 .returnDate(contract.getReturnDate())
@@ -173,6 +175,7 @@ public class RentalMapper {
                 .pickupDate(contract.getPickupDate())
                 .returnDate(contract.getReturnDate())
                 .returned(contract.getReturned())
+                .sectorId(contract.getSectorId())
                 .totalValue(totalValue)
                 .paidValue(paidValue)
                 .createdAt(contract.getCreatedAt())
@@ -237,7 +240,9 @@ public class RentalMapper {
                 item.getValue(),
                 item.getDelivered(),
                 item.getAttendantEmployeeId(),
-                metaDtos
+                metaDtos,
+                item.getDeliveredSectorId(),
+                item.getReturnedSectorId()
         );
     }
 
@@ -288,7 +293,8 @@ public class RentalMapper {
                 payment.getInstallments(),
                 payment.getProcessedByEmployeeId(),
                 payment.getStatus().name(),
-                payment.getStatus().getDescription()
+                payment.getStatus().getDescription(),
+                payment.getSectorId()
         );
     }
 

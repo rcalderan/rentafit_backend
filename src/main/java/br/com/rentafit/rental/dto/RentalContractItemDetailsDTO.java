@@ -12,7 +12,9 @@ public record RentalContractItemDetailsDTO(
         BigDecimal value,
         Boolean delivered,
         UUID attendantEmployeeId,
-        List<RentalContractItemMetaDTO> metadata
+        List<RentalContractItemMetaDTO> metadata,
+        UUID deliveredSectorId,
+        UUID returnedSectorId
 ) {
     public record RentalContractItemMetaDTO(
             UUID id,
