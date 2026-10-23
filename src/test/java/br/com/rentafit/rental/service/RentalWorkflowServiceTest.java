@@ -176,11 +176,20 @@ class RentalWorkflowServiceTest {
     }
 
     @Test
+    @DisplayName("onDeliverItem deve registrar uso (rentalCount/lastRentalDate) do item entregue")
+    void testOnDeliverItem_recordsRentalUsage() {
+        workflowService.onDeliverItem(itemWithRentalItem, employeeId);
+
+        verify(rentalItemPort).recordRentalUsage(eq(rentalItemId), any(java.time.LocalDateTime.class));
+    }
+
+    @Test
     @DisplayName("onDeliverItem deve ignorar itens sem rentalItemId")
     void testOnDeliverItem_ignoresNullRentalItemId() {
         workflowService.onDeliverItem(itemWithoutRentalItem, employeeId);
 
         verify(rentalItemPort, never()).updateStatus(any(), any());
+        verify(rentalItemPort, never()).recordRentalUsage(any(), any());
         verify(contractItemRepository).save(itemWithoutRentalItem);
     }
 
@@ -203,6 +212,23 @@ class RentalWorkflowServiceTest {
         workflowService.onReturn(contract);
 
         verify(rentalItemPort, times(1)).updateStatus(any(), any());
+    }
+
+    @Test
+    @DisplayName("onReturn deve registrar uso de item devolvido sem registro de entrega (fallback)")
+    void testOnReturn_recordsUsageForUndeliveredItem() {
+        workflowService.onReturn(contract);
+
+        verify(rentalItemPort).recordRentalUsage(eq(rentalItemId), any(java.time.LocalDateTime.class));
+    }
+
+    @Test
+    @DisplayName("onReturn NÃO deve contar novamente item já entregue (contado em onDeliverItem)")
+    void testOnReturn_doesNotDoubleCountDeliveredItem() {
+        itemWithRentalItem.setDelivered(true);
+        workflowService.onReturn(contract);
+
+        verify(rentalItemPort, never()).recordRentalUsage(any(), any());
     }
 
     @Test

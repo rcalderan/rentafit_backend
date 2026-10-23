@@ -11,6 +11,7 @@ import br.com.rentafit.rental.dto.report.DailyRentalReportDTO;
 import br.com.rentafit.rental.port.RentalItemPort;
 import br.com.rentafit.rental.port.RentalItemPort.RentalItemSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
+import br.com.rentafit.sector.repository.SectorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ class DailyRentalReportServiceTest {
 
     @Mock private RentalContractRepository contractRepository;
     @Mock private RentalItemPort rentalItemPort;
+    @Mock private SectorRepository sectorRepository;
 
     @InjectMocks
     private DailyRentalReportService reportService;

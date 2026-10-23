@@ -89,6 +89,25 @@ public interface RentalContractRepository extends JpaRepository<RentalContract, 
             @Param("fromDate") LocalDate fromDate);
 
     /**
+     * Contratos no status informado, ainda não devolvidos e com evento já passado —
+     * a roupa está fisicamente com o cliente ("devolução pendente" no dashboard).
+     * Ordenados pelo evento mais recente primeiro.
+     */
+    @Query("""
+            SELECT DISTINCT c FROM RentalContract c
+            JOIN c.items i
+            WHERE i.rentalItemId = :rentalItemId
+              AND c.status = :status
+              AND c.returned = false
+              AND c.eventDate < :today
+            ORDER BY c.eventDate DESC
+            """)
+    List<RentalContract> findPendingReturnsByRentalItemId(
+            @Param("rentalItemId") UUID rentalItemId,
+            @Param("status") ContractStatus status,
+            @Param("today") LocalDate today);
+
+    /**
      * Agregado de valores por contrato para listagens paginadas.
      *
      * <p>Substitui o carregamento das coleções items/payments via SUBSELECT em findAll:

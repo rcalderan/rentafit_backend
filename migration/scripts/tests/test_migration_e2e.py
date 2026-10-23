@@ -20,6 +20,7 @@ from readers import read_bson_file
 from transformers import (
     EPOCH,
     new_uuid,
+    reconcile_rental_items_from_contracts,
     transform_product_categories,
     transform_people_from_cliente,
     transform_people_from_funcionario,
@@ -150,6 +151,7 @@ class FakeMigration:
                 all_docs["contrato"], customer_map, customer_name_map,
                 employee_map, rental_item_map, default_customer_id
             )
+            reconcile_rental_items_from_contracts(rental_item_rows, contract_rows, contract_item_rows)
 
         all_rows = {
             "categories": category_rows,
@@ -233,13 +235,19 @@ class TestMigrationE2E:
         assert len(rows) == 1
         assert rows[0]["legacy_id"] == 9001
 
+    def test_rental_item_usage_reconciled_from_contract(self, migration_result):
+        """nloc=5 do legado prevalece sobre 1 contrato; last_rental_date vem do pickup."""
+        row = migration_result["all_rows"]["rental_items"][0]
+        assert row["rental_count"] == 5
+        assert row["last_rental_date"] == "2010-12-02 00:00:00"
+
     def test_contracts_has_one(self, migration_result):
         rows = migration_result["all_rows"]["rental_contracts"]
         assert len(rows) == 1
         c = rows[0]
         assert c["legacy_id"] == "5001"
         assert c["customer_name"] == "Joao Mock da Silva"
-        assert c["status"] == "FINALIZED"
+        assert c["status"] == "CLOSED"
         assert c["is_returned"] == "true"
         # Datas ordenadas
         assert c["pickup_date"] <= c["event_date"] <= c["return_date"]

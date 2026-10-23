@@ -80,4 +80,8 @@ public class SalesOrderItem {
 
     @Column(name = "delivered_by_employee_id")
     private UUID deliveredByEmployeeId;
+
+    /** Setor do terminal onde a peça foi entregue ao cliente. */
+    @Column(name = "delivered_sector_id")
+    private UUID deliveredSectorId;
 }

@@ -13,6 +13,8 @@ import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.validation.RentalContractValidator;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -51,6 +53,7 @@ public class RentalPaymentService {
     private final RentalContractRepository contractRepository;
     private final RentalContractValidator validator;
     private final RentalMapper mapper;
+    private final TerminalSectorResolver sectorResolver;
 
     public List<RentalPaymentDetailsDTO> listByContract(UUID contractId) {
         requireContractExists(contractId);
@@ -59,6 +62,7 @@ public class RentalPaymentService {
     }
 
     public RentalPaymentDetailsDTO addPayment(UUID contractId, RentalPaymentInputDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         contractRepository.lockById(contractId);
         RentalContract contract = requireContract(contractId);
         requirePaymentMutation(contract, dto);
@@ -69,6 +73,10 @@ public class RentalPaymentService {
         validator.validateSinglePaidPaymentHasEmployee(dto);
 
         RentalPayment payment = mapper.toPaymentEntity(dto, contract);
+        // Parcela que já nasce quitada (baixa no ato) registra o setor do terminal recebedor
+        if (payment.getStatus().isCashMovement()) {
+            payment.setSectorId(sector.getId());
+        }
         RentalPayment saved = paymentRepository.save(payment);
         log.info("Payment added to contract {}: installment #{}", contractId, saved.getInstallmentNumber());
         return mapper.toPaymentDetailsDTO(saved);
@@ -83,6 +91,7 @@ public class RentalPaymentService {
      * @return lista contendo a parcela atualizada e, se houver, a parcela-gap criada automaticamente
      */
     public List<RentalPaymentDetailsDTO> updatePayment(UUID contractId, UUID paymentId, RentalPaymentInputDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         contractRepository.lockById(contractId);
         RentalPayment payment = requirePayment(paymentId, contractId);
         RentalContract contract = requireContract(contractId);
@@ -93,6 +102,8 @@ public class RentalPaymentService {
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
 
+        boolean wasSettled = payment.getStatus().isCashMovement();
+
         payment.setPaymentDate(dto.paymentDate());
         payment.setInstallmentNumber(dto.installmentNumber());
         payment.setPaymentMethod(PaymentMethod.valueOf(dto.paymentMethod().toUpperCase()));
@@ -101,6 +112,12 @@ public class RentalPaymentService {
         payment.setProcessedByEmployeeId(dto.processedByEmployeeId());
         if (dto.status() != null) {
             payment.setStatus(PaymentStatus.valueOf(dto.status().toUpperCase()));
+        }
+
+        // Baixa (PENDING→PAID) ou estorno nesta operação registra o setor do terminal recebedor;
+        // parcela já quitada preserva o setor original — ou null (legado pré-V44)
+        if (!wasSettled && payment.getSectorId() == null && payment.getStatus().isCashMovement()) {
+            payment.setSectorId(sector.getId());
         }
 
         RentalPayment saved = paymentRepository.save(payment);
@@ -119,6 +136,7 @@ public class RentalPaymentService {
     }
 
     public void cancelPayment(UUID contractId, UUID paymentId) {
+        sectorResolver.requireTerminalSector();
         contractRepository.lockById(contractId);
         RentalContract contract = requireContract(contractId);
         requirePaymentMutation(contract, null);
@@ -249,7 +267,8 @@ public class RentalPaymentService {
         boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
                 || ContractStatus.FINALIZED.equals(contract.getStatus())
                 || ContractStatus.REVISION.equals(contract.getStatus())
-                || ContractStatus.CLOSED.equals(contract.getStatus());
+                || ContractStatus.CLOSED.equals(contract.getStatus())
+                || ContractStatus.CANCELLED.equals(contract.getStatus());
 
         if (contractLocked && PaymentStatus.PAID.equals(payment.getStatus())) {
             throw new ValidationException(
@@ -267,7 +286,8 @@ public class RentalPaymentService {
         boolean contractLocked = ContractStatus.SIGNED.equals(contract.getStatus())
                 || ContractStatus.FINALIZED.equals(contract.getStatus())
                 || ContractStatus.REVISION.equals(contract.getStatus())
-                || ContractStatus.CLOSED.equals(contract.getStatus());
+                || ContractStatus.CLOSED.equals(contract.getStatus())
+                || ContractStatus.CANCELLED.equals(contract.getStatus());
 
         boolean existingIsPaid = PaymentStatus.PAID.equals(existingPayment.getStatus());
         boolean incomingIsPaid = dto.status() != null && "PAID".equalsIgnoreCase(dto.status());
@@ -295,8 +315,9 @@ public class RentalPaymentService {
     }
 
     private void requirePaymentMutation(RentalContract contract, RentalPaymentInputDTO dto) {
-        if (contract.getStatus() == ContractStatus.SUPERSEDED) {
-            throw new ValidationException("Contrato " + contract.getId() + " SUPERSEDED: pagamentos são somente leitura");
+        if (contract.getStatus() == ContractStatus.SUPERSEDED || contract.getStatus() == ContractStatus.CANCELLED) {
+            throw new ValidationException("Contrato " + contract.getId() + " " + contract.getStatus()
+                    + ": pagamentos são somente leitura");
         }
         if (contract.getStatus() == ContractStatus.REVISION && dto != null && "PAID".equalsIgnoreCase(dto.status())) {
             throw new ValidationException("Contrato " + contract.getId() + " REVISION: esperado pagamento PENDING sem novo recebimento");

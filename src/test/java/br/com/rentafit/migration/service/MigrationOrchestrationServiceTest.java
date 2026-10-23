@@ -1,5 +1,6 @@
 package br.com.rentafit.migration.service;
 
+import br.com.rentafit.common.exception.ConflictException;
 import br.com.rentafit.migration.config.MigrationProperties;
 import br.com.rentafit.migration.dto.MigrationReportDTO;
 import br.com.rentafit.migration.dto.MigrationSessionDTO;
@@ -86,13 +87,25 @@ class MigrationOrchestrationServiceTest {
         MigrationSessionDTO session = sessionService.createSession();
         sessionService.saveStatus(session.getId(), "uploaded", null);
 
-        IllegalStateException ex = assertThrows(IllegalStateException.class, () ->
+        ConflictException ex = assertThrows(ConflictException.class, () ->
                 orchestrationService.promote(session.getId(), true)
         );
 
         assertTrue(ex.getMessage().contains("Status atual"));
         assertTrue(ex.getMessage().contains("valid"));
         verifyNoInteractions(promotionService);
+    }
+
+    @Test
+    @DisplayName("promote em sessao ja promovida e idempotente")
+    void promoteOnAlreadyPromotedSessionIsIdempotent() throws IOException {
+        MigrationSessionDTO session = sessionService.createSession();
+        sessionService.saveStatus(session.getId(), "promoted", null);
+
+        orchestrationService.promote(session.getId(), true);
+
+        verifyNoInteractions(promotionService);
+        assertEquals("promoted", sessionService.readStatus(session.getId()));
     }
 
     @Test

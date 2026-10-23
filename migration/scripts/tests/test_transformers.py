@@ -16,6 +16,7 @@ from transformers import (
     fmt_datetime,
     normalize_text,
     normalize_document,
+    reconcile_rental_items_from_contracts,
     transform_product_categories,
     transform_categories,
     transform_people_from_cliente,
@@ -312,7 +313,7 @@ class TestTransformContracts:
         c = contracts[0]
         assert c["legacy_id"] == "5001"
         assert c["customer_name"] == "Joao Mock da Silva"
-        assert c["status"] == "FINALIZED"  # baixa=True, situacao=0
+        assert c["status"] == "CLOSED"  # baixa=True, situacao=0 → ciclo encerrado
         assert c["is_returned"] == "true"
 
         # Datas devem estar ordenadas: pickup <= event <= return
@@ -383,3 +384,107 @@ class TestTransformContracts:
         # 2026-11-12 vira 2011-12-26 (ano < 100 corrigido), mas aqui ano e 2026
         # sorted deve garantir pickup <= event <= return
         assert c["pickup_date"] <= c["event_date"] <= c["return_date"]
+
+    def test_situacao_finalizado_sem_baixa_permanece_finalized(self):
+        """Contrato encerrado no legado sem baixa fica FINALIZED (devolução pendente)."""
+        from datetime import datetime
+        docs = [{
+            "_id": 1001,
+            "tipo": 1,
+            "cliente": 7001,
+            "retirada": datetime(2010, 10, 27, 2, 0, 0),
+            "usa": datetime(2010, 10, 29, 2, 0, 0),
+            "devolucao": datetime(2010, 10, 31, 2, 0, 0),
+            "baixa": False,
+            "situacao": 0,
+            "itens": [],
+            "pagamentos": [],
+        }]
+        contracts, _, _, _ = transform_contracts(docs, {7001: "uuid"}, {7001: "Mock"}, {8001: "emp"}, {})
+        assert contracts[0]["status"] == "FINALIZED"
+
+
+# ---------- reconcile_rental_items_from_contracts ----------
+
+class TestReconcileRentalItems:
+    def _contract(self, cid: str, status: str, is_returned: str, pickup: str = "2010-12-02") -> dict:
+        return {"id": cid, "status": status, "is_returned": is_returned,
+                "pickup_date": pickup, "event_date": pickup}
+
+    def _item(self, contract_id: str, rental_item_id: str, delivered: str = "false") -> dict:
+        return {"id": f"i-{contract_id}", "contract_id": contract_id,
+                "rental_item_id": rental_item_id, "is_delivered": delivered}
+
+    def _rental_row(self, rid: str, nloc: int = 0) -> dict:
+        return {"id": rid, "legacy_id": 1, "status": "AVAILABLE", "notes": "",
+                "condition": "", "last_rental_date": "", "rental_count": nloc,
+                "maintenance_due_date": ""}
+
+    def test_returned_contract_counts_usage_and_sets_last_rental_date(self):
+        rental = self._rental_row("r1")
+        contracts = [self._contract("c1", "CLOSED", "true", "2010-12-02")]
+        items = [self._item("c1", "r1")]
+
+        usage = reconcile_rental_items_from_contracts([rental], contracts, items)
+
+        assert usage["r1"]["count"] == 1
+        assert rental["rental_count"] == 1
+        assert rental["last_rental_date"] == "2010-12-02 00:00:00"
+
+    def test_delivered_item_in_finalized_contract_counts_usage(self):
+        rental = self._rental_row("r1")
+        contracts = [self._contract("c1", "FINALIZED", "false", "2026-11-01")]
+        items = [self._item("c1", "r1", delivered="true")]
+
+        reconcile_rental_items_from_contracts([rental], contracts, items)
+
+        assert rental["rental_count"] == 1
+        assert rental["last_rental_date"] == "2026-11-01 00:00:00"
+
+    def test_reserved_only_contract_does_not_count(self):
+        """Reserva sem entrega/baixa não infla o contador (peça não saiu da loja)."""
+        rental = self._rental_row("r1")
+        contracts = [self._contract("c1", "FINALIZED", "false", "2026-11-01")]
+        items = [self._item("c1", "r1")]
+
+        usage = reconcile_rental_items_from_contracts([rental], contracts, items)
+
+        assert "r1" not in usage
+        assert rental["rental_count"] == 0
+        assert rental["last_rental_date"] == ""
+
+    def test_nloc_legacy_preserved_when_greater_than_history(self):
+        rental = self._rental_row("r1", nloc=5)
+        contracts = [self._contract("c1", "CLOSED", "true", "2010-12-02")]
+        items = [self._item("c1", "r1")]
+
+        reconcile_rental_items_from_contracts([rental], contracts, items)
+
+        assert rental["rental_count"] == 5
+        assert rental["last_rental_date"] == "2010-12-02 00:00:00"
+
+    def test_last_rental_date_uses_most_recent_contract(self):
+        rental = self._rental_row("r1")
+        contracts = [
+            self._contract("c1", "CLOSED", "true", "2010-01-10"),
+            self._contract("c2", "CLOSED", "true", "2015-06-20"),
+        ]
+        items = [self._item("c1", "r1"), self._item("c2", "r1")]
+
+        reconcile_rental_items_from_contracts([rental], contracts, items)
+
+        assert rental["rental_count"] == 2
+        assert rental["last_rental_date"] == "2015-06-20 00:00:00"
+
+    def test_draft_and_superseded_contracts_ignored(self):
+        rental = self._rental_row("r1")
+        contracts = [
+            self._contract("c1", "DRAFT", "false"),
+            self._contract("c2", "SUPERSEDED", "false"),
+        ]
+        items = [self._item("c1", "r1"), self._item("c2", "r1")]
+
+        usage = reconcile_rental_items_from_contracts([rental], contracts, items)
+
+        assert "r1" not in usage
+        assert rental["rental_count"] == 0

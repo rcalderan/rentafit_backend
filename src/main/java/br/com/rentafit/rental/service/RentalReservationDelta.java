@@ -37,7 +37,7 @@ public class RentalReservationDelta {
                 .ifPresent(item -> rentalItemPort.updateStatus(id, ProductStatus.RESERVED));
     }
 
-    private void releaseItem(UUID id, UUID originalId) {
+    public void releaseItem(UUID id, UUID originalId) {
         if (itemRepository.countOtherReservations(id, originalId) > 0) return;
         rentalItemPort.findById(id).filter(item -> item.status() == ProductStatus.RESERVED)
                 .ifPresent(item -> rentalItemPort.updateStatus(id, ProductStatus.AVAILABLE));

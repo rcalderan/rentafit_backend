@@ -18,12 +18,19 @@ public record ReturnSummaryDTO(
         UUID contractId,
         String legacyId,
         String customerName,
+        UUID customerId,
+        String contractStatus,
+        LocalDate pickupDate,
+        LocalDate eventDate,
         LocalDate returnDate,
         LocalDate actualReturnDate,
+        BigDecimal totalValue,
         int pendingCount,
         boolean isFullyReturned,
         long delayDays,
         BigDecimal suggestedFine,
+        UUID sectorId,
+        UUID returnSectorId,
         List<ReturnItemDTO> items,
         List<ReturnPaymentPreviewDTO> paymentsPreview
 ) {
@@ -48,6 +55,7 @@ public record ReturnSummaryDTO(
 
     @Builder
     public record ReturnPaymentPreviewDTO(
+            UUID paymentId,
             int installmentNumber,
             BigDecimal value,
             String status

@@ -2,6 +2,7 @@ package br.com.rentafit.rental.dto.report;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Linha de item no relatório diário de locação.
@@ -15,6 +16,9 @@ public record ReportItemDTO(
         String size,
         String color,
         LocalDate pickupDate,
-        List<ReportAdjustmentDTO> adjustments
+        List<ReportAdjustmentDTO> adjustments,
+        UUID sectorId,
+        String sectorName,
+        String sectorCode
 ) {
 }

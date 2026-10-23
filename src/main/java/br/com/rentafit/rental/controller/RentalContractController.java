@@ -28,6 +28,7 @@ public class RentalContractController {
     private final RentalContractService contractService;
     private final br.com.rentafit.rental.service.RentalRevisionService revisions;
     private final br.com.rentafit.rental.service.ItemReservationService itemReservations;
+    private final br.com.rentafit.rental.service.WithdrawalService withdrawalService;
 
     @PostMapping("/{id}/revision-restart")
     public ResponseEntity<RentalContractDetailsDTO> restartRevision(@PathVariable UUID id) {
@@ -84,13 +85,18 @@ public class RentalContractController {
     @GetMapping("/byItem/{rentalItemId}")
     @Operation(summary = "Listar reservas ativas de um item",
             description = "Retorna contratos SIGNED/FINALIZED com eventDate >= hoje que reservam o item. "
-                    + "Usado pelo frontend para alertar o operador ao carregar um item já reservado.")
+                    + "Usado pelo frontend para alertar o operador ao carregar um item já reservado. "
+                    + "Com includePendingReturn=true, inclui contratos FINALIZED ainda não devolvidos "
+                    + "mesmo com evento passado, marcados com pendingReturn=true.")
     @ApiResponse(responseCode = "200", description = "Reservas retornadas (lista vazia se nenhuma)")
     public ResponseEntity<List<ItemReservationDTO>> findItemReservations(
             @PathVariable UUID rentalItemId,
             @Parameter(description = "Contrato a excluir da lista (ex.: contrato em edição)")
-            @RequestParam(required = false) UUID excludeContractId) {
-        return ResponseEntity.ok(itemReservations.findReservationsByItem(rentalItemId, excludeContractId));
+            @RequestParam(required = false) UUID excludeContractId,
+            @Parameter(description = "Inclui devoluções pendentes (FINALIZED não devolvido)")
+            @RequestParam(defaultValue = "false") boolean includePendingReturn) {
+        return ResponseEntity.ok(
+                itemReservations.findReservationsByItem(rentalItemId, excludeContractId, includePendingReturn));
     }
 
     @PostMapping
@@ -175,6 +181,23 @@ public class RentalContractController {
             @Parameter(description = "UUID do funcionário que registrou a entrega")
             @RequestParam(required = false) UUID attendantEmployeeId) {
         return ResponseEntity.ok(contractService.deliverItem(id, itemId, attendantEmployeeId));
+    }
+
+    @PostMapping("/{id}/withdraw")
+    @Operation(summary = "Registrar desistência (SIGNED|FINALIZED → CANCELLED)",
+            description = "Encerra o contrato por desistência do cliente. Deve ser chamado somente após o Termo de "
+                    + "Desistência ter sido impresso e assinado. Registra o reembolso de refundAmount "
+                    + "(limitado ao total pago), cancela parcelas pendentes, registra multa rescisória "
+                    + "opcional e libera itens/estoque reservados.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Desistência registrada"),
+            @ApiResponse(responseCode = "400", description = "Dados inválidos"),
+            @ApiResponse(responseCode = "404", description = "Contrato ou funcionário não encontrado"),
+            @ApiResponse(responseCode = "422", description = "Status inválido ou refundAmount excede o total pago")
+    })
+    public ResponseEntity<RentalContractDetailsDTO> withdraw(
+            @PathVariable UUID id, @Valid @RequestBody WithdrawContractDTO dto) {
+        return ResponseEntity.ok(withdrawalService.withdraw(id, dto));
     }
 
     @PostMapping("/{id}/revise")

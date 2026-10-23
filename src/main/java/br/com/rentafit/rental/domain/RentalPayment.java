@@ -61,6 +61,10 @@ public class RentalPayment {
     @Column(name = "processed_by_employee_id")
     private UUID processedByEmployeeId;
 
+    /** Setor do terminal onde a parcela foi recebida (caixa do dia). */
+    @Column(name = "sector_id")
+    private UUID sectorId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     @Builder.Default

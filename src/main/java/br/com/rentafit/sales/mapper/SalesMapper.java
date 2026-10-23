@@ -80,6 +80,7 @@ public class SalesMapper {
                 .customerName(order.getCustomerName())
                 .customerDocument(order.getCustomerDocument())
                 .createdByEmployeeId(order.getCreatedByEmployeeId())
+                .sectorId(order.getSectorId())
                 .notes(order.getNotes())
                 .discountValue(order.getDiscountValue())
                 .invoiceStatus(fiscalDocument.map(this::invoiceStatusFrom).orElse(order.getInvoiceStatus().name()))
@@ -172,6 +173,7 @@ public class SalesMapper {
                 .customerId(order.getCustomerId())
                 .customerName(order.getCustomerName())
                 .invoiceStatus(order.getInvoiceStatus().name())
+                .sectorId(order.getSectorId())
                 .totalValue(totalValue)
                 .paidValue(paidValue)
                 .itemCount(order.getItems().size())
@@ -219,6 +221,7 @@ public class SalesMapper {
                 .tailoringNotes(item.getTailoringNotes())
                 .deliveredAt(item.getDeliveredAt())
                 .deliveredByEmployeeId(item.getDeliveredByEmployeeId())
+                .deliveredSectorId(item.getDeliveredSectorId())
                 .build();
     }
 
@@ -248,7 +251,8 @@ public class SalesMapper {
                 payment.getInstallments(),
                 payment.getProcessedByEmployeeId(),
                 payment.getStatus().name(),
-                payment.getStatus().getDescription()
+                payment.getStatus().getDescription(),
+                payment.getSectorId()
         );
     }
 

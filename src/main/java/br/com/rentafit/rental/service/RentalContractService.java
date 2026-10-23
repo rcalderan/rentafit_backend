@@ -16,6 +16,8 @@ import br.com.rentafit.rental.port.CustomerPort;
 import br.com.rentafit.rental.port.CustomerPort.CustomerSnapshot;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -27,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,6 +65,7 @@ public class RentalContractService {
     private final RentalMapper mapper;
     private final RentalRevisionService revisionService;
     private final RentalProposalDuplication proposalDuplication;
+    private final TerminalSectorResolver sectorResolver;
 
     @Value("${rentafit.legacy-id.pattern:yyMMdd}")
     private String legacyIdPattern;
@@ -149,6 +153,8 @@ public class RentalContractService {
     }
 
     public RentalContractDetailsDTO create(CreateRentalContractDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
+
         // Validação básica de datas
         validator.validateDateOrder(dto.pickupDate(), dto.eventDate(), dto.returnDate());
 
@@ -180,6 +186,8 @@ public class RentalContractService {
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
 
         RentalContract contract = mapper.toEntity(dto, snapshot);
+        contract.setSectorId(sector.getId());
+        stampNewlySettledPayments(contract.getPayments(), sector.getId(), new IdentityHashMap<>());
 
         // Auto-generate legacyId when not provided in the request
         if (contract.getLegacyId() == null || contract.getLegacyId().isBlank()) {
@@ -195,6 +203,7 @@ public class RentalContractService {
     }
 
     public RentalContractDetailsDTO update(UUID id, UpdateRentalContractDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         contractRepository.lockById(id);
         RentalContract contract = requireContract(id);
 
@@ -236,7 +245,14 @@ public class RentalContractService {
         // Se a soma das parcelas é menor que o total, cria parcela PENDING automática com o restante
         List<RentalPaymentInputDTO> payments = autoCompletePayments(dto.payments(), dto.items(), dto.eventDate());
 
+        // Parcelas já quitadas preservam o setor em que foram recebidas;
+        // baixas novas (PENDING→PAID) ou novas parcelas quitadas herdam o setor deste terminal.
+        IdentityHashMap<RentalPayment, PaymentStatus> preStates = new IdentityHashMap<>();
+        contract.getPayments().forEach(p -> preStates.put(p, p.getStatus()));
+
         mapper.updateEntityFromDTO(contract, dto, payments);
+        stampNewlySettledPayments(contract.getPayments(), sector.getId(), preStates);
+
         RentalContract saved = contractRepository.save(contract);
         log.info("Updated rental contract {}", id);
         return mapper.toDetailsDTO(saved, null);
@@ -337,6 +353,7 @@ public class RentalContractService {
             throw new ValidationException("Item já marcado como entregue");
         }
 
+        item.setDeliveredSectorId(sectorResolver.requireTerminalSector().getId());
         workflowService.onDeliverItem(item, attendantEmployeeId);
         log.info("Item {} delivered in contract {}", itemId, contractId);
         return mapper.toDetailsDTO(contractRepository.findById(contractId).orElseThrow(), null);
@@ -363,6 +380,8 @@ public class RentalContractService {
         contract.setActualReturnDate(dto.actualReturnDate());
         contract.setReturnedByEmployeeId(dto.returnedByEmployeeId());
         contract.setReturned(true);
+        sectorResolver.resolveTerminalSector()
+                .ifPresent(s -> contract.setReturnSectorId(s.getId()));
         RentalContract saved = contractRepository.save(contract);
 
         workflowService.onReturn(saved);
@@ -390,6 +409,23 @@ public class RentalContractService {
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Grava o setor do terminal nas parcelas que viraram movimentação de caixa
+     * (PAID/MULTA/REFUNDED) nesta operação. Parcelas que já estavam quitadas
+     * preservam o setor original — ou null (legado pré-V44) — pois o caixa em
+     * que foram recebidas não muda retroativamente.
+     */
+    private void stampNewlySettledPayments(List<RentalPayment> payments, UUID sectorId,
+                                           IdentityHashMap<RentalPayment, PaymentStatus> preStates) {
+        for (RentalPayment payment : payments) {
+            PaymentStatus previous = preStates.get(payment);
+            boolean wasSettled = previous != null && previous.isCashMovement();
+            if (!wasSettled && payment.getSectorId() == null && payment.getStatus().isCashMovement()) {
+                payment.setSectorId(sectorId);
+            }
+        }
+    }
 
     /**
      * Se a soma das parcelas é menor que o total dos itens, cria uma parcela PENDING

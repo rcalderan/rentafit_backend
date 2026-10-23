@@ -17,5 +17,6 @@ public record SalesPaymentDetailsDTO(
         Integer installments,
         UUID processedByEmployeeId,
         String status,
-        String statusDescription
+        String statusDescription,
+        UUID sectorId
 ) {}

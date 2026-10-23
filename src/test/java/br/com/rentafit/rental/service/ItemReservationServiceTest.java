@@ -22,6 +22,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -65,7 +66,7 @@ class ItemReservationServiceTest {
         when(customerPort.findLegacyIdsByIds(any()))
                 .thenReturn(Map.of(signed.getCustomerId(), 101));
 
-        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, null);
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, null, false);
 
         assertThat(result).hasSize(1);
         ItemReservationDTO dto = result.getFirst();
@@ -79,6 +80,7 @@ class ItemReservationServiceTest {
         assertThat(dto.returnDate()).isEqualTo(eventDate.plusDays(2));
         assertThat(dto.status()).isEqualTo("SIGNED");
         assertThat(dto.statusDescription()).isEqualTo("Assinado");
+        assertThat(dto.pendingReturn()).isFalse();
     }
 
     @Test
@@ -91,7 +93,7 @@ class ItemReservationServiceTest {
         when(customerPort.findLegacyIdsByIds(any()))
                 .thenReturn(Map.of(keep.getCustomerId(), 101));
 
-        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, editing.getId());
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, editing.getId(), false);
 
         assertThat(result).hasSize(1);
         assertThat(result.getFirst().contractId()).isEqualTo(keep.getId());
@@ -103,7 +105,7 @@ class ItemReservationServiceTest {
         when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
                 .thenReturn(List.of());
 
-        assertThat(service.findReservationsByItem(itemId, null)).isEmpty();
+        assertThat(service.findReservationsByItem(itemId, null, false)).isEmpty();
         verifyNoInteractions(customerPort);
     }
 
@@ -115,9 +117,76 @@ class ItemReservationServiceTest {
                 .thenReturn(List.of(signed));
         when(customerPort.findLegacyIdsByIds(any())).thenReturn(Map.of());
 
-        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, null);
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, null, false);
 
         assertThat(result.getFirst().customerLegacyId()).isNull();
+    }
+
+    @Test
+    @DisplayName("deve excluir o contrato original ao revalidar itens de uma revisão")
+    void deveExcluirContratoPaiDeRevisao() {
+        RentalContract parent = contract(ContractStatus.FINALIZED, LocalDate.now().plusDays(8));
+        RentalContract other = contract(ContractStatus.SIGNED, LocalDate.now().plusDays(10));
+        RentalContract revision = contract(ContractStatus.REVISION, LocalDate.now().plusDays(8));
+        revision.setParentContractId(parent.getId());
+        when(contractRepository.findById(revision.getId())).thenReturn(java.util.Optional.of(revision));
+        when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
+                .thenReturn(List.of(parent, other));
+        when(customerPort.findLegacyIdsByIds(any())).thenReturn(Map.of());
+
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, revision.getId(), false);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().contractId()).isEqualTo(other.getId());
+    }
+
+    @Test
+    @DisplayName("includePendingReturn=true traz contrato FINALIZED não devolvido com evento passado, marcado")
+    void deveIncluirDevolucoesPendentesMarcadas() {
+        RentalContract pending = contract(ContractStatus.FINALIZED, LocalDate.now().minusDays(3));
+        pending.setReturned(false);
+        RentalContract upcoming = contract(ContractStatus.SIGNED, LocalDate.now().plusDays(5));
+        when(contractRepository.findPendingReturnsByRentalItemId(any(), eq(ContractStatus.FINALIZED), eq(LocalDate.now())))
+                .thenReturn(List.of(pending));
+        when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
+                .thenReturn(List.of(upcoming));
+        when(customerPort.findLegacyIdsByIds(any())).thenReturn(Map.of());
+
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, null, true);
+
+        assertThat(result).hasSize(2);
+        // devolução pendente vem primeiro — a roupa está fisicamente com o cliente
+        assertThat(result.getFirst().contractId()).isEqualTo(pending.getId());
+        assertThat(result.getFirst().pendingReturn()).isTrue();
+        assertThat(result.get(1).contractId()).isEqualTo(upcoming.getId());
+        assertThat(result.get(1).pendingReturn()).isFalse();
+    }
+
+    @Test
+    @DisplayName("includePendingReturn=false não consulta devoluções pendentes")
+    void naoDeveConsultarDevolucoesPendentesSemFlag() {
+        when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
+                .thenReturn(List.of());
+
+        service.findReservationsByItem(itemId, null, false);
+
+        verify(contractRepository, never()).findPendingReturnsByRentalItemId(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("contrato em edição também é excluído das devoluções pendentes")
+    void deveExcluirContratoEmEdicaoDasPendentes() {
+        RentalContract pending = contract(ContractStatus.FINALIZED, LocalDate.now().minusDays(3));
+        pending.setReturned(false);
+        when(contractRepository.findPendingReturnsByRentalItemId(any(), any(), any()))
+                .thenReturn(List.of(pending));
+        when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
+                .thenReturn(List.of());
+
+        List<ItemReservationDTO> result = service.findReservationsByItem(itemId, pending.getId(), true);
+
+        assertThat(result).isEmpty();
+        verifyNoInteractions(customerPort);
     }
 
     @Test
@@ -127,7 +196,7 @@ class ItemReservationServiceTest {
         when(contractRepository.findReservationsByRentalItemId(any(), any(), any()))
                 .thenReturn(List.of());
 
-        service.findReservationsByItem(itemId, null);
+        service.findReservationsByItem(itemId, null, false);
 
         ArgumentCaptor<List<ContractStatus>> statuses = ArgumentCaptor.forClass(List.class);
         verify(contractRepository).findReservationsByRentalItemId(

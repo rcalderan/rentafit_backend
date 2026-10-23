@@ -60,11 +60,20 @@ public class Customer extends Person {
     @Schema(description = "List of customer phone numbers")
     private List<String> phones = new ArrayList<>();
 
+    /**
+     * E-mail is optional for customers registered at the counter (only online sign-up requires it).
+     * Blank becomes null because people.email is UNIQUE: two customers saved with "" would collide.
+     * Usage: {@code normalizeOptionalEmail("  Ana@Ex.com ")} returns {@code "ana@ex.com"}.
+     */
+    public static String normalizeOptionalEmail(String email) {
+        return email == null || email.isBlank() ? null : email.trim().toLowerCase(java.util.Locale.ROOT);
+    }
+
     public Customer(CustomerDTO dto){
         if (dto == null) return;
         this.setName(dto.name());
         this.setDocument(dto.document());
-        this.setEmail(dto.email());
+        this.setEmail(normalizeOptionalEmail(dto.email()));
         this.setIsAuthenticated(dto.isAuthenticated());
         this.setNotes(dto.notes());
         this.setPhones(dto.phones() != null ? new ArrayList<>(dto.phones()) : new ArrayList<>());
@@ -78,7 +87,7 @@ public class Customer extends Person {
         if (dto == null) return this;
         this.setName(dto.name());
         this.setDocument(dto.document());
-        this.setEmail(dto.email());
+        this.setEmail(normalizeOptionalEmail(dto.email()));
         this.setIsAuthenticated(dto.isAuthenticated());
         this.setNotes(dto.notes());
         this.setPhones(dto.phones() != null ? new ArrayList<>(dto.phones()) : new ArrayList<>());

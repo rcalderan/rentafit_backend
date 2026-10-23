@@ -11,6 +11,7 @@ import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.port.*;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.*;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import br.com.rentafit.settings.service.ApplicationSettingsService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
@@ -41,7 +42,8 @@ import static org.mockito.Mockito.*;
 @Import({InstallationMigrationConfiguration.class, InstallationCompletionService.class, UserAccountService.class,
         RefreshTokenService.class, RentalContractService.class, RentalRevisionService.class, RentalMapper.class,
         RentalWorkflowService.class, RentalReservationDelta.class, RentalContractValidator.class, ItemConflictChecker.class,
-        RentalItemAdapter.class, ApplicationSettingsService.class, RentalProposalDuplication.class})
+        RentalItemAdapter.class, ApplicationSettingsService.class, RentalProposalDuplication.class,
+        TerminalSectorResolver.class})
 class PostgresRentalRegressionTest {
     @Autowired private JdbcTemplate database;
     @Autowired private InstallationCompletionService installation;
@@ -51,6 +53,7 @@ class PostgresRentalRegressionTest {
     @Autowired private RentalContractService rentals;
     @Autowired private ApplicationSettingsService settings;
     @Autowired private RentalContractRepository contracts;
+    @Autowired private RentalReservationDelta delta;
     @Autowired private PlatformTransactionManager transactions;
     @MockitoBean private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
     @MockitoBean private OperatorIdentityService operators;
@@ -229,6 +232,89 @@ class PostgresRentalRegressionTest {
         database.update("INSERT INTO user_accounts (id, username, password, pin, is_active, password_changed_at) VALUES (?, ?, 'test-hash', 'test-hash', true, CURRENT_TIMESTAMP)", id, id.toString());
         database.update("INSERT INTO user_roles (user_id, role_id) SELECT ?, id FROM roles WHERE role = 'ADMIN'", id);
         return id;
+    }
+
+    @Test
+    void returnedFinalizedContractDoesNotBlockItemRelease() {
+        UUID itemId = createCatalogItem();
+        UUID legacyReturned = createFinalizedContract();
+        database.update("UPDATE rental_contracts SET is_returned = true WHERE id = ?", legacyReturned);
+        database.update("INSERT INTO rental_contract_items (id, contract_id, rental_item_id, legacy_product_code, description, value, attendant_employee_id) VALUES (?, ?, ?, 'fixture', 'Legacy item', 10, ?)",
+                UUID.randomUUID(), legacyReturned, itemId, BOOTSTRAP);
+        UUID active = createFinalizedContract();
+        database.update("UPDATE rental_items SET status = 'RESERVED' WHERE id = ?", itemId);
+
+        delta.releaseItem(itemId, active);
+        entities.clear();
+
+        assertThat(database.queryForObject("SELECT status FROM rental_items WHERE id = ?", String.class, itemId))
+                .isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    void activeFinalizedContractStillBlocksItemRelease() {
+        UUID itemId = createCatalogItem();
+        UUID otherActive = createFinalizedContract();
+        database.update("INSERT INTO rental_contract_items (id, contract_id, rental_item_id, legacy_product_code, description, value, attendant_employee_id) VALUES (?, ?, ?, 'fixture', 'Active item', 10, ?)",
+                UUID.randomUUID(), otherActive, itemId, BOOTSTRAP);
+        UUID active = createFinalizedContract();
+        database.update("UPDATE rental_items SET status = 'RESERVED' WHERE id = ?", itemId);
+
+        delta.releaseItem(itemId, active);
+        entities.clear();
+
+        assertThat(database.queryForObject("SELECT status FROM rental_items WHERE id = ?", String.class, itemId))
+                .isEqualTo("RESERVED");
+    }
+
+    @Test
+    void closedLegacyContractDoesNotBlockItemRelease() {
+        UUID itemId = createCatalogItem();
+        UUID closed = createFinalizedContract();
+        database.update("UPDATE rental_contracts SET status = 'CLOSED', is_returned = true WHERE id = ?", closed);
+        database.update("INSERT INTO rental_contract_items (id, contract_id, rental_item_id, legacy_product_code, description, value, attendant_employee_id) VALUES (?, ?, ?, 'fixture', 'Closed item', 10, ?)",
+                UUID.randomUUID(), closed, itemId, BOOTSTRAP);
+        UUID active = createFinalizedContract();
+        database.update("UPDATE rental_items SET status = 'RESERVED' WHERE id = ?", itemId);
+
+        delta.releaseItem(itemId, active);
+        entities.clear();
+
+        assertThat(database.queryForObject("SELECT status FROM rental_items WHERE id = ?", String.class, itemId))
+                .isEqualTo("AVAILABLE");
+    }
+
+    @Test
+    void returnedFinalizedContractDoesNotCountAsPendingReservation() {
+        UUID itemId = createCatalogItem();
+        UUID legacyReturned = createFinalizedContract();
+        database.update("UPDATE rental_contracts SET is_returned = true WHERE id = ?", legacyReturned);
+        database.update("INSERT INTO rental_contract_items (id, contract_id, rental_item_id, legacy_product_code, description, value, attendant_employee_id) VALUES (?, ?, ?, 'fixture', 'Legacy item', 10, ?)",
+                UUID.randomUUID(), legacyReturned, itemId, BOOTSTRAP);
+
+        assertThat(database.queryForObject(
+                "SELECT COUNT(*) > 0 FROM rental_contract_items i JOIN rental_contracts c ON c.id = i.contract_id "
+                        + "WHERE i.rental_item_id = ? AND c.status = 'FINALIZED' AND i.is_delivered = false AND c.is_returned = false",
+                Boolean.class, itemId)).isFalse();
+    }
+
+    @Test
+    void revisionPaymentsDoNotAppearInActiveMovements() {
+        UUID originalId = createFinalizedContract();
+        when(actor.requireId()).thenReturn(BOOTSTRAP);
+        var revision = rentals.revise(originalId);
+        contracts.flush();
+
+        Integer revisionMovements = database.queryForObject(
+                "SELECT COUNT(*) FROM rental_payments p JOIN rental_contracts c ON c.id = p.contract_id "
+                        + "WHERE c.id = ? AND c.status = 'REVISION' AND p.status <> 'CANCELLED'",
+                Integer.class, revision.id());
+        assertThat(revisionMovements).isPositive();
+        // A query do dashboard exclui REVISION/SUPERSEDED — o clone não pode duplicar o extrato
+        assertThat(database.queryForObject(
+                "SELECT COUNT(*) FROM rental_payments p JOIN rental_contracts c ON c.id = p.contract_id "
+                        + "WHERE c.id = ? AND c.status NOT IN ('SUPERSEDED', 'REVISION') AND p.status <> 'CANCELLED'",
+                Integer.class, revision.id())).isZero();
     }
 
     private UUID createFinalizedContract() {

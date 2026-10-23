@@ -6,6 +6,8 @@ import jakarta.validation.Validator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import java.util.Set;
 
@@ -14,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @DisplayName("SetupCredentialsRequestDTO - Bean Validation")
 class SetupCredentialsRequestDTOValidationTest {
 
+    private static final String VALID_PASSWORD = "Vestido#Azul42";
     private static Validator validator;
 
     @BeforeAll
@@ -21,105 +24,64 @@ class SetupCredentialsRequestDTOValidationTest {
         validator = Validation.buildDefaultValidatorFactory().getValidator();
     }
 
+    private Set<ConstraintViolation<SetupCredentialsRequestDTO>> validate(String password, String pin) {
+        return validator.validate(new SetupCredentialsRequestDTO(password, pin));
+    }
+
     @Test
     @DisplayName("DTO válido não gera violações")
     void validDtoShouldPass() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("ValidP@ss1", "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).isEmpty();
+        assertThat(validate(VALID_PASSWORD, "4831")).isEmpty();
     }
 
     @Test
-    @DisplayName("senha nula gera violação")
+    @DisplayName("senha nula gera violação apenas de obrigatoriedade")
     void nullPasswordShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO(null, "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
+        var violations = validate(null, "4831");
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
     }
 
     @Test
-    @DisplayName("senha em branco gera violação")
-    void blankPasswordShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("", "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(3);
-        assertThat(violations.stream().map(v -> v.getPropertyPath().toString())).allMatch(p -> p.equals("newPassword"));
-    }
-
-    @Test
-    @DisplayName("senha curta gera violação de tamanho")
+    @DisplayName("senha curta informa o tamanho recebido e o esperado")
     void shortPasswordShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("Short1!", "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(2);
-        assertThat(violations.stream().map(v -> v.getPropertyPath().toString())).allMatch(p -> p.equals("newPassword"));
-        assertThat(violations.stream().map(ConstraintViolation::getMessage)).anyMatch(m -> m.contains("8"));
+        var violations = validate("Short1!x", "4831");
+        assertThat(violations).hasSize(1);
+        assertThat(violations.iterator().next().getMessage()).contains("10 e 64").contains("recebido: 8");
     }
 
     @Test
-    @DisplayName("senha sem maiúscula gera violação de pattern")
+    @DisplayName("senha sem maiúscula gera violação específica")
     void passwordWithoutUppercaseShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("lowercase1!", "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("uppercase");
+        assertThat(validate("vestido#azul42", "4831").iterator().next().getMessage()).contains("maiúscula");
     }
 
     @Test
-    @DisplayName("senha sem número gera violação de pattern")
-    void passwordWithoutDigitShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("NoDigitPass!", "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("number");
+    @DisplayName("senha comum da blocklist é rejeitada")
+    void commonPasswordShouldFail() {
+        assertThat(validate("Password@123", "4831").iterator().next().getMessage()).contains("comum");
     }
 
     @Test
-    @DisplayName("senha sem caractere especial gera violação de pattern")
-    void passwordWithoutSpecialCharShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("NoSpecial1", "1234");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("special");
+    @DisplayName("mensagem de violação nunca ecoa a senha")
+    void violationMessageDoesNotEchoPassword() {
+        var violations = validate("semmaiuscula#42", "4831");
+        assertThat(violations.iterator().next().getMessage()).doesNotContain("semmaiuscula#42");
     }
 
     @Test
     @DisplayName("PIN nulo gera violação")
     void nullPinShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("ValidP@ss1", null);
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
+        var violations = validate(VALID_PASSWORD, null);
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("pin");
     }
 
-    @Test
-    @DisplayName("PIN com menos de 4 dígitos gera violação")
-    void shortPinShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("ValidP@ss1", "123");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("pin");
-        assertThat(violations.iterator().next().getMessage()).contains("4 numeric digits");
-    }
-
-    @Test
-    @DisplayName("PIN com letras gera violação")
-    void alphaPinShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("ValidP@ss1", "12ab");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(1);
-        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("pin");
-    }
-
-    @Test
-    @DisplayName("PIN com mais de 4 dígitos gera violação")
-    void longPinShouldFail() {
-        SetupCredentialsRequestDTO dto = new SetupCredentialsRequestDTO("ValidP@ss1", "12345");
-        Set<ConstraintViolation<SetupCredentialsRequestDTO>> violations = validator.validate(dto);
+    @ParameterizedTest
+    @ValueSource(strings = {"123", "12345", "12ab", "0000", "1234", "4321", "1212", "2580"})
+    @DisplayName("PIN fora do formato, repetido, sequencial ou comum gera violação")
+    void weakPinShouldFail(String pin) {
+        var violations = validate(VALID_PASSWORD, pin);
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("pin");
     }

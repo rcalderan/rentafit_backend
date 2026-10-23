@@ -12,6 +12,8 @@ import br.com.rentafit.sales.port.RetailProductPort.RetailProductSnapshot;
 import br.com.rentafit.sales.port.SalesCustomerPort;
 import br.com.rentafit.sales.port.SalesCustomerPort.CustomerSnapshot;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -43,6 +45,7 @@ class SalesOrderServiceTest {
     @Mock private SalesCustomerPort customerPort;
     @Mock private RetailProductPort productPort;
     @Mock private SalesMapper mapper;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private SalesOrderService orderService;
@@ -63,6 +66,9 @@ class SalesOrderServiceTest {
         customerId  = UUID.randomUUID();
         productId   = UUID.randomUUID();
         employeeId  = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
 
         customerSnapshot = new CustomerSnapshot(customerId, "João Silva", "12345678901");
 
@@ -348,11 +354,11 @@ class SalesOrderServiceTest {
             when(mapper.toSummaryDTO(draftOrder)).thenReturn(SalesOrderSummaryDTO.builder()
                     .id(orderId).status("CANCELLED").build());
 
-            var result = orderService.findWithFilters(SalesOrderStatus.CANCELLED, null, null, pageable);
+            var result = orderService.findWithFilters(SalesOrderStatus.CANCELLED, null, null, null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
             verify(orderRepository).findByStatus(SalesOrderStatus.CANCELLED, pageable);
-            verify(orderRepository, never()).findWithFilters(any(), any(), any(), any());
+            verify(orderRepository, never()).findWithFilters(any(), any(), any(), any(), any());
         }
 
         @Test
@@ -362,15 +368,15 @@ class SalesOrderServiceTest {
             var dateFrom = java.time.OffsetDateTime.now().minusDays(7);
             var dateTo = java.time.OffsetDateTime.now();
 
-            when(orderRepository.findWithFilters(null, dateFrom, dateTo, pageable))
+            when(orderRepository.findWithFilters(null, dateFrom, dateTo, null, pageable))
                     .thenReturn(new PageImpl<>(List.of(draftOrder), pageable, 1));
             when(mapper.toSummaryDTO(draftOrder)).thenReturn(SalesOrderSummaryDTO.builder()
                     .id(orderId).status("DRAFT").build());
 
-            var result = orderService.findWithFilters(null, dateFrom, dateTo, pageable);
+            var result = orderService.findWithFilters(null, dateFrom, dateTo, null, pageable);
 
             assertThat(result.getContent()).hasSize(1);
-            verify(orderRepository).findWithFilters(null, dateFrom, dateTo, pageable);
+            verify(orderRepository).findWithFilters(null, dateFrom, dateTo, null, pageable);
             verify(orderRepository, never()).findByStatus(any(), any());
         }
 
@@ -380,13 +386,13 @@ class SalesOrderServiceTest {
             var pageable = PageRequest.of(0, 20);
             var dateFrom = java.time.OffsetDateTime.now().minusDays(7);
 
-            when(orderRepository.findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, pageable))
+            when(orderRepository.findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, null, pageable))
                     .thenReturn(new PageImpl<>(List.of(), pageable, 0));
 
-            var result = orderService.findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, pageable);
+            var result = orderService.findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, null, pageable);
 
             assertThat(result.getContent()).isEmpty();
-            verify(orderRepository).findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, pageable);
+            verify(orderRepository).findWithFilters(SalesOrderStatus.CONFIRMED, dateFrom, null, null, pageable);
         }
     }
 

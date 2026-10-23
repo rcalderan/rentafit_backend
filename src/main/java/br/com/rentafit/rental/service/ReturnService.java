@@ -19,6 +19,8 @@ import br.com.rentafit.rental.repository.RentalContractItemMetaRepository;
 import br.com.rentafit.rental.repository.RentalContractItemRepository;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -52,31 +54,47 @@ public class ReturnService {
     private final RentalPaymentRepository paymentRepository;
     private final EmployeeRepository employeeRepository;
     private final RentalWorkflowService workflowService;
+    private final TerminalSectorResolver sectorResolver;
 
     // ── Consulta ──────────────────────────────────────────────────────────────
 
+    /**
+     * Consulta somente-leitura: aceita SIGNED, FINALIZED e status terminais
+     * (CLOSED, CANCELLED) para que a tela exiba o histórico da devolução/
+     * desistência. As mutações (mark/close/withdraw) continuam restritas
+     * por seus próprios guards de status.
+     */
     @Transactional(readOnly = true)
     public ReturnSummaryDTO getReturnSummary(UUID contractId) {
-        RentalContract contract = requireFinalized(contractId);
+        RentalContract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ResourceNotFoundException("RentalContract", "id", contractId.toString()));
+        if (ContractStatus.DRAFT.equals(contract.getStatus())
+                || ContractStatus.REVISION.equals(contract.getStatus())
+                || ContractStatus.SUPERSEDED.equals(contract.getStatus())) {
+            throw new ValidationException(
+                    "Devolução não se aplica a contratos " + contract.getStatus()
+                            + " (esperado: SIGNED, FINALIZED, CLOSED ou CANCELLED)");
+        }
         return toSummaryDTO(contract);
     }
 
     // ── Marcação de itens ─────────────────────────────────────────────────────
 
     public ReturnSummaryDTO markItemsReturned(UUID contractId, MarkReturnRequestDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         contractRepository.lockById(contractId);
         RentalContract contract = requireFinalized(contractId);
 
         for (ReturnEntryDTO entry : dto.entries()) {
             if (entry.accessoryId() == null) {
-                markItemReturned(contract, entry, dto.returnerName());
+                markItemReturned(contract, entry, dto.returnerName(), sector.getId());
             } else {
                 markAccessoryReturned(contract, entry);
             }
         }
 
         if (Boolean.TRUE.equals(dto.applyFine()) && dto.fineAmount() != null && dto.fineAmount().compareTo(BigDecimal.ZERO) > 0) {
-            createFinePayment(contract, dto.fineAmount(), null);
+            createFinePayment(contract, dto.fineAmount(), null, sector.getId());
             log.info("Fine payment of {} created during mark for contract {}", dto.fineAmount(), contractId);
         }
 
@@ -89,6 +107,7 @@ public class ReturnService {
     // ── Fechamento ────────────────────────────────────────────────────────────
 
     public ReturnSummaryDTO closeReturn(UUID contractId, CloseReturnRequestDTO dto) {
+        Sector sector = sectorResolver.requireTerminalSector();
         contractRepository.lockById(contractId);
         RentalContract contract = requireFinalized(contractId);
 
@@ -97,13 +116,14 @@ public class ReturnService {
         validateEmployee(dto.employeeId());
 
         if (Boolean.TRUE.equals(dto.applyFine()) && dto.fineAmount() != null && dto.fineAmount().compareTo(BigDecimal.ZERO) > 0) {
-            createFinePayment(contract, dto.fineAmount(), dto.employeeId());
+            createFinePayment(contract, dto.fineAmount(), dto.employeeId(), sector.getId());
         }
 
         contract.setStatus(ContractStatus.CLOSED);
         contract.setReturned(true);
         contract.setActualReturnDate(LocalDate.now());
         contract.setReturnedByEmployeeId(dto.employeeId());
+        contract.setReturnSectorId(sector.getId());
         RentalContract saved = contractRepository.save(contract);
 
         workflowService.onReturn(saved);
@@ -113,7 +133,7 @@ public class ReturnService {
 
     // ── Helpers de negócio ────────────────────────────────────────────────────
 
-    private void markItemReturned(RentalContract contract, ReturnEntryDTO entry, String returnerName) {
+    private void markItemReturned(RentalContract contract, ReturnEntryDTO entry, String returnerName, UUID sectorId) {
         RentalContractItem item = contract.getItems().stream()
                 .filter(i -> i.getId().equals(entry.itemId()))
                 .findFirst()
@@ -127,6 +147,7 @@ public class ReturnService {
         item.setReturned(true);
         item.setReturnedAt(entry.returnedAt());
         item.setReturnedByName(returnerName);
+        item.setReturnedSectorId(sectorId);
         itemRepository.save(item);
     }
 
@@ -212,7 +233,7 @@ public class ReturnService {
         return contractTotal.multiply(appliedRate).setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
-    private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId) {
+    private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId, UUID sectorId) {
         int nextInstallment = paymentRepository
                 .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
 
@@ -225,6 +246,7 @@ public class ReturnService {
                 .installments(1)
                 .status(PaymentStatus.MULTA)
                 .processedByEmployeeId(employeeId)
+                .sectorId(sectorId)
                 .build();
 
         paymentRepository.save(fine);
@@ -242,6 +264,7 @@ public class ReturnService {
 
         List<ReturnSummaryDTO.ReturnPaymentPreviewDTO> paymentsPreview = contract.getPayments().stream()
                 .map(p -> ReturnSummaryDTO.ReturnPaymentPreviewDTO.builder()
+                        .paymentId(p.getId())
                         .installmentNumber(p.getInstallmentNumber())
                         .value(p.getValue())
                         .status(p.getStatus().name())
@@ -258,16 +281,28 @@ public class ReturnService {
 
         boolean isFullyReturned = pendingCount == 0;
 
+        BigDecimal totalValue = contract.getItems().stream()
+                .map(RentalContractItem::getValue)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         return ReturnSummaryDTO.builder()
                 .contractId(contract.getId())
                 .legacyId(contract.getLegacyId())
                 .customerName(contract.getCustomerName())
+                .customerId(contract.getCustomerId())
+                .contractStatus(contract.getStatus().name())
+                .pickupDate(contract.getPickupDate())
+                .eventDate(contract.getEventDate())
                 .returnDate(contract.getReturnDate())
                 .actualReturnDate(contract.getActualReturnDate())
+                .totalValue(totalValue)
                 .pendingCount((int) pendingCount)
                 .isFullyReturned(isFullyReturned)
                 .delayDays(delayDays)
                 .suggestedFine(calculateSuggestedFine(contract, delayDays))
+                .sectorId(contract.getSectorId())
+                .returnSectorId(contract.getReturnSectorId())
                 .items(items)
                 .paymentsPreview(paymentsPreview)
                 .build();

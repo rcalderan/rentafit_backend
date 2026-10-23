@@ -39,10 +39,11 @@ public class SalesOrderController {
             @RequestParam(required = false) SalesOrderStatus status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dateFrom,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime dateTo,
+            @RequestParam(required = false) UUID sectorId,
             Pageable pageable) {
 
-        if (status != null || dateFrom != null || dateTo != null) {
-            return ResponseEntity.ok(orderService.findWithFilters(status, dateFrom, dateTo, pageable));
+        if (status != null || dateFrom != null || dateTo != null || sectorId != null) {
+            return ResponseEntity.ok(orderService.findWithFilters(status, dateFrom, dateTo, sectorId, pageable));
         }
         return ResponseEntity.ok(orderService.findAll(pageable));
     }

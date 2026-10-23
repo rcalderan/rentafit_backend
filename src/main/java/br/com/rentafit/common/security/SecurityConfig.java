@@ -50,6 +50,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/auth/operator-profile").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.GET, "/api/auth/public-key").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/verify-email", "/api/auth/resend-verification",
+                                "/api/auth/unlock").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/customers/signup").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/addresses/find/**").permitAll()
 
@@ -84,6 +86,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT,    "/api/v1/products/**").hasAnyRole("MANAGER", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/products/**").hasRole("ADMIN")
 
+                        // Setores: leitura EMPLOYEE/MANAGER/ADMIN; escrita MANAGER/ADMIN
+                        .requestMatchers(HttpMethod.GET,   "/api/v1/sectors/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,  "/api/v1/sectors/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PUT,   "/api/v1/sectors/**").hasAnyRole("MANAGER", "ADMIN")
+                        .requestMatchers(HttpMethod.PATCH, "/api/v1/sectors/**").hasAnyRole("MANAGER", "ADMIN")
+
                         // Locação e pagamentos: EMPLOYEE, MANAGER, ADMIN
                         .requestMatchers("/api/v1/rental/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
 
@@ -93,6 +101,9 @@ public class SecurityConfig {
                         // Faturamento — autorizacao centralizada aqui
                         .requestMatchers("/api/v1/billing/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
                         .requestMatchers("/api/fiscal-documents/**").hasAnyRole("EMPLOYEE", "MANAGER", "ADMIN")
+
+                        // Movimentação financeira — restrito a MANAGER e ADMIN
+                        .requestMatchers("/api/v1/finance/**").hasAnyRole("MANAGER", "ADMIN")
 
                         // Admin de usuários (já tem @PreAuthorize, defense-in-depth)
                         .requestMatchers("/api/auth/users/**").hasAnyRole("MANAGER", "ADMIN")

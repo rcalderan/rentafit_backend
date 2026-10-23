@@ -24,11 +24,13 @@ public interface SalesOrderRepository extends JpaRepository<SalesOrder, UUID> {
     @Query("SELECT o FROM SalesOrder o WHERE " +
            "(:status IS NULL OR o.status = :status) AND " +
            "(:dateFrom IS NULL OR o.createdAt >= :dateFrom) AND " +
-           "(:dateTo IS NULL OR o.createdAt <= :dateTo)")
+           "(:dateTo IS NULL OR o.createdAt <= :dateTo) AND " +
+           "(:sectorId IS NULL OR o.sectorId = :sectorId)")
     Page<SalesOrder> findWithFilters(
             @Param("status") SalesOrderStatus status,
             @Param("dateFrom") OffsetDateTime dateFrom,
             @Param("dateTo") OffsetDateTime dateTo,
+            @Param("sectorId") UUID sectorId,
             Pageable pageable
     );
 

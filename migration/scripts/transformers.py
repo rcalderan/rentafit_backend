@@ -379,6 +379,16 @@ def transform_products_and_rental_items(documents: list[dict], default_category_
 
 # ---------- rental_contracts + items + payments + meta ----------
 
+# Contratos encerrados no legado (situacao=0) com baixa registrada já voltaram
+# ao estoque: nascem CLOSED, alinhados ao fluxo atual (FINALIZED → devolução →
+# CLOSED). FINALIZED fica reservado a contratos efetivamente em aberto.
+def _contract_status(doc: dict) -> str:
+    status = CONTRACT_STATUS_MAP.get(doc.get("situacao", 0), "DRAFT")
+    if status == "FINALIZED" and doc.get("baixa"):
+        return "CLOSED"
+    return status
+
+
 def transform_contracts(documents: list[dict], customer_map: dict, customer_name_map: dict, employee_map: dict, rental_item_map: dict, default_customer_id: str = "") -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     """Retorna (contract_rows, contract_item_rows, payment_rows, meta_rows)."""
     contract_rows = []
@@ -417,7 +427,7 @@ def transform_contracts(documents: list[dict], customer_map: dict, customer_name
             "return_date": return_d,
             "actual_return_date": fmt_date(doc.get("devolveu")),
             "is_returned": "true" if doc.get("baixa") else "false",
-            "status": CONTRACT_STATUS_MAP.get(doc.get("situacao", 0), "DRAFT"),
+            "status": _contract_status(doc),
             "notes": normalize_text(doc.get("comunicado")),
             "created_at": fmt_datetime(doc.get("hoje")) or EPOCH_TZ,
             "parent_contract_id": "",
@@ -477,4 +487,53 @@ def transform_contracts(documents: list[dict], customer_map: dict, customer_name
             })
 
     return contract_rows, contract_item_rows, payment_rows, meta_rows
+
+
+# Status em que a peça saiu efetivamente da loja ou o ciclo já se encerrou.
+RENTAL_USAGE_STATUSES = {"FINALIZED", "CLOSED"}
+
+
+def reconcile_rental_items_from_contracts(
+    rental_item_rows: list[dict],
+    contract_rows: list[dict],
+    contract_item_rows: list[dict],
+) -> dict:
+    """Recalcula rental_count e last_rental_date a partir dos contratos migrados.
+
+    Conta como locação efetiva todo item vinculado a contrato FINALIZED/CLOSED
+    cuja peça saiu da loja (is_delivered) ou cujo contrato inteiro teve baixa
+    (is_returned). Preserva o nloc legado quando maior que o histórico de
+    contratos presente no dump — peças alugadas antes do período coberto pelo
+    dump manteriam contagem subestimada caso o max não fosse aplicado.
+
+    Retorna dict rental_item_id -> {"count": int, "last": "YYYY-MM-DD"} para
+    auditoria e testes.
+    """
+    contract_by_id = {c["id"]: c for c in contract_rows}
+    usage = {}
+    for item in contract_item_rows:
+        item_uuid = item.get("rental_item_id")
+        if not item_uuid:
+            continue
+        contract = contract_by_id.get(item.get("contract_id"))
+        if contract is None or contract.get("status") not in RENTAL_USAGE_STATUSES:
+            continue
+        if contract.get("is_returned") != "true" and item.get("is_delivered") != "true":
+            continue
+        entry = usage.setdefault(item_uuid, {"count": 0, "last": ""})
+        entry["count"] += 1
+        used_at = contract.get("pickup_date") or contract.get("event_date") or ""
+        if used_at > entry["last"]:
+            entry["last"] = used_at
+
+    for row in rental_item_rows:
+        stats = usage.get(row["id"])
+        if not stats:
+            continue
+        legacy_count = int(row.get("rental_count") or 0)
+        row["rental_count"] = max(legacy_count, stats["count"])
+        if stats["last"] and stats["last"] > (row.get("last_rental_date") or "")[:10]:
+            row["last_rental_date"] = f"{stats['last']} 00:00:00"
+
+    return usage
 

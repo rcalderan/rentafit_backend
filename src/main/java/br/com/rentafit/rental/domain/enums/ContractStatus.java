@@ -12,7 +12,8 @@ public enum ContractStatus {
     FINALIZED(2, "Contrato fechado"),
     REVISION(3, "Revisão"),
     SUPERSEDED(4, "Substituído"),
-    CLOSED(5, "Concluído");
+    CLOSED(5, "Concluído"),
+    CANCELLED(6, "Desistência");
 
     /**
      * Status em que o contrato efetivamente reserva os itens.

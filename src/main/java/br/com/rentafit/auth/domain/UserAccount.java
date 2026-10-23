@@ -45,6 +45,18 @@ public class UserAccount implements UserDetails {
     @Schema(description = "Whether the account is active")
     private Boolean isActive = true;
 
+    @Column(name = "failed_login_attempts", nullable = false)
+    @Schema(description = "Consecutive failed password logins since the last success or lock")
+    private int failedLoginAttempts;
+
+    @Column(name = "locked_until")
+    @Schema(description = "Login is refused until this instant after too many failed attempts")
+    private java.time.OffsetDateTime lockedUntil;
+
+    @Column(name = "email_verification_pending", nullable = false)
+    @Schema(description = "True while a self-registered account has not confirmed its e-mail")
+    private boolean emailVerificationPending;
+
     @Column(name = "issuer_cnpj", length = 14)
     @Schema(description = "CNPJ do emitente vinculado ao usuário", example = "08299621000120")
     private String issuerCnpj;
@@ -82,8 +94,8 @@ public class UserAccount implements UserDetails {
 
     public UserAccount() { }
 
-    public UserAccount(Person person, String password) {
-        this.username = person.getEmail();
+    public UserAccount(Person person, String username, String password) {
+        this.username = username;
         this.password = password;
         this.person = person;
         this.id = person.getId();
@@ -106,7 +118,11 @@ public class UserAccount implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return true;
+        return !isLockedAt(java.time.OffsetDateTime.now());
+    }
+
+    public boolean isLockedAt(java.time.OffsetDateTime instant) {
+        return lockedUntil != null && lockedUntil.isAfter(instant);
     }
 
     @Override
@@ -116,7 +132,7 @@ public class UserAccount implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return isActive;
+        return Boolean.TRUE.equals(isActive) && !emailVerificationPending;
     }
 }
 

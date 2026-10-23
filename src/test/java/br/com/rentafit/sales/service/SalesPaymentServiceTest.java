@@ -14,6 +14,8 @@ import br.com.rentafit.sales.dto.SalesPaymentInputDTO;
 import br.com.rentafit.sales.mapper.SalesMapper;
 import br.com.rentafit.sales.repository.SalesOrderRepository;
 import br.com.rentafit.sales.repository.SalesPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -41,6 +43,7 @@ class SalesPaymentServiceTest {
     @Mock private SalesOrderRepository orderRepository;
     @Mock private SalesOrderService orderService;
     @Mock private SalesMapper mapper;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private SalesPaymentService paymentService;
@@ -59,6 +62,9 @@ class SalesPaymentServiceTest {
         orderId    = UUID.randomUUID();
         paymentId  = UUID.randomUUID();
         employeeId = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
 
         SalesOrderItem item = SalesOrderItem.builder()
                 .id(UUID.randomUUID()).retailProductId(UUID.randomUUID())
@@ -113,7 +119,7 @@ class SalesPaymentServiceTest {
         void deveRetornarListaDeParcelas() {
             SalesPaymentDetailsDTO paymentDetails = new SalesPaymentDetailsDTO(
                     paymentId, 1, LocalDate.now(), "PIX", "Pix",
-                    new BigDecimal("100.00"), 1, null, "PENDING", "Pendente");
+                    new BigDecimal("100.00"), 1, null, "PENDING", "Pendente", null);
 
             when(orderService.findEntityById(orderId)).thenReturn(confirmedOrder);
             when(paymentRepository.findBySalesOrderIdOrderByInstallmentNumber(orderId))

@@ -6,6 +6,7 @@ import br.com.rentafit.rental.dto.RentalContractDetailsDTO;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.validation.RentalContractValidator;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,6 +20,7 @@ public class RentalProposalDuplication {
     private final RentalContractRepository repository;
     private final RentalContractValidator validator;
     private final RentalMapper mapper;
+    private final TerminalSectorResolver sectorResolver;
 
     public RentalContractDetailsDTO create(RentalContract original, Supplier<String> legacyId) {
         // Atualiza snapshot do cliente
@@ -27,6 +29,7 @@ public class RentalProposalDuplication {
                 .customerId(customer.id()).customerName(customer.name()).customerDocument(customer.document())
                 .createdByEmployeeId(original.getCreatedByEmployeeId()).pickupDate(original.getPickupDate())
                 .eventDate(original.getEventDate()).returnDate(original.getReturnDate())
+                .sectorId(sectorResolver.requireTerminalSector().getId())
                 .notes("Duplicado do contrato " + original.getId() + ". " + original.getNotes())
                 .status(ContractStatus.DRAFT).returned(false).build();
         copy.setItems(new ArrayList<>(original.getItems().stream().map(item -> copyItem(item, copy)).toList()));

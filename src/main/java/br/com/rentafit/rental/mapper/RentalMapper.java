@@ -134,6 +134,8 @@ public class RentalMapper {
                 .revisedByAccountId(contract.getRevisedByAccountId())
                 .confirmedByAccountId(contract.getConfirmedByAccountId())
                 .revisionConfirmedAt(contract.getRevisionConfirmedAt())
+                .sectorId(contract.getSectorId())
+                .returnSectorId(contract.getReturnSectorId())
                 .pickupDate(contract.getPickupDate())
                 .eventDate(contract.getEventDate())
                 .returnDate(contract.getReturnDate())
@@ -173,6 +175,7 @@ public class RentalMapper {
                 .pickupDate(contract.getPickupDate())
                 .returnDate(contract.getReturnDate())
                 .returned(contract.getReturned())
+                .sectorId(contract.getSectorId())
                 .totalValue(totalValue)
                 .paidValue(paidValue)
                 .createdAt(contract.getCreatedAt())
@@ -182,8 +185,10 @@ public class RentalMapper {
     /**
      * DTO de reserva ativa por item (endpoint byItem). Não acessa items/payments —
      * apenas campos escalares do contrato + legacyId do cliente resolvido via CustomerPort.
+     * pendingReturn=true quando o contrato está na lista por devolução pendente
+     * (FINALIZED não devolvido com evento passado), não por reserva futura.
      */
-    public ItemReservationDTO toItemReservationDTO(RentalContract contract, Integer customerLegacyId) {
+    public ItemReservationDTO toItemReservationDTO(RentalContract contract, Integer customerLegacyId, boolean pendingReturn) {
         return new ItemReservationDTO(
                 contract.getId(),
                 contract.getLegacyId(),
@@ -194,7 +199,8 @@ public class RentalMapper {
                 contract.getPickupDate(),
                 contract.getReturnDate(),
                 contract.getStatus().name(),
-                contract.getStatus().getDescription()
+                contract.getStatus().getDescription(),
+                pendingReturn
         );
     }
 
@@ -234,7 +240,9 @@ public class RentalMapper {
                 item.getValue(),
                 item.getDelivered(),
                 item.getAttendantEmployeeId(),
-                metaDtos
+                metaDtos,
+                item.getDeliveredSectorId(),
+                item.getReturnedSectorId()
         );
     }
 
@@ -285,7 +293,8 @@ public class RentalMapper {
                 payment.getInstallments(),
                 payment.getProcessedByEmployeeId(),
                 payment.getStatus().name(),
-                payment.getStatus().getDescription()
+                payment.getStatus().getDescription(),
+                payment.getSectorId()
         );
     }
 

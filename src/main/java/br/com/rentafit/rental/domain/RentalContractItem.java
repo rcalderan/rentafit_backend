@@ -70,6 +70,14 @@ public class RentalContractItem {
     @Column(name = "returned_by_name")
     private String returnedByName;
 
+    /** Setor do terminal onde a peça foi entregue ao cliente (retirada). */
+    @Column(name = "delivered_sector_id")
+    private UUID deliveredSectorId;
+
+    /** Setor do terminal onde a peça foi fisicamente devolvida. */
+    @Column(name = "returned_sector_id")
+    private UUID returnedSectorId;
+
     @OneToMany(mappedBy = "contractItem", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @Fetch(FetchMode.SUBSELECT)
     @Builder.Default

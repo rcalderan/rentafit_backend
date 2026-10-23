@@ -7,7 +7,8 @@ public enum PaymentStatus {
     PENDING(0, "Pendente"),
     PAID(1, "Pago"),
     CANCELLED(2, "Cancelado"),
-    MULTA(3, "Multa por atraso");
+    MULTA(3, "Multa por atraso"),
+    REFUNDED(4, "Reembolsado");
 
     private final int legacyCode;
     private final String description;
@@ -19,6 +20,11 @@ public enum PaymentStatus {
 
     public int getLegacyCode() { return legacyCode; }
     public String getDescription() { return description; }
+
+    /** Indica que a parcela representa movimentação de caixa (entrada ou saída efetiva). */
+    public boolean isCashMovement() {
+        return this == PAID || this == MULTA || this == REFUNDED;
+    }
 
     public static PaymentStatus fromLegacyCode(int code) {
         for (PaymentStatus s : values()) {

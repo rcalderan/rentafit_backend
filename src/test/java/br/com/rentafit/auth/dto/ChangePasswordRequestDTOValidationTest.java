@@ -24,7 +24,7 @@ class ChangePasswordRequestDTOValidationTest {
     @Test
     @DisplayName("DTO válido não gera violações")
     void validDtoShouldPass() {
-        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("ValidP@ss1");
+        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("Vestido#Azul42");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
         assertThat(violations).isEmpty();
     }
@@ -43,47 +43,47 @@ class ChangePasswordRequestDTOValidationTest {
     void blankPasswordShouldFail() {
         ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(3);
-        assertThat(violations.stream().map(v -> v.getPropertyPath().toString())).allMatch(p -> p.equals("newPassword"));
+        assertThat(violations).hasSize(1);
+        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
     }
 
     @Test
     @DisplayName("senha curta gera violação de tamanho")
     void shortPasswordShouldFail() {
-        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("Short1!");
+        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("Short1!x");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
-        assertThat(violations).hasSize(2);
-        assertThat(violations.stream().map(v -> v.getPropertyPath().toString())).allMatch(p -> p.equals("newPassword"));
-        assertThat(violations.stream().map(ConstraintViolation::getMessage)).anyMatch(m -> m.contains("8"));
+        assertThat(violations).hasSize(1);
+        assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
+        assertThat(violations.iterator().next().getMessage()).contains("10 e 64").contains("recebido: 8");
     }
 
     @Test
     @DisplayName("senha sem maiúscula gera violação de pattern")
     void passwordWithoutUppercaseShouldFail() {
-        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("lowercase1!");
+        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("lowercase1!x");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("uppercase");
+        assertThat(violations.iterator().next().getMessage()).contains("maiúscula");
     }
 
     @Test
     @DisplayName("senha sem número gera violação de pattern")
     void passwordWithoutDigitShouldFail() {
-        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("NoDigitPass!");
+        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("NoDigitPass!x");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("number");
+        assertThat(violations.iterator().next().getMessage()).contains("número");
     }
 
     @Test
     @DisplayName("senha sem caractere especial gera violação de pattern")
     void passwordWithoutSpecialCharShouldFail() {
-        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("NoSpecial1");
+        ChangePasswordRequestDTO dto = new ChangePasswordRequestDTO("NoSpecial12x");
         Set<ConstraintViolation<ChangePasswordRequestDTO>> violations = validator.validate(dto);
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getPropertyPath().toString()).isEqualTo("newPassword");
-        assertThat(violations.iterator().next().getMessage()).contains("special");
+        assertThat(violations.iterator().next().getMessage()).contains("especial");
     }
 }

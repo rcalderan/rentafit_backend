@@ -43,6 +43,10 @@ public record RentalContractDetailsDTO(
         UUID confirmedByAccountId,
         OffsetDateTime revisionConfirmedAt,
 
+        // Setor do terminal de origem e da devolução
+        UUID sectorId,
+        UUID returnSectorId,
+
         // Datas
         LocalDate pickupDate,
         LocalDate eventDate,

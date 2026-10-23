@@ -20,6 +20,8 @@ import br.com.rentafit.rental.repository.RentalContractItemMetaRepository;
 import br.com.rentafit.rental.repository.RentalContractItemRepository;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,6 +54,7 @@ class ReturnServiceTest {
     @Mock private RentalPaymentRepository paymentRepository;
     @Mock private EmployeeRepository employeeRepository;
     @Mock private RentalWorkflowService workflowService;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private ReturnService returnService;
@@ -68,6 +71,12 @@ class ReturnServiceTest {
         contractId = UUID.randomUUID();
         employeeId = UUID.randomUUID();
         itemId = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
+        lenient().when(sectorResolver.resolveTerminalSector())
+                .thenReturn(Optional.of(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build()));
 
         item = RentalContractItem.builder()
                 .id(itemId)
@@ -130,14 +139,47 @@ class ReturnServiceTest {
         }
 
         @Test
-        @DisplayName("lança 422 para contrato não FINALIZED")
-        void shouldRejectNonFinalizedContract() {
+        @DisplayName("aceita contrato SIGNED (entrada para desistência)")
+        void shouldReturnSummaryForSignedContract() {
             finalizedContract.setStatus(ContractStatus.SIGNED);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.contractStatus()).isEqualTo("SIGNED");
+        }
+
+        @Test
+        @DisplayName("aceita contrato CLOSED para visualização (somente leitura)")
+        void shouldReturnSummaryForClosedContract() {
+            finalizedContract.setStatus(ContractStatus.CLOSED);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.contractStatus()).isEqualTo("CLOSED");
+        }
+
+        @Test
+        @DisplayName("aceita contrato CANCELLED para visualização (somente leitura)")
+        void shouldReturnSummaryForCancelledContract() {
+            finalizedContract.setStatus(ContractStatus.CANCELLED);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            ReturnSummaryDTO result = returnService.getReturnSummary(contractId);
+
+            assertThat(result.contractStatus()).isEqualTo("CANCELLED");
+        }
+
+        @Test
+        @DisplayName("lança 422 para contrato DRAFT/REVISION/SUPERSEDED")
+        void shouldRejectNonFinalizedContract() {
+            finalizedContract.setStatus(ContractStatus.DRAFT);
             when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
 
             assertThatThrownBy(() -> returnService.getReturnSummary(contractId))
                     .isInstanceOf(ValidationException.class)
-                    .hasMessageContaining("FINALIZED");
+                    .hasMessageContaining("DRAFT");
         }
 
         @Test

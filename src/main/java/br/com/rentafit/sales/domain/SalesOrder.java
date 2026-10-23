@@ -37,6 +37,10 @@ public class SalesOrder {
     @Column(name = "legacy_id", unique = true)
     private String legacyId;
 
+    /** Setor do terminal onde a venda foi aberta. */
+    @Column(name = "sector_id")
+    private UUID sectorId;
+
     // ── Snapshot do cliente (nullable para venda balcão) ─────────────────────
     @Column(name = "customer_id")
     private UUID customerId;

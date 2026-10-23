@@ -1,7 +1,7 @@
 package br.com.rentafit.people.controller;
 
-import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.people.dto.SignUpRequestDTO;
+import br.com.rentafit.people.dto.SignUpResponseDTO;
 import br.com.rentafit.people.service.UserRegistrationService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -26,15 +26,15 @@ public class PublicRegistrationController {
 
     @PostMapping("/signup")
     @Operation(summary = "Self-register as a new customer",
-            description = "Creates a Customer + UserAccount (CUSTOMER role) and returns auth tokens. "
-                    + "The user must then complete password/PIN setup at /auth/setup-credentials.")
+            description = "Creates a Customer + UserAccount (CUSTOMER role) pending e-mail confirmation and "
+                    + "e-mails the activation link. After confirming, the user completes password/PIN setup "
+                    + "at /auth/setup-credentials.")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "Account created and authenticated"),
+            @ApiResponse(responseCode = "202", description = "Account created; activation e-mail sent"),
             @ApiResponse(responseCode = "400", description = "Invalid input data"),
-            @ApiResponse(responseCode = "422", description = "Email or document already in use")
+            @ApiResponse(responseCode = "422", description = "Username, email or document already in use")
     })
-    public ResponseEntity<LoginResponseDTO> signUp(@Valid @RequestBody SignUpRequestDTO dto) {
-        LoginResponseDTO tokens = userRegistrationService.registerCustomer(dto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(tokens);
+    public ResponseEntity<SignUpResponseDTO> signUp(@Valid @RequestBody SignUpRequestDTO dto) {
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(userRegistrationService.registerCustomer(dto));
     }
 }

@@ -18,6 +18,7 @@ public record SalesOrderSummaryDTO(
         UUID customerId,
         String customerName,
         String invoiceStatus,
+        UUID sectorId,
         BigDecimal totalValue,
         BigDecimal paidValue,
         Integer itemCount,

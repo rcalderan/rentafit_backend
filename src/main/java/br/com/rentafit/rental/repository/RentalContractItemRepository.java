@@ -21,7 +21,8 @@ public interface RentalContractItemRepository extends JpaRepository<RentalContra
     long countOutstandingDeliveries(@Param("itemId") UUID itemId);
 
     @Query("SELECT COUNT(item) FROM RentalContractItem item WHERE item.rentalItemId = :itemId "
-            + "AND item.contract.id <> :excludedId AND item.contract.status = 'FINALIZED'")
+            + "AND item.contract.id <> :excludedId AND item.contract.status = 'FINALIZED' "
+            + "AND item.contract.returned = false")
     long countOtherReservations(@Param("itemId") UUID itemId, @Param("excludedId") UUID excludedId);
 
     /**

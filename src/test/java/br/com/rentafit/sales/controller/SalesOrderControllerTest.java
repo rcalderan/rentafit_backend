@@ -74,26 +74,26 @@ class SalesOrderControllerTest {
         when(orderService.findAll(any())).thenReturn(page);
 
         ResponseEntity<Page<SalesOrderSummaryDTO>> response =
-                controller.findAll(null, null, null, PageRequest.of(0, 10));
+                controller.findAll(null, null, null, null, PageRequest.of(0, 10));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getContent()).hasSize(1);
         verify(orderService).findAll(any());
-        verify(orderService, never()).findWithFilters(any(), any(), any(), any());
+        verify(orderService, never()).findWithFilters(any(), any(), any(), any(), any());
     }
 
     @Test
     @DisplayName("GET / deve usar findWithFilters quando filtro de status informado")
     void testFindAll_comFiltroStatus_usaFindWithFilters() {
         Page<SalesOrderSummaryDTO> page = new PageImpl<>(List.of(summaryDTO));
-        when(orderService.findWithFilters(eq(SalesOrderStatus.DRAFT), any(), any(), any())).thenReturn(page);
+        when(orderService.findWithFilters(eq(SalesOrderStatus.DRAFT), any(), any(), any(), any())).thenReturn(page);
 
         ResponseEntity<Page<SalesOrderSummaryDTO>> response =
-                controller.findAll(SalesOrderStatus.DRAFT, null, null, PageRequest.of(0, 10));
+                controller.findAll(SalesOrderStatus.DRAFT, null, null, null, PageRequest.of(0, 10));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        verify(orderService).findWithFilters(eq(SalesOrderStatus.DRAFT), any(), any(), any());
+        verify(orderService).findWithFilters(eq(SalesOrderStatus.DRAFT), any(), any(), any(), any());
         verify(orderService, never()).findAll(any());
     }
 

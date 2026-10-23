@@ -5,6 +5,7 @@ import br.com.rentafit.common.exception.ValidationException;
 import br.com.rentafit.rental.dto.*;
 import br.com.rentafit.rental.service.ItemReservationService;
 import br.com.rentafit.rental.service.RentalContractService;
+import br.com.rentafit.rental.service.WithdrawalService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class RentalContractControllerTest {
 
     @Mock private RentalContractService contractService;
     @Mock private ItemReservationService itemReservations;
+    @Mock private WithdrawalService withdrawalService;
 
     @InjectMocks
     private RentalContractController controller;
@@ -362,15 +364,61 @@ class RentalContractControllerTest {
         List<ItemReservationDTO> reservations = List.of(new ItemReservationDTO(
                 contractId, legacyId, customerId, "Ana Lima", 101,
                 LocalDate.now().plusDays(7), LocalDate.now().plusDays(5), LocalDate.now().plusDays(9),
-                "SIGNED", "Assinado"));
-        when(itemReservations.findReservationsByItem(rentalItemId, excludeId)).thenReturn(reservations);
+                "SIGNED", "Assinado", false));
+        when(itemReservations.findReservationsByItem(rentalItemId, excludeId, false)).thenReturn(reservations);
 
         ResponseEntity<List<ItemReservationDTO>> response =
-                controller.findItemReservations(rentalItemId, excludeId);
+                controller.findItemReservations(rentalItemId, excludeId, false);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).containsExactlyElementsOf(reservations);
-        verify(itemReservations).findReservationsByItem(rentalItemId, excludeId);
+        verify(itemReservations).findReservationsByItem(rentalItemId, excludeId, false);
+    }
+
+    @Test
+    @DisplayName("GET /byItem/{rentalItemId}?includePendingReturn=true repassa a flag ao service")
+    void testFindItemReservations_forwardsIncludePendingReturn() {
+        UUID rentalItemId = UUID.randomUUID();
+        when(itemReservations.findReservationsByItem(rentalItemId, null, true)).thenReturn(List.of());
+
+        ResponseEntity<List<ItemReservationDTO>> response =
+                controller.findItemReservations(rentalItemId, null, true);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        verify(itemReservations).findReservationsByItem(rentalItemId, null, true);
+    }
+
+    // ── withdraw (desistência) ────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("POST /{id}/withdraw deve retornar 200 com contrato cancelado")
+    void testWithdraw_returns200() {
+        UUID employeeId = UUID.randomUUID();
+        WithdrawContractDTO dto = new WithdrawContractDTO(
+                employeeId, BigDecimal.valueOf(300), true, BigDecimal.valueOf(150));
+        RentalContractDetailsDTO cancelled = detailsDTO.toBuilder()
+                .status(6).statusDescription("Desistência").build();
+        when(withdrawalService.withdraw(contractId, dto)).thenReturn(cancelled);
+
+        ResponseEntity<RentalContractDetailsDTO> response = controller.withdraw(contractId, dto);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().status()).isEqualTo(6);
+        verify(withdrawalService).withdraw(contractId, dto);
+    }
+
+    @Test
+    @DisplayName("POST /{id}/withdraw deve propagar ValidationException em status inelegível")
+    void testWithdraw_wrongStatus() {
+        UUID employeeId = UUID.randomUUID();
+        WithdrawContractDTO dto = new WithdrawContractDTO(employeeId, null, false, null);
+        when(withdrawalService.withdraw(contractId, dto))
+                .thenThrow(new ValidationException("Desistência disponível apenas para SIGNED ou FINALIZED"));
+
+        assertThatThrownBy(() -> controller.withdraw(contractId, dto))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("SIGNED ou FINALIZED");
     }
 
     // ── warnings field ────────────────────────────────────────────────────────

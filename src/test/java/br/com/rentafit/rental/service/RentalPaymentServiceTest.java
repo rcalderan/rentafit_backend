@@ -13,6 +13,8 @@ import br.com.rentafit.rental.dto.RentalPaymentInputDTO;
 import br.com.rentafit.rental.mapper.RentalMapper;
 import br.com.rentafit.rental.repository.RentalContractRepository;
 import br.com.rentafit.rental.repository.RentalPaymentRepository;
+import br.com.rentafit.sector.domain.Sector;
+import br.com.rentafit.sector.service.TerminalSectorResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -42,6 +44,7 @@ class RentalPaymentServiceTest {
     @Mock private RentalContractRepository contractRepository;
     @Mock private RentalContractValidator validator;
     @Mock private RentalMapper mapper;
+    @Mock private TerminalSectorResolver sectorResolver;
 
     @InjectMocks
     private RentalPaymentService paymentService;
@@ -58,6 +61,9 @@ class RentalPaymentServiceTest {
     void setUp() {
         contractId = UUID.randomUUID();
         paymentId  = UUID.randomUUID();
+        lenient().when(sectorResolver.requireTerminalSector())
+                .thenReturn(Sector.builder().id(UUID.randomUUID())
+                        .issuerCnpj("12345678000199").name("Balcão").code("BALCAO").build());
 
         RentalContractItem item = RentalContractItem.builder()
                 .id(UUID.randomUUID())
@@ -103,7 +109,7 @@ class RentalPaymentServiceTest {
 
         detailsDTO = new RentalPaymentDetailsDTO(
                 paymentId, 1, LocalDate.now().plusDays(10),
-                "PIX", "PIX", new BigDecimal("200.00"), 1, null, "PENDING", "Pendente"
+                "PIX", "PIX", new BigDecimal("200.00"), 1, null, "PENDING", "Pendente", null
         );
     }
 
@@ -483,7 +489,7 @@ class RentalPaymentServiceTest {
 
         RentalPaymentDetailsDTO gapDetailsDTO = new RentalPaymentDetailsDTO(
                 gapPayment.getId(), 2, gapPayment.getPaymentDate(),
-                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente"
+                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente", null
         );
 
         when(paymentRepository.save(any(RentalPayment.class))).thenReturn(existingPayment, gapPayment);
@@ -540,11 +546,11 @@ class RentalPaymentServiceTest {
 
         RentalPaymentDetailsDTO updatedDTO = new RentalPaymentDetailsDTO(
                 paymentId, 1, LocalDate.now().plusDays(10),
-                "PIX", "PIX", new BigDecimal("50.00"), 1, employeeId, "PAID", "Pago"
+                "PIX", "PIX", new BigDecimal("50.00"), 1, employeeId, "PAID", "Pago", null
         );
         RentalPaymentDetailsDTO gapDTO = new RentalPaymentDetailsDTO(
                 UUID.randomUUID(), 2, LocalDate.now().plusDays(30),
-                "PIX", "PIX", new BigDecimal("450.00"), 1, null, "PENDING", "Pendente"
+                "PIX", "PIX", new BigDecimal("450.00"), 1, null, "PENDING", "Pendente", null
         );
         when(mapper.toPaymentDetailsDTO(any(RentalPayment.class))).thenReturn(updatedDTO, gapDTO);
         when(paymentRepository.countByContractIdAndStatusNot(contractId, PaymentStatus.CANCELLED)).thenReturn(1L);
@@ -1023,7 +1029,7 @@ class RentalPaymentServiceTest {
 
         RentalPaymentDetailsDTO gapDetailsDTO = new RentalPaymentDetailsDTO(
                 gapPayment.getId(), 2, gapPayment.getPaymentDate(),
-                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente"
+                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente", null
         );
 
         when(paymentRepository.save(any(RentalPayment.class))).thenReturn(existingPayment, gapPayment);
@@ -1067,7 +1073,7 @@ class RentalPaymentServiceTest {
 
         RentalPaymentDetailsDTO gapDetailsDTO = new RentalPaymentDetailsDTO(
                 gapPayment.getId(), 2, gapPayment.getPaymentDate(),
-                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente"
+                "PIX", "PIX", new BigDecimal("400.00"), 1, null, "PENDING", "Pendente", null
         );
 
         when(paymentRepository.save(any(RentalPayment.class))).thenReturn(existingPayment, gapPayment);

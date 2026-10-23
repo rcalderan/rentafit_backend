@@ -35,13 +35,13 @@ class RentalReportControllerTest {
         LocalDate date = LocalDate.of(2026, 6, 28);
         DailyRentalReportDTO dto = new DailyRentalReportDTO(
                 date, date, OffsetDateTime.now(), 0, 0, 0, List.of());
-        when(reportService.generate(date, null, null)).thenReturn(dto);
+        when(reportService.generate(date, null, null, null)).thenReturn(dto);
 
-        ResponseEntity<DailyRentalReportDTO> response = controller.daily(date, null, null);
+        ResponseEntity<DailyRentalReportDTO> response = controller.daily(date, null, null, null);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(response.getBody()).isSameAs(dto);
-        verify(reportService).generate(date, null, null);
+        verify(reportService).generate(date, null, null, null);
     }
 
     @Test
@@ -51,10 +51,10 @@ class RentalReportControllerTest {
         List<ContractStatus> statuses = List.of(ContractStatus.FINALIZED);
         DailyRentalReportDTO dto = new DailyRentalReportDTO(
                 date, date, OffsetDateTime.now(), 0, 0, 0, List.of());
-        when(reportService.generate(date, null, statuses)).thenReturn(dto);
+        when(reportService.generate(date, null, statuses, null)).thenReturn(dto);
 
-        controller.daily(date, null, statuses);
+        controller.daily(date, null, statuses, null);
 
-        verify(reportService).generate(date, null, statuses);
+        verify(reportService).generate(date, null, statuses, null);
     }
 }
