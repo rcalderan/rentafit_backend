@@ -81,4 +81,18 @@ class UserProfileResponseDTOTest {
         var dto = new UserProfileResponseDTO(userAccount, 90);
         assertThat(dto.isPinConfigured()).isFalse();
     }
+
+    @Test
+    @DisplayName("exposes default and custom uiVariant and sidebarVisible")
+    void testUserPreferencesMapping() {
+        var defaultDto = new UserProfileResponseDTO(userAccount, 90);
+        assertThat(defaultDto.getUiVariant()).isEqualTo("simplified");
+        assertThat(defaultDto.isSidebarVisible()).isTrue();
+
+        userAccount.setUiVariant("atelier");
+        userAccount.setSidebarVisible(false);
+        var customDto = new UserProfileResponseDTO(userAccount, 90);
+        assertThat(customDto.getUiVariant()).isEqualTo("atelier");
+        assertThat(customDto.isSidebarVisible()).isFalse();
+    }
 }

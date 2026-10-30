@@ -56,10 +56,10 @@ class GlobalExceptionHandlerTest {
     @Test
     @WithMockUser(roles = {"EMPLOYEE"})
     void missingSettingsEndpointReturns404Not500() throws Exception {
-        mockMvc.perform(get("/api/v1/settings/operator.pinTrustMinutes"))
+        mockMvc.perform(get("/api/v1/settings/unknown.settingKey"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.status", is(404)))
-                .andExpect(jsonPath("$.path", is("/api/v1/settings/operator.pinTrustMinutes")));
+                .andExpect(jsonPath("$.path", is("/api/v1/settings/unknown.settingKey")));
     }
 
     @Test

@@ -16,10 +16,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class UserAccountService implements UserDetailsService {
+
+    private static final Set<String> ALLOWED_UI_VARIANTS = Set.of("simplified", "legacy", "atelier");
 
     private final UserAccountRepository userAccountRepository;
     private final PasswordEncoder passwordEncoder;
@@ -99,6 +102,27 @@ public class UserAccountService implements UserDetailsService {
         UserAccount managed = userAccountRepository.findByUsernameWithDetails(user.getUsername())
                 .orElseThrow(() -> new ValidationException("Usuário não encontrado: " + user.getUsername()));
         managed.setIssuerCnpj(issuerCnpj);
+        return userAccountRepository.save(managed);
+    }
+
+    /**
+     * Atualiza as preferências de interface do usuário autenticado.
+     * Exemplo: {@code userAccountService.updatePreferences(principal, "atelier", false)}
+     */
+    @Transactional
+    public UserAccount updatePreferences(UserAccount user, String uiVariant, Boolean sidebarVisible) {
+        if (uiVariant != null && !ALLOWED_UI_VARIANTS.contains(uiVariant)) {
+            throw new ValidationException(
+                    "Variante de UI '" + uiVariant + "' inválida: esperado 'simplified', 'legacy' ou 'atelier'.");
+        }
+        UserAccount managed = userAccountRepository.findByUsernameWithDetails(user.getUsername())
+                .orElseThrow(() -> new ValidationException("Usuário não encontrado: " + user.getUsername()));
+        if (uiVariant != null) {
+            managed.setUiVariant(uiVariant);
+        }
+        if (sidebarVisible != null) {
+            managed.setSidebarVisible(sidebarVisible);
+        }
         return userAccountRepository.save(managed);
     }
 }

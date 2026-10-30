@@ -8,6 +8,7 @@ import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
 import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
 import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.ChangePasswordRequestDTO;
+import br.com.rentafit.auth.dto.UpdateUserPreferencesRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -189,6 +190,31 @@ class AuthControllerTest {
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().getIssuerCnpj()).isEqualTo("08299621000120");
         verify(userAccountService).setupIssuerCnpj(principal, "08299621000120");
+    }
+
+    @Test
+    @DisplayName("Should update user preferences successfully")
+    void updatePreferences_Success() {
+        UserAccount principal = new UserAccount();
+        principal.setUsername("user");
+        principal.setId(UUID.randomUUID());
+
+        UserAccount updated = new UserAccount();
+        updated.setUsername("user");
+        updated.setId(principal.getId());
+        updated.setUiVariant("legacy");
+        updated.setSidebarVisible(false);
+        when(userAccountService.updatePreferences(principal, "legacy", false)).thenReturn(updated);
+
+        UpdateUserPreferencesRequestDTO request = new UpdateUserPreferencesRequestDTO("legacy", false);
+
+        ResponseEntity<UserProfileResponseDTO> response = authController.updatePreferences(principal, request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getUiVariant()).isEqualTo("legacy");
+        assertThat(response.getBody().isSidebarVisible()).isFalse();
+        verify(userAccountService).updatePreferences(principal, "legacy", false);
     }
 
     @Test

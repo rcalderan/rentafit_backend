@@ -249,6 +249,28 @@ class UserAccountServiceTest {
     }
 
     @Test
+    @DisplayName("Should update user preferences when valid")
+    void testUpdatePreferences_Success() {
+        when(userAccountRepository.findByUsernameWithDetails(username)).thenReturn(Optional.of(userAccount));
+        when(userAccountRepository.save(userAccount)).thenReturn(userAccount);
+
+        UserAccount updated = userAccountService.updatePreferences(userAccount, "atelier", false);
+
+        assertThat(updated.getUiVariant()).isEqualTo("atelier");
+        assertThat(updated.getSidebarVisible()).isFalse();
+        verify(userAccountRepository).save(userAccount);
+    }
+
+    @Test
+    @DisplayName("Should reject unsupported uiVariant in updatePreferences")
+    void testUpdatePreferences_InvalidVariant() {
+        assertThatThrownBy(() -> userAccountService.updatePreferences(userAccount, "neon", true))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("neon");
+        verify(userAccountRepository, never()).save(any());
+    }
+
+    @Test
     @DisplayName("isEnabled deve retornar false quando isActive=false")
     void testIsEnabled_ReturnsFalseWhenInactive() {
         userAccount.setIsActive(false);
