@@ -8,6 +8,7 @@ import br.com.rentafit.auth.dto.LoginResponseDTO;
 import br.com.rentafit.auth.dto.SetupCredentialsRequestDTO;
 import br.com.rentafit.auth.dto.SetupIssuerCnpjRequestDTO;
 import br.com.rentafit.auth.dto.TokenRefreshRequestDTO;
+import br.com.rentafit.auth.dto.UpdateUserPreferencesRequestDTO;
 import br.com.rentafit.auth.dto.UserProfileResponseDTO;
 import br.com.rentafit.auth.service.PasswordLoginService;
 import br.com.rentafit.auth.service.RefreshTokenService;
@@ -26,6 +27,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -138,6 +140,21 @@ public class AuthController {
             @AuthenticationPrincipal UserAccount principal,
             @Valid @RequestBody SetupIssuerCnpjRequestDTO request) {
         UserAccount updated = userAccountService.setupIssuerCnpj(principal, request.issuerCnpj());
+        return ResponseEntity.ok(new UserProfileResponseDTO(updated, userAccountService.getPasswordExpiryDays()));
+    }
+
+    @PutMapping("/me/preferences")
+    @Operation(summary = "Atualiza preferências de interface do usuário",
+              description = "Persiste a variante de interface (uiVariant) e visibilidade da barra lateral (sidebarVisible) do usuário autenticado.")
+    @ApiResponses({
+        @ApiResponse(responseCode = "200", description = "Preferências atualizadas com sucesso"),
+        @ApiResponse(responseCode = "422", description = "Variante de interface inválida")
+    })
+    public ResponseEntity<UserProfileResponseDTO> updatePreferences(
+            @AuthenticationPrincipal UserAccount principal,
+            @Valid @RequestBody UpdateUserPreferencesRequestDTO request) {
+        UserAccount updated = userAccountService.updatePreferences(
+                principal, request.uiVariant(), request.sidebarVisible());
         return ResponseEntity.ok(new UserProfileResponseDTO(updated, userAccountService.getPasswordExpiryDays()));
     }
 

@@ -61,6 +61,14 @@ public class UserAccount implements UserDetails {
     @Schema(description = "CNPJ do emitente vinculado ao usuário", example = "08299621000120")
     private String issuerCnpj;
 
+    @Column(name = "ui_variant", length = 20, nullable = false)
+    @Schema(description = "Variante de interface preferida pelo usuário", example = "simplified")
+    private String uiVariant = "simplified";
+
+    @Column(name = "sidebar_visible", nullable = false)
+    @Schema(description = "Visibilidade da barra lateral no desktop", example = "true")
+    private Boolean sidebarVisible = true;
+
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")

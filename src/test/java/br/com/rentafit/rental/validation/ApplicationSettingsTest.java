@@ -40,8 +40,26 @@ class ApplicationSettingsTest {
     }
 
     @Test
+    void defaultsToFiveAndValidatesPinTrustMinutes() {
+        when(repository.findById(ApplicationSettingsService.PIN_TRUST_MINUTES_KEY)).thenReturn(Optional.empty());
+        UUID accountId = UUID.randomUUID();
+        when(actor.requireId()).thenReturn(accountId);
+        assertThat(settings.get(ApplicationSettingsService.PIN_TRUST_MINUTES_KEY).value()).isEqualTo("5");
+        settings.put(ApplicationSettingsService.PIN_TRUST_MINUTES_KEY, "30");
+        verify(repository).save(argThat(entry ->
+                entry.getKey().equals(ApplicationSettingsService.PIN_TRUST_MINUTES_KEY)
+                        && entry.getValue().equals("30")
+                        && entry.getUpdatedBy().equals(accountId)));
+        for (String invalid : new String[]{"0", "-1", "121", "abc", ""}) {
+            assertThatThrownBy(() -> settings.put(ApplicationSettingsService.PIN_TRUST_MINUTES_KEY, invalid))
+                    .isInstanceOf(ValidationException.class).hasMessageContaining(invalid);
+        }
+    }
+
+    @Test
     void rejectsUnsupportedKeys() {
         assertThatThrownBy(() -> settings.get("security.secret")).hasMessageContaining("security.secret");
+        assertThatThrownBy(() -> settings.put("security.secret", "1")).hasMessageContaining("security.secret");
         verifyNoInteractions(repository);
     }
 }
