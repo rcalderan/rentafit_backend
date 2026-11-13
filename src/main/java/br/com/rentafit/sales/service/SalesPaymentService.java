@@ -69,14 +69,22 @@ public class SalesPaymentService {
                     "Pagamento não pode ser adicionado no status: " + order.getStatus());
         }
 
-        if (order.getPayments().size() >= MAX_INSTALLMENTS) {
+        validateInputPaymentStatus(dto);
+
+        long activeInstallments = order.getPayments().stream()
+                .filter(p -> p.getStatus() != PaymentStatus.CANCELLED)
+                .count();
+        if (activeInstallments >= MAX_INSTALLMENTS) {
             throw new ValidationException(
                     "Máximo de " + MAX_INSTALLMENTS + " parcelas por pedido atingido");
         }
 
+        validateInstallmentNumberUnique(order, dto.installmentNumber(), null);
+
         BigDecimal subtotal = mapper.computeSubtotal(order.getItems());
         BigDecimal totalValue = subtotal.subtract(order.getDiscountValue()).max(BigDecimal.ZERO);
         BigDecimal alreadyScheduled = order.getPayments().stream()
+                .filter(p -> p.getStatus() == PaymentStatus.PENDING || p.getStatus() == PaymentStatus.PAID)
                 .map(SalesPayment::getValue)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (alreadyScheduled.add(dto.value()).compareTo(totalValue) > 0) {
@@ -114,6 +122,9 @@ public class SalesPaymentService {
             throw new ValidationException(
                     "Parcelas não podem ser alteradas após pagamento completo, status: " + order.getStatus());
         }
+
+        validateInputPaymentStatus(dto);
+        validateInstallmentNumberUnique(order, dto.installmentNumber(), paymentId);
 
         // Atualizar campos
         boolean wasSettled = payment.getStatus().isCashMovement();
@@ -177,7 +188,9 @@ public class SalesPaymentService {
         BigDecimal totalValue = subtotal.subtract(order.getDiscountValue()).max(BigDecimal.ZERO);
         BigDecimal paidValue = mapper.computePaidValue(order.getPayments());
 
-        if (paidValue.compareTo(totalValue) >= 0) {
+        if (totalValue.compareTo(BigDecimal.ZERO) > 0
+                && paidValue.compareTo(BigDecimal.ZERO) > 0
+                && paidValue.compareTo(totalValue) >= 0) {
             order.setStatus(SalesOrderStatus.PAID);
             log.info("Sales order {} auto-transitioned to PAID (paid={}, total={})",
                     order.getId(), paidValue, totalValue);
@@ -185,6 +198,38 @@ public class SalesPaymentService {
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private void validateInputPaymentStatus(SalesPaymentInputDTO dto) {
+        if (dto == null || dto.status() == null) return;
+        PaymentStatus status;
+        try {
+            status = PaymentStatus.valueOf(dto.status().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException(
+                    "Status de pagamento inválido: " + dto.status() + " (esperado: PENDING ou PAID)");
+        }
+        if (status != PaymentStatus.PENDING && status != PaymentStatus.PAID) {
+            throw new ValidationException(
+                    "Parcela #" + dto.installmentNumber() + ": status '" + dto.status()
+                    + "' não é permitido nesta operação (esperado: PENDING ou PAID)");
+        }
+        if (status == PaymentStatus.PAID && dto.processedByEmployeeId() == null) {
+            throw new ValidationException(
+                    "Parcela #" + dto.installmentNumber()
+                    + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
+        }
+    }
+
+    private void validateInstallmentNumberUnique(SalesOrder order, Integer installmentNumber, UUID excludePaymentId) {
+        if (installmentNumber == null || order.getPayments() == null) return;
+        boolean duplicate = order.getPayments().stream()
+                .filter(p -> p.getStatus() != PaymentStatus.CANCELLED)
+                .filter(p -> excludePaymentId == null || !excludePaymentId.equals(p.getId()))
+                .anyMatch(p -> installmentNumber.equals(p.getInstallmentNumber()));
+        if (duplicate) {
+            throw new ValidationException("Parcela #" + installmentNumber + ": número da parcela já existe no pedido");
+        }
+    }
 
     private SalesPayment findPayment(SalesOrder order, UUID paymentId) {
         return order.getPayments().stream()

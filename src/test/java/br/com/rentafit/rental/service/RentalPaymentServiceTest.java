@@ -829,9 +829,9 @@ class RentalPaymentServiceTest {
     }
 
     @Test
-    @DisplayName("validatePaidInstallmentMutationAllowed deve bloquear alteracao de PAID em contrato SIGNED/REVISION/CLOSED")
+    @DisplayName("validatePaidInstallmentMutationAllowed deve bloquear alteracao de PAID em contrato SIGNED/REVISION")
     void testValidatePaidInstallmentMutationAllowed_variousLockedStatuses() {
-        for (ContractStatus status : List.of(ContractStatus.SIGNED, ContractStatus.REVISION, ContractStatus.CLOSED)) {
+        for (ContractStatus status : List.of(ContractStatus.SIGNED, ContractStatus.REVISION)) {
             RentalContract lockedContract = RentalContract.builder()
                     .id(contractId)
                     .status(status)
@@ -859,6 +859,31 @@ class RentalPaymentServiceTest {
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("parcela PAGA");
         }
+    }
+
+    @Test
+    @DisplayName("BUG-19: deve bloquear addPayment, updatePayment e cancelPayment em contrato CLOSED")
+    void testClosedContractBlocksPaymentMutations() {
+        RentalContract closedContract = RentalContract.builder()
+                .id(contractId)
+                .status(ContractStatus.CLOSED)
+                .eventDate(LocalDate.now().plusDays(30))
+                .items(draftContract.getItems())
+                .payments(new ArrayList<>())
+                .build();
+
+        when(contractRepository.findById(contractId)).thenReturn(Optional.of(closedContract));
+        lenient().when(paymentRepository.findByIdAndContractId(paymentId, contractId)).thenReturn(Optional.of(existingPayment));
+
+        assertThatThrownBy(() -> paymentService.addPayment(contractId, validPaymentDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("somente leitura");
+        assertThatThrownBy(() -> paymentService.updatePayment(contractId, paymentId, validPaymentDTO))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("somente leitura");
+        assertThatThrownBy(() -> paymentService.cancelPayment(contractId, paymentId))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("somente leitura");
     }
 
     @Test

@@ -759,5 +759,62 @@ class AddressServiceTest {
         assertThatThrownBy(() -> addressService.findOrCreateByAddress(dto))
                 .isInstanceOf(ExternalServiceTimeoutException.class);
     }
+
+    @Test
+    @DisplayName("BUG-02: Deve preservar rua/cidade/UF digitadas pelo usuário mesmo quando ViaCEP retorna outros dados")
+    void shouldPreserveUserProvidedFieldsOverViaCep() {
+        String normalized = "69900970";
+        ViaCepResponseDTO viaCepData = ViaCepResponseDTO.builder()
+                .cep(normalized)
+                .logradouro("Avenida Epaminondas Jácome")
+                .bairro("Centro")
+                .localidade("Rio Branco")
+                .uf("AC")
+                .erro(false)
+                .build();
+
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode("69900-970")
+                .street("RUA DIGITADA PELO USUARIO")
+                .neighborhood("BAIRRO CUSTOM")
+                .city("Cidade")
+                .state("SP")
+                .build();
+
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of());
+        when(viaCepIntegrationService.fetchAddressByZipCode(normalized)).thenReturn(viaCepData);
+        when(addressRepository.save(any(Address.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        assertThat(result.getStreet()).isEqualTo("RUA DIGITADA PELO USUARIO");
+        assertThat(result.getNeighborhood()).isEqualTo("BAIRRO CUSTOM");
+        assertThat(result.getCity()).isEqualTo("Cidade");
+        assertThat(result.getState()).isEqualTo("SP");
+        assertThat(result.isManual()).isTrue();
+    }
+
+    @Test
+    @DisplayName("BUG-02: Deve criar novo endereço manual quando endereço em cache do CEP diverge do enviado pelo usuário")
+    void shouldCreateCustomAddressWhenSingleCachedZipDiffersFromDto() {
+        String normalized = "01310100";
+        Address cached = new Address(normalized, "Avenida Paulista", "Bela Vista", "São Paulo", "SP");
+        AddressDTO dto = AddressDTO.builder()
+                .zipCode("01310-100")
+                .street("Rua Editada Pelo Operador")
+                .neighborhood("Bela Vista")
+                .city("São Paulo")
+                .state("SP")
+                .build();
+
+        when(addressRepository.findByZipCode(normalized)).thenReturn(List.of(cached));
+        when(addressRepository.save(any(Address.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Address result = addressService.findOrCreateByAddress(dto);
+
+        assertThat(result.getStreet()).isEqualTo("Rua Editada Pelo Operador");
+        assertThat(result.isManual()).isTrue();
+        verify(addressRepository).save(any(Address.class));
+    }
 }
 

@@ -2,6 +2,7 @@ package br.com.rentafit.sales.service;
 
 import br.com.rentafit.auth.domain.UserAccount;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.sales.domain.SalesOrder;
 import br.com.rentafit.sales.domain.SalesOrderItem;
 import br.com.rentafit.sales.domain.enums.SalesItemStatus;
@@ -95,6 +96,18 @@ public class SalesWorkflowService {
                     "Somente pedidos DRAFT ou CONFIRMED podem ser cancelados, status atual: " + order.getStatus());
         }
 
+        boolean hasPaidPayment = order.getPayments().stream()
+                .anyMatch(p -> PaymentStatus.PAID.equals(p.getStatus()));
+        if (hasPaidPayment) {
+            throw new ValidationException(
+                    "Não é possível cancelar pedido " + order.getId()
+                    + " com parcela(s) paga(s). Realize o estorno antes de cancelar.");
+        }
+
+        order.getPayments().stream()
+                .filter(p -> PaymentStatus.PENDING.equals(p.getStatus()))
+                .forEach(p -> p.setStatus(PaymentStatus.CANCELLED));
+
         // Liberar reservas se estava CONFIRMED
         UUID userId = getCurrentUserId();
         if (order.getStatus() == SalesOrderStatus.CONFIRMED) {
@@ -148,13 +161,21 @@ public class SalesWorkflowService {
                     "Item deve estar READY para entrega, status atual: " + item.getItemStatus());
         }
 
+        UUID effectiveEmployeeId = employeeId != null
+                ? employeeId
+                : (item.getAttendantEmployeeId() != null ? item.getAttendantEmployeeId() : order.getCreatedByEmployeeId());
+        if (effectiveEmployeeId == null) {
+            throw new ValidationException(
+                    "Funcionário responsável pela entrega (employeeId) é obrigatório para o item " + itemId);
+        }
+
         UUID userId = getCurrentUserId();
 
         // Saída definitiva do estoque: reserved--, total--
         productPort.removeStock(item.getRetailProductId(), item.getQuantity(), userId);
         item.setItemStatus(SalesItemStatus.DELIVERED);
         item.setDeliveredAt(OffsetDateTime.now());
-        item.setDeliveredByEmployeeId(employeeId);
+        item.setDeliveredByEmployeeId(effectiveEmployeeId);
         item.setDeliveredSectorId(sectorResolver.requireTerminalSector().getId());
 
         // Auto-complete: se todos entregues, ordem → COMPLETED
@@ -216,8 +237,13 @@ public class SalesWorkflowService {
         if (order.getStatus() != SalesOrderStatus.CONFIRMED) return;
         BigDecimal subtotal = mapper.computeSubtotal(order.getItems());
         BigDecimal totalValue = subtotal.subtract(order.getDiscountValue()).max(BigDecimal.ZERO);
+        if (totalValue.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ValidationException(
+                    "Total do pedido (" + totalValue + ") deve ser maior que zero (subtotal=" + subtotal
+                    + ", desconto=" + order.getDiscountValue() + ")");
+        }
         BigDecimal paidValue = mapper.computePaidValue(order.getPayments());
-        if (paidValue.compareTo(totalValue) >= 0) {
+        if (paidValue.compareTo(BigDecimal.ZERO) > 0 && paidValue.compareTo(totalValue) >= 0) {
             order.setStatus(SalesOrderStatus.PAID);
             log.info("Sales order {} transitioned CONFIRMED→PAID during confirm (paid={}, total={})",
                     order.getId(), paidValue, totalValue);

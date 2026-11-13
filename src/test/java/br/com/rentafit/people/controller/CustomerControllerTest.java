@@ -291,5 +291,26 @@ class CustomerControllerTest {
 
         verify(customerService, times(1)).getAddressHistory(customerId);
     }
+
+    @Test
+    @DisplayName("BUG-12: PublicRegistrationController deve aplicar rate limit após tentativas repetidas")
+    void testPublicSignUpRateLimit() {
+        var userRegistrationService = mock(br.com.rentafit.people.service.UserRegistrationService.class);
+        var publicController = new PublicRegistrationController(userRegistrationService);
+        var signUpDto = new br.com.rentafit.people.dto.SignUpRequestDTO(
+                "João Silva", "joao.silva", "joao@example.com", "123.456.789-09",
+                List.of("11987654321"), addressDTO, "123", "Apto 10"
+        );
+        var request = mock(jakarta.servlet.http.HttpServletRequest.class);
+        when(request.getRemoteAddr()).thenReturn("127.0.0.1");
+        when(userRegistrationService.registerCustomer(signUpDto))
+                .thenReturn(new br.com.rentafit.people.dto.SignUpResponseDTO("j***@example.com"));
+
+        assertThat(publicController.signUp(signUpDto, request).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(publicController.signUp(signUpDto, request).getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThatThrownBy(() -> publicController.signUp(signUpDto, request))
+                .isInstanceOf(br.com.rentafit.common.exception.ValidationException.class)
+                .hasMessageContaining("Muitas tentativas");
+    }
 }
 

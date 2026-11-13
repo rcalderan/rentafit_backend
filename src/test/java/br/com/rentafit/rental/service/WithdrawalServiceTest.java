@@ -264,6 +264,16 @@ class WithdrawalServiceTest {
     }
 
     @Test
+    @DisplayName("BUG-23: rejeita multa rescisória maior que o total do contrato")
+    void shouldRejectExcessiveRescissionFine() {
+        stubHappyPath();
+
+        assertThatThrownBy(() -> withdrawalService.withdraw(contractId, dto(null, true, BigDecimal.valueOf(99999))))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("não pode exceder o valor total");
+    }
+
+    @Test
     @DisplayName("rejeita desistência de contrato CLOSED")
     void shouldRejectClosedContract() {
         contract.setStatus(ContractStatus.CLOSED);

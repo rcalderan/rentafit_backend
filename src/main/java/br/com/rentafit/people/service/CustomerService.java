@@ -108,7 +108,7 @@ public class CustomerService {
         customer.setLegacyId(nextLegacyId);
 
 
-        if (dto.address() != null && dto.address().zipCode() != null) {
+        if (hasAddressData(dto.address())) {
             handleAddressCreation(customer, dto);
         }
 
@@ -170,7 +170,7 @@ public class CustomerService {
         customer.updateBasicFieldsFromDTO(dto);
 
         // Handle address update if provided
-        if (dto.address() != null && dto.address().zipCode() != null) {
+        if (hasAddressData(dto.address())) {
             addressService.handleAddressUpdate(customer, dto);
         }
 
@@ -178,6 +178,14 @@ public class CustomerService {
         log.info("Updated customer with ID: {}", updated.getId());
 
         return updated.toDTO();
+    }
+
+    private boolean hasAddressData(br.com.rentafit.people.dto.AddressDTO address) {
+        if (address == null) {
+            return false;
+        }
+        return (address.zipCode() != null && !address.zipCode().isBlank())
+                || (address.street() != null && !address.street().isBlank());
     }
 
     @Transactional

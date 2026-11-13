@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -333,6 +334,36 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(body);
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex,
+                                                                      HttpServletRequest request) {
+        log.warn("DataIntegrityViolationException at {}: {}", request.getRequestURI(), ex.getMessage());
+        String causeMsg = ex.getMostSpecificCause() != null && ex.getMostSpecificCause().getMessage() != null
+                ? ex.getMostSpecificCause().getMessage().toLowerCase()
+                : "";
+        String userMessage = "Violação de integridade nos dados informados.";
+        if (causeMsg.contains("uq_rental_payments_contract_installment")
+                || causeMsg.contains("installment_number")) {
+            userMessage = "Número da parcela duplicado.";
+        } else if (causeMsg.contains("rental_contracts_legacy_id_key")
+                || causeMsg.contains("legacy_id")) {
+            userMessage = "Código legado já cadastrado.";
+        } else if (causeMsg.contains("fk_rental_items_attendant")
+                || causeMsg.contains("fk_rental_contracts_created_by")
+                || causeMsg.contains("employee")) {
+            userMessage = "Funcionário informado não foi encontrado.";
+        }
+        ErrorResponse body = ErrorResponse.builder()
+                .timestamp(LocalDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error(isProd ? "" : HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(userMessage)
+                .path(request.getRequestURI())
+                .build();
+
+        return ResponseEntity.badRequest().body(body);
+    }
+
     @ExceptionHandler(DataAccessException.class)
     public ResponseEntity<ErrorResponse> handleDataAccessException(DataAccessException ex,
                                                                    HttpServletRequest request) {
@@ -341,7 +372,7 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error(isProd ? "" : HttpStatus.INTERNAL_SERVER_ERROR.getReasonPhrase())
-                .message(isProd ? "Database error occurred" : ex.getMessage())
+                .message("Database error occurred")
                 .path(request.getRequestURI())
                 .build();
 

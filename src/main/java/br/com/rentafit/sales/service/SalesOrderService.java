@@ -2,8 +2,10 @@ package br.com.rentafit.sales.service;
 
 import br.com.rentafit.common.exception.ResourceNotFoundException;
 import br.com.rentafit.common.exception.ValidationException;
+import br.com.rentafit.rental.domain.enums.PaymentStatus;
 import br.com.rentafit.sales.domain.SalesOrder;
 import br.com.rentafit.sales.domain.SalesOrderItem;
+import br.com.rentafit.sales.domain.SalesPayment;
 import br.com.rentafit.sales.domain.enums.SalesOrderStatus;
 import br.com.rentafit.sales.dto.*;
 import br.com.rentafit.sales.mapper.SalesMapper;
@@ -22,12 +24,15 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -64,14 +69,17 @@ public class SalesOrderService {
                         RetailProductSnapshot product = productPort.findById(itemDto.retailProductId())
                                 .orElseThrow(() -> new ValidationException(
                                         "Produto retail não encontrado: " + itemDto.retailProductId()));
+                        validateItemDiscount(itemDto, product);
                         return mapper.toItemEntity(itemDto, order, product);
                     })
                     .collect(Collectors.toList());
             order.setItems(items);
         }
+        validateOrderDiscount(dto.discountValue(), order.getItems());
 
         // Adicionar pagamentos
         if (dto.payments() != null) {
+            validateInputPaymentStatuses(dto.payments(), false);
             order.setPayments(dto.payments().stream()
                     .map(p -> mapper.toPaymentEntity(p, order))
                     .collect(Collectors.toList()));
@@ -97,6 +105,9 @@ public class SalesOrderService {
                     "Pedido só pode ser editado no status DRAFT, status atual: " + order.getStatus());
         }
 
+        validateInputPaymentStatuses(dto.payments(), true);
+        validateExistingPaidPaymentsPreserved(dto.payments(), order.getPayments());
+
         // Parcelas já quitadas preservam o setor em que foram recebidas (recriadas por installmentNumber)
         Map<Integer, UUID> settledSectorByInstallment = new HashMap<>();
         order.getPayments().stream()
@@ -114,10 +125,12 @@ public class SalesOrderService {
                         RetailProductSnapshot product = productPort.findById(itemDto.retailProductId())
                                 .orElseThrow(() -> new ValidationException(
                                         "Produto retail não encontrado: " + itemDto.retailProductId()));
+                        validateItemDiscount(itemDto, product);
                         return mapper.toItemEntity(itemDto, order, product);
                     })
                     .forEach(order.getItems()::add);
         }
+        validateOrderDiscount(dto.discountValue(), order.getItems());
 
         // Replace payments
         order.getPayments().clear();
@@ -189,6 +202,92 @@ public class SalesOrderService {
         if (customerId == null) return null;
         return customerPort.findById(customerId)
                 .orElseThrow(() -> new ValidationException("Cliente não encontrado: " + customerId));
+    }
+
+    private void validateItemDiscount(SalesOrderItemInputDTO itemDto, RetailProductSnapshot product) {
+        BigDecimal itemDiscount = itemDto.discountValue() != null ? itemDto.discountValue() : BigDecimal.ZERO;
+        if (itemDiscount.compareTo(BigDecimal.ZERO) <= 0) return;
+        BigDecimal grossLine = product.value().multiply(BigDecimal.valueOf(itemDto.quantity()));
+        if (itemDiscount.compareTo(grossLine) >= 0) {
+            throw new ValidationException(
+                    "Desconto do item (" + itemDiscount + ") deve ser menor que o valor bruto do item (" + grossLine + ")");
+        }
+    }
+
+    private void validateOrderDiscount(BigDecimal discountValue, List<SalesOrderItem> items) {
+        BigDecimal orderDiscount = discountValue != null ? discountValue : BigDecimal.ZERO;
+        if (orderDiscount.compareTo(BigDecimal.ZERO) <= 0 || items == null || items.isEmpty()) return;
+        BigDecimal subtotal = items.stream()
+                .map(i -> i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity())).subtract(i.getDiscountValue()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (orderDiscount.compareTo(subtotal) >= 0) {
+            throw new ValidationException(
+                    "Desconto do pedido (" + orderDiscount + ") deve ser menor que o subtotal dos itens (" + subtotal + ")");
+        }
+    }
+
+    private void validateInputPaymentStatuses(List<SalesPaymentInputDTO> payments, boolean allowCancelled) {
+        if (payments == null) return;
+        java.util.Set<Integer> seenInstallments = new java.util.HashSet<>();
+        for (SalesPaymentInputDTO p : payments) {
+            if (p.installmentNumber() != null && !seenInstallments.add(p.installmentNumber())) {
+                throw new ValidationException(
+                        "Parcela #" + p.installmentNumber() + ": número da parcela duplicado no pedido");
+            }
+            if (p.status() == null) continue;
+            PaymentStatus status = parsePaymentStatus(p.status());
+            boolean allowed = status == PaymentStatus.PENDING || status == PaymentStatus.PAID
+                    || (allowCancelled && status == PaymentStatus.CANCELLED);
+            if (!allowed) {
+                throw new ValidationException(
+                        "Parcela #" + p.installmentNumber() + ": status '" + p.status()
+                        + "' não é permitido na entrada (esperado: PENDING ou PAID)");
+            }
+            if (status == PaymentStatus.PAID && p.processedByEmployeeId() == null) {
+                throw new ValidationException(
+                        "Parcela #" + p.installmentNumber()
+                        + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
+            }
+        }
+    }
+
+    private void validateExistingPaidPaymentsPreserved(List<SalesPaymentInputDTO> incoming, List<SalesPayment> existing) {
+        if (existing == null || existing.isEmpty()) return;
+        List<SalesPayment> paidExisting = existing.stream()
+                .filter(p -> PaymentStatus.PAID.equals(p.getStatus()))
+                .toList();
+        if (paidExisting.isEmpty()) return;
+        List<SalesPaymentInputDTO> incomingList = incoming != null ? incoming : List.of();
+        for (SalesPayment paid : paidExisting) {
+            boolean preserved = incomingList.stream().anyMatch(dto -> matchesPaidPayment(paid, dto));
+            if (!preserved) {
+                throw new ValidationException(
+                        "Parcela PAGA #" + paid.getInstallmentNumber()
+                        + " (R$ " + paid.getValue() + ") não pode ser removida ou alterada");
+            }
+        }
+    }
+
+    private boolean matchesPaidPayment(SalesPayment paid, SalesPaymentInputDTO dto) {
+        if (dto.status() == null || !"PAID".equalsIgnoreCase(dto.status())) return false;
+        int dtoInstallments = dto.installments() != null ? dto.installments() : 1;
+        int paidInstallments = paid.getInstallments() != null ? paid.getInstallments() : 1;
+        return Objects.equals(paid.getInstallmentNumber(), dto.installmentNumber())
+                && Objects.equals(paid.getPaymentDate(), dto.paymentDate())
+                && paid.getPaymentMethod() != null && dto.paymentMethod() != null
+                && paid.getPaymentMethod().name().equalsIgnoreCase(dto.paymentMethod())
+                && paid.getValue() != null && dto.value() != null
+                && paid.getValue().compareTo(dto.value()) == 0
+                && paidInstallments == dtoInstallments
+                && Objects.equals(paid.getProcessedByEmployeeId(), dto.processedByEmployeeId());
+    }
+
+    private PaymentStatus parsePaymentStatus(String raw) {
+        try {
+            return PaymentStatus.valueOf(raw.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException("Status de pagamento inválido: " + raw + " (esperado: PENDING ou PAID)");
+        }
     }
 
     /** Gera legacyId no formato V-YYYYMMDD-N. */

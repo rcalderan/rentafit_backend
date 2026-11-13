@@ -5,6 +5,7 @@ import lombok.Builder;
 
 @Builder
 public record AddressDTO(
+    @NotBlank(message = "ZIP code is required")
     @Size(min = 8, max = 10, message = "ZIP code must be 8 or 9 characters (with optional hyphen)")
     @Pattern(regexp = "^[0-9]{5}-?[0-9]{3}$", message = "ZIP code must be in format 12345-678 or 12345678")
     String zipCode,

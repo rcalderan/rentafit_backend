@@ -181,9 +181,15 @@ public class RentalContractService {
 
         // Valida que parcelas PAID possuem funcionário responsável
         validator.validatePaidPaymentsHaveEmployee(dto.payments());
+        validator.validatePaymentDates(dto.payments(), dto.eventDate(), true);
 
         // Valida que as parcelas somam o valor total dos itens
         validator.validatePaymentsMatchTotal(dto.payments(), dto.items());
+
+        if (dto.legacyId() != null && !dto.legacyId().isBlank()
+                && contractRepository.findByLegacyId(dto.legacyId()).isPresent()) {
+            throw new ValidationException("Já existe contrato cadastrado com o código legado: " + dto.legacyId());
+        }
 
         RentalContract contract = mapper.toEntity(dto, snapshot);
         contract.setSectorId(sector.getId());
@@ -233,10 +239,13 @@ public class RentalContractService {
 
         // Valida que parcelas PAID possuem funcionário responsável
         validator.validatePaidPaymentsHaveEmployee(dto.payments());
+        validator.validatePaymentDates(dto.payments(), dto.eventDate(), false);
 
-        // Em REVISION, parcelas PAID do contrato original não podem ser alteradas/removidas
+        // Parcelas PAID existentes não podem ser alteradas/removidas; em REVISION também não aceita novas PAID
         if (ContractStatus.REVISION.equals(contract.getStatus())) {
             validator.validateRevisionPaymentIntegrity(dto.payments(), contract.getPayments());
+        } else {
+            validator.validateExistingPaidPaymentsPreserved(dto.payments(), contract.getPayments());
         }
 
         // Valida que parcelas não ultrapassam o total dos itens (excesso → erro)

@@ -68,8 +68,13 @@ public class RentalContractValidator {
      */
     public void validateItemsAvailability(List<UUID> rentalItemIds) {
         List<String> errors = new ArrayList<>();
+        java.util.Set<UUID> seen = new java.util.HashSet<>();
         for (UUID itemId : rentalItemIds) {
             if (itemId == null) continue;
+            if (!seen.add(itemId)) {
+                errors.add("Item duplicado no mesmo contrato: " + itemId + " (cada item de locação é único)");
+                continue;
+            }
             if (!rentalItemPort.isAvailable(itemId)) {
                 rentalItemPort.findById(itemId).ifPresentOrElse(
                         snap -> errors.add("Item '" + snap.name() + "' não está disponível (status: " + snap.status() + ")"),
@@ -201,10 +206,18 @@ public class RentalContractValidator {
         if (payments == null || payments.isEmpty()) return;
 
         List<String> errors = new ArrayList<>();
+        java.util.Set<Integer> seenInstallments = new java.util.HashSet<>();
         for (int i = 0; i < payments.size(); i++) {
             RentalPaymentInputDTO p = payments.get(i);
-            if (isPaid(p.status()) && p.processedByEmployeeId() == null) {
-                errors.add("Parcela " + (p.installmentNumber() != null ? "#" + p.installmentNumber() : "(índice " + (i + 1) + ")")
+            String label = p.installmentNumber() != null ? "#" + p.installmentNumber() : "(índice " + (i + 1) + ")";
+            if (p.installmentNumber() != null && !seenInstallments.add(p.installmentNumber())) {
+                errors.add("Parcela " + label + ": número da parcela duplicado no contrato");
+            }
+            if (isDisallowedInputStatus(p.status(), true)) {
+                errors.add("Parcela " + label + ": status '" + p.status()
+                        + "' não é permitido na entrada (esperado: PENDING ou PAID)");
+            } else if (isPaid(p.status()) && p.processedByEmployeeId() == null) {
+                errors.add("Parcela " + label
                         + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
             }
         }
@@ -243,10 +256,42 @@ public class RentalContractValidator {
      */
     public void validateSinglePaidPaymentHasEmployee(RentalPaymentInputDTO payment) {
         if (payment == null) return;
+        if (isDisallowedInputStatus(payment.status(), false)) {
+            throw new ValidationException(
+                    "Parcela" + (payment.installmentNumber() != null ? " #" + payment.installmentNumber() : "")
+                            + ": status '" + payment.status() + "' não é permitido nesta operação (esperado: PENDING ou PAID)");
+        }
         if (isPaid(payment.status()) && payment.processedByEmployeeId() == null) {
             throw new ValidationException(
                     "Parcela" + (payment.installmentNumber() != null ? " #" + payment.installmentNumber() : "")
                             + ": pagamentos com status PAGO devem informar o funcionário responsável (processedByEmployeeId)");
+        }
+    }
+
+    /**
+     * Valida as datas das parcelas contra a data do evento (e data atual para parcelas PENDING na criação).
+     */
+    public void validatePaymentDates(List<RentalPaymentInputDTO> payments, LocalDate eventDate, boolean rejectPastPending) {
+        if (payments == null || payments.isEmpty()) return;
+        LocalDate today = LocalDate.now();
+        List<String> errors = new ArrayList<>();
+        for (int i = 0; i < payments.size(); i++) {
+            RentalPaymentInputDTO p = payments.get(i);
+            if (p.paymentDate() == null) continue;
+            if (p.status() != null && "CANCELLED".equalsIgnoreCase(p.status())) continue;
+            String label = p.installmentNumber() != null ? "#" + p.installmentNumber() : "(índice " + (i + 1) + ")";
+            if (eventDate != null && p.paymentDate().isAfter(eventDate)) {
+                errors.add("Parcela " + label + ": data do pagamento (" + p.paymentDate()
+                        + ") não pode ser posterior à data do evento (" + eventDate + ")");
+            }
+            boolean isPending = p.status() == null || "PENDING".equalsIgnoreCase(p.status());
+            if (rejectPastPending && isPending && p.paymentDate().isBefore(today)) {
+                errors.add("Parcela " + label + ": data do pagamento (" + p.paymentDate()
+                        + ") não pode ser anterior à data atual (" + today + ")");
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new ValidationException(String.join("; ", errors));
         }
     }
 
@@ -270,9 +315,24 @@ public class RentalContractValidator {
                     + "; esperado " + paidPayments.size() + " sem novos recebimentos na revisão");
         }
 
+        validateExistingPaidPaymentsPreserved(incoming, existing);
+    }
+
+    /**
+     * Garante que parcelas já marcadas como PAID não sejam removidas nem tenham seus dados
+     * financeiros alterados durante atualização (DRAFT ou REVISION).
+     */
+    public void validateExistingPaidPaymentsPreserved(List<RentalPaymentInputDTO> incoming, List<RentalPayment> existing) {
+        if (existing == null || existing.isEmpty()) return;
+        List<RentalPayment> paidPayments = existing.stream()
+                .filter(p -> PaymentStatus.PAID.equals(p.getStatus()))
+                .toList();
+        if (paidPayments.isEmpty()) return;
+
+        List<RentalPaymentInputDTO> incomingList = incoming != null ? incoming : List.of();
         List<String> errors = new ArrayList<>();
         for (RentalPayment paid : paidPayments) {
-            boolean found = incoming.stream().anyMatch(dto ->
+            boolean found = incomingList.stream().anyMatch(dto ->
                     isPaid(dto.status()) && PaidPaymentSnapshot.from(paid).equals(PaidPaymentSnapshot.from(dto))
             );
             if (!found) {
@@ -283,6 +343,17 @@ public class RentalContractValidator {
 
         if (!errors.isEmpty()) {
             throw new ValidationException(String.join("; ", errors));
+        }
+    }
+
+    private boolean isDisallowedInputStatus(String status, boolean allowCancelled) {
+        if (status == null) return false;
+        try {
+            PaymentStatus parsed = PaymentStatus.valueOf(status.toUpperCase());
+            if (parsed == PaymentStatus.PENDING || parsed == PaymentStatus.PAID) return false;
+            return !(allowCancelled && parsed == PaymentStatus.CANCELLED);
+        } catch (IllegalArgumentException e) {
+            return true;
         }
     }
 
@@ -358,9 +429,10 @@ public class RentalContractValidator {
                 .filter(p -> {
                     if (p.status() == null) return true; // default PENDING → conta
                     try {
-                        return !PaymentStatus.CANCELLED.equals(PaymentStatus.valueOf(p.status().toUpperCase()));
+                        PaymentStatus parsed = PaymentStatus.valueOf(p.status().toUpperCase());
+                        return PaymentStatus.PENDING.equals(parsed) || PaymentStatus.PAID.equals(parsed);
                     } catch (IllegalArgumentException e) {
-                        return true;
+                        return false;
                     }
                 })
                 .map(p -> p.value() != null ? p.value() : BigDecimal.ZERO)

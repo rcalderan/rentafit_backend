@@ -101,24 +101,24 @@ public class RentalContractController {
 
     @PostMapping
     @Operation(summary = "Criar proposta (DRAFT)",
-            description = "Cria um contrato em rascunho. Não reserva itens nem valida conflitos de data.")
+            description = "Cria um contrato em rascunho validando conflitos de reserva dentro da janela configurada.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "Proposta criada com sucesso"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
-            @ApiResponse(responseCode = "422", description = "Regra de negócio violada (cliente/item não encontrado, datas inválidas)")
+            @ApiResponse(responseCode = "422", description = "Regra de negócio violada (cliente/item não encontrado, datas inválidas ou conflito de reserva)")
     })
     public ResponseEntity<RentalContractDetailsDTO> create(@Valid @RequestBody CreateRentalContractDTO dto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(contractService.create(dto));
     }
 
     @PutMapping("/{id}")
-    @Operation(summary = "Atualizar proposta (apenas DRAFT)",
-            description = "Atualiza os dados do contrato. Bloqueado se status != DRAFT.")
+    @Operation(summary = "Atualizar proposta (DRAFT ou REVISION)",
+            description = "Atualiza os dados do contrato validando conflitos de reserva dentro da janela configurada. Bloqueado se status != DRAFT e != REVISION.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Proposta atualizada"),
             @ApiResponse(responseCode = "400", description = "Dados inválidos"),
             @ApiResponse(responseCode = "404", description = "Contrato não encontrado"),
-            @ApiResponse(responseCode = "422", description = "Contrato não está em DRAFT")
+            @ApiResponse(responseCode = "422", description = "Contrato não está em DRAFT/REVISION ou conflito de reserva")
     })
     public ResponseEntity<RentalContractDetailsDTO> update(
             @PathVariable UUID id, @Valid @RequestBody UpdateRentalContractDTO dto) {
@@ -126,9 +126,8 @@ public class RentalContractController {
     }
 
     @PatchMapping("/{id}/sign")
-    @Operation(summary = "Assinar contrato (DRAFT → SIGNED)",
-            description = "Executa checagem de conflitos de reserva. Conflito no mesmo dia bloqueia (422). "
-                    + "Conflito dentro de 3 dias retorna alerta no campo 'warnings'.")
+    @Operation(summary = "Assinar contrato (DRAFT|REVISION → SIGNED)",
+            description = "Executa checagem de conflitos de reserva dentro da janela configurada (rental.conflictWindowDays). Conflitos na janela bloqueiam (422).")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Contrato assinado. Pode conter warnings."),
             @ApiResponse(responseCode = "404", description = "Contrato não encontrado"),

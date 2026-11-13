@@ -68,6 +68,7 @@ public class RentalPaymentService {
         requirePaymentMutation(contract, dto);
 
         validatePaymentDate(dto, contract);
+        validateInstallmentNumberUnique(contract, dto.installmentNumber(), null);
         validateInstallmentLimit(contractId);
         validateTotalValueNotExceeded(contractId, dto.value(), null, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
@@ -99,6 +100,7 @@ public class RentalPaymentService {
         validatePaidInstallmentMutationAllowed(contract, payment, "atualizar");
         validateLockedContractSettlementIntegrity(contract, payment, dto);
         validatePaymentDate(dto, contract);
+        validateInstallmentNumberUnique(contract, dto.installmentNumber(), paymentId);
         validateTotalValueNotExceeded(contractId, dto.value(), payment, contract);
         validator.validateSinglePaidPaymentHasEmployee(dto);
 
@@ -239,6 +241,16 @@ public class RentalPaymentService {
         }
     }
 
+    private void validateInstallmentNumberUnique(RentalContract contract, Integer installmentNumber, UUID excludePaymentId) {
+        if (installmentNumber == null || contract.getPayments() == null) return;
+        boolean duplicate = contract.getPayments().stream()
+                .filter(p -> excludePaymentId == null || !excludePaymentId.equals(p.getId()))
+                .anyMatch(p -> installmentNumber.equals(p.getInstallmentNumber()));
+        if (duplicate) {
+            throw new ValidationException("Parcela #" + installmentNumber + ": número da parcela já existe neste contrato");
+        }
+    }
+
     private void validateTotalValueNotExceeded(UUID contractId, BigDecimal newValue, RentalPayment existingPayment, RentalContract contract) {
         BigDecimal totalItems = contract.getItems().stream()
                 .map(i -> i.getValue() != null ? i.getValue() : BigDecimal.ZERO)
@@ -315,7 +327,9 @@ public class RentalPaymentService {
     }
 
     private void requirePaymentMutation(RentalContract contract, RentalPaymentInputDTO dto) {
-        if (contract.getStatus() == ContractStatus.SUPERSEDED || contract.getStatus() == ContractStatus.CANCELLED) {
+        if (contract.getStatus() == ContractStatus.SUPERSEDED
+                || contract.getStatus() == ContractStatus.CANCELLED
+                || contract.getStatus() == ContractStatus.CLOSED) {
             throw new ValidationException("Contrato " + contract.getId() + " " + contract.getStatus()
                     + ": pagamentos são somente leitura");
         }

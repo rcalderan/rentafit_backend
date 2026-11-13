@@ -118,6 +118,9 @@ public class ReturnService {
         if (Boolean.TRUE.equals(dto.applyFine()) && dto.fineAmount() != null && dto.fineAmount().compareTo(BigDecimal.ZERO) > 0) {
             createFinePayment(contract, dto.fineAmount(), dto.employeeId(), sector.getId());
         }
+        contract.getPayments().stream()
+                .filter(p -> PaymentStatus.MULTA.equals(p.getStatus()) && p.getProcessedByEmployeeId() == null)
+                .forEach(p -> p.setProcessedByEmployeeId(dto.employeeId()));
 
         contract.setStatus(ContractStatus.CLOSED);
         contract.setReturned(true);
@@ -203,6 +206,21 @@ public class ReturnService {
             throw new ValidationException(
                     "O contrato possui " + count + " parcela(s) pendente(s). Quite todos os pagamentos antes de fechar.");
         }
+
+        BigDecimal totalValue = contract.getItems().stream()
+                .map(RentalContractItem::getValue)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal paidValue = contract.getPayments().stream()
+                .filter(p -> PaymentStatus.PAID.equals(p.getStatus()))
+                .map(RentalPayment::getValue)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (paidValue.compareTo(totalValue) < 0) {
+            throw new ValidationException(
+                    "Valor pago (" + paidValue + ") é inferior ao valor total do contrato (" + totalValue
+                            + "). Quite o saldo restante antes de fechar.");
+        }
     }
 
     private void validateEmployee(UUID employeeId) {
@@ -234,6 +252,20 @@ public class ReturnService {
     }
 
     private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId, UUID sectorId) {
+        boolean alreadyHasFine = contract.getPayments().stream()
+                .anyMatch(p -> PaymentStatus.MULTA.equals(p.getStatus()));
+        if (alreadyHasFine) {
+            throw new ValidationException("Contrato " + contract.getId() + " já possui multa registrada");
+        }
+        BigDecimal contractTotal = contract.getItems().stream()
+                .map(RentalContractItem::getValue)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (contractTotal.compareTo(BigDecimal.ZERO) > 0 && fineAmount.compareTo(contractTotal) > 0) {
+            throw new ValidationException(
+                    "Valor da multa (" + fineAmount + ") não pode exceder o valor total do contrato (" + contractTotal + ")");
+        }
+
         int nextInstallment = paymentRepository
                 .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
 
@@ -250,6 +282,7 @@ public class ReturnService {
                 .build();
 
         paymentRepository.save(fine);
+        contract.getPayments().add(fine);
         log.info("Fine payment of {} created for contract {}", fineAmount, contract.getId());
     }
 
