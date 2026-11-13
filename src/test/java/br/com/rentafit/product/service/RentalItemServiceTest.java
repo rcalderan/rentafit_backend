@@ -346,5 +346,38 @@ class RentalItemServiceTest {
         // Assert
         verify(rentalItemRepository, times(1)).deleteById(productId);
     }
+
+    @Test
+    @DisplayName("BUG-09: Should reject invalid condition or status on create")
+    void testCreateRejectsInvalidConditionOrStatus() {
+        when(categoryRepository.findById(categoryId)).thenReturn(Optional.of(category));
+
+        RentalItemDTO invalidConditionDto = RentalItemDTO.builder()
+                .name("Vestido")
+                .categoryId(categoryId)
+                .size("M")
+                .color("Branco")
+                .value(new BigDecimal("100.00"))
+                .condition("DESTRUIDO")
+                .build();
+
+        assertThatThrownBy(() -> rentalItemService.create(invalidConditionDto))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Invalid condition");
+
+        RentalItemDTO invalidStatusDto = RentalItemDTO.builder()
+                .name("Vestido")
+                .categoryId(categoryId)
+                .size("M")
+                .color("Branco")
+                .value(new BigDecimal("100.00"))
+                .condition("NEW")
+                .status("INVENTADO")
+                .build();
+
+        assertThatThrownBy(() -> rentalItemService.create(invalidStatusDto))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Invalid status");
+    }
 }
 

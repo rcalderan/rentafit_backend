@@ -180,6 +180,15 @@ public class WithdrawalService {
     }
 
     private void createFinePayment(RentalContract contract, BigDecimal fineAmount, UUID employeeId, UUID sectorId) {
+        BigDecimal contractTotal = contract.getItems().stream()
+                .map(RentalContractItem::getValue)
+                .filter(java.util.Objects::nonNull)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (contractTotal.compareTo(BigDecimal.ZERO) > 0 && fineAmount.compareTo(contractTotal) > 0) {
+            throw new ValidationException(
+                    "Valor da multa (" + fineAmount + ") não pode exceder o valor total do contrato (" + contractTotal + ")");
+        }
+
         int nextInstallment = paymentRepository
                 .findMaxInstallmentNumberByContractId(contract.getId()) + 1;
 
@@ -196,6 +205,7 @@ public class WithdrawalService {
                 .build();
 
         paymentRepository.save(fine);
+        contract.getPayments().add(fine);
         log.info("Rescission fine of {} created for withdrawn contract {}", fineAmount, contract.getId());
     }
 

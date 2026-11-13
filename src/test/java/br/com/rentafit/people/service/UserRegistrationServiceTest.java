@@ -159,6 +159,22 @@ class UserRegistrationServiceTest {
     }
 
     @Test
+    @DisplayName("rejeita signup quando CPF já possui UserAccount (evita sequestro de conta - BUG-01)")
+    void registerCustomer_rejeitaQuandoDocumentoJaPossuiUserAccount() {
+        SignUpRequestDTO dto = buildSignUpRequest("atacante", "atacante@test.com");
+        when(customerRepository.findByDocument("12345678909")).thenReturn(Optional.of(customer));
+        when(userAccountRepository.existsById(customerId)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.registerCustomer(dto))
+                .isInstanceOf(ValidationException.class)
+                .hasMessageContaining("Já existe uma conta cadastrada para este documento");
+
+        verify(customerService, never()).updateFromSignUp(any(), any());
+        verify(entityManager, never()).createNativeQuery(anyString());
+        verify(accountLinkIssuer, never()).issue(any(), any());
+    }
+
+    @Test
     @DisplayName("rejeita username já usado por outra conta, sem diferenciar maiúsculas")
     void registerCustomer_usernameEmUso() {
         SignUpRequestDTO dto = buildSignUpRequest("Joao.Silva", "joao@test.com");

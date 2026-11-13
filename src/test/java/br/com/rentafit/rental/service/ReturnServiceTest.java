@@ -309,6 +309,29 @@ class ReturnServiceTest {
 
             verify(paymentRepository, never()).save(any());
         }
+
+        @Test
+        @DisplayName("BUG-23: rejeita segunda multa no mesmo contrato e rejeita multa acima do valor do contrato")
+        void shouldRejectDuplicateOrExcessiveFine() {
+            OffsetDateTime now = OffsetDateTime.now();
+            MarkReturnRequestDTO excessive = new MarkReturnRequestDTO(
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), true, BigDecimal.valueOf(5000));
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+            when(itemRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+            assertThatThrownBy(() -> returnService.markItemsReturned(contractId, excessive))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("não pode exceder o valor total");
+
+            when(paymentRepository.findMaxInstallmentNumberByContractId(contractId)).thenReturn(1);
+            MarkReturnRequestDTO validFine = new MarkReturnRequestDTO(
+                    "João", List.of(new ReturnEntryDTO(itemId, null, now)), true, BigDecimal.valueOf(100));
+            returnService.markItemsReturned(contractId, validFine);
+
+            assertThatThrownBy(() -> returnService.markItemsReturned(contractId, validFine))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("já possui multa registrada");
+        }
     }
 
     @Nested
@@ -379,6 +402,31 @@ class ReturnServiceTest {
             assertThatThrownBy(() -> returnService.closeReturn(contractId, request))
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("parcela(s) pendente(s)");
+        }
+
+        @Test
+        @DisplayName("BUG-15: lança 422 quando parcela foi CANCELLED e valor pago é menor que o total do contrato")
+        void shouldRejectClosingWhenPaidValueIsLessThanTotal() {
+            item.setReturned(true);
+            paidPayment.setValue(BigDecimal.valueOf(600));
+            RentalPayment cancelledRemaining = RentalPayment.builder()
+                    .id(UUID.randomUUID())
+                    .installmentNumber(2)
+                    .paymentDate(LocalDate.now())
+                    .paymentMethod(PaymentMethod.PIX)
+                    .value(BigDecimal.valueOf(400))
+                    .installments(1)
+                    .status(PaymentStatus.CANCELLED)
+                    .contract(finalizedContract)
+                    .build();
+            finalizedContract.getPayments().add(cancelledRemaining);
+
+            CloseReturnRequestDTO request = new CloseReturnRequestDTO(employeeId, false, null);
+            when(contractRepository.findById(contractId)).thenReturn(Optional.of(finalizedContract));
+
+            assertThatThrownBy(() -> returnService.closeReturn(contractId, request))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("inferior ao valor total");
         }
 
         @Test

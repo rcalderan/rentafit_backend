@@ -193,6 +193,16 @@ class RentalWorkflowServiceTest {
         verify(contractItemRepository).save(itemWithoutRentalItem);
     }
 
+    @Test
+    @DisplayName("BUG-25: onDeliverItem sem attendantEmployeeId preserva o atendente já gravado no item")
+    void testOnDeliverItem_preservesExistingAttendantWhenNullParam() {
+        itemWithRentalItem.setAttendantEmployeeId(employeeId);
+
+        workflowService.onDeliverItem(itemWithRentalItem, null);
+
+        assert employeeId.equals(itemWithRentalItem.getAttendantEmployeeId());
+    }
+
     // ── onReturn ──────────────────────────────────────────────────────────────
 
     @Test

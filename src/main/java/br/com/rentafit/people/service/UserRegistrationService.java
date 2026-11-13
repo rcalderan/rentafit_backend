@@ -76,6 +76,9 @@ public class UserRegistrationService {
     }
 
     private CustomerDetailsDTO mergeLegacyCustomer(Customer existing, SignUpRequestDTO dto, String username, String email) {
+        if (userAccountRepository.existsById(existing.getId())) {
+            throw new ValidationException("Já existe uma conta cadastrada para este documento");
+        }
         ensureIdentifiersAvailable(username, email, existing.getId());
         return customerService.updateFromSignUp(existing, dto);
     }

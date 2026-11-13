@@ -226,6 +226,67 @@ class SalesPaymentServiceTest {
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("24");
         }
+
+        @Test
+        @DisplayName("BUG-18: Deve ignorar parcelas CANCELLED ao somar alreadyScheduled")
+        void deveIgnorarCancelledNaSomaDeParcelas() {
+            pendingPayment.setStatus(PaymentStatus.CANCELLED);
+            SalesPayment replacement = SalesPayment.builder()
+                    .id(UUID.randomUUID()).installmentNumber(2)
+                    .paymentDate(LocalDate.now().plusDays(5))
+                    .paymentMethod(PaymentMethod.PIX)
+                    .value(new BigDecimal("100.00"))
+                    .installments(1).status(PaymentStatus.PENDING)
+                    .build();
+            SalesPaymentInputDTO newDto = new SalesPaymentInputDTO(
+                    2, LocalDate.now().plusDays(5), "PIX", new BigDecimal("100.00"), 1, employeeId, "PENDING");
+
+            when(orderService.findEntityById(orderId)).thenReturn(confirmedOrder);
+            when(mapper.computeSubtotal(any())).thenReturn(new BigDecimal("100.00"));
+            when(mapper.computePaidValue(any())).thenReturn(BigDecimal.ZERO);
+            when(mapper.toPaymentEntity(newDto, confirmedOrder)).thenReturn(replacement);
+            when(orderRepository.save(confirmedOrder)).thenReturn(confirmedOrder);
+            when(mapper.toDetailsDTO(confirmedOrder, null)).thenReturn(detailsDTO);
+
+            SalesOrderDetailsDTO result = paymentService.addPayment(orderId, newDto);
+
+            assertThat(result).isNotNull();
+            assertThat(confirmedOrder.getPayments()).hasSize(2);
+        }
+
+        @Test
+        @DisplayName("BUG-16: Deve rejeitar status REFUNDED ou MULTA em addPayment")
+        void deveRejeitarStatusRefundedEmAddPayment() {
+            SalesPaymentInputDTO refundedDto = new SalesPaymentInputDTO(
+                    2, LocalDate.now(), "CASH", new BigDecimal("50.00"), 1, null, "REFUNDED");
+            when(orderService.findEntityById(orderId)).thenReturn(confirmedOrder);
+
+            assertThatThrownBy(() -> paymentService.addPayment(orderId, refundedDto))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("REFUNDED");
+        }
+
+        @Test
+        @DisplayName("BUG-24: Deve rejeitar parcela PAID sem processedByEmployeeId em vendas")
+        void deveRejeitarPaidSemEmployeeId() {
+            SalesPaymentInputDTO paidSemEmp = new SalesPaymentInputDTO(
+                    2, LocalDate.now(), "CASH", new BigDecimal("50.00"), 1, null, "PAID");
+            when(orderService.findEntityById(orderId)).thenReturn(confirmedOrder);
+
+            assertThatThrownBy(() -> paymentService.addPayment(orderId, paidSemEmp))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("processedByEmployeeId");
+        }
+
+        @Test
+        @DisplayName("BUG-28: Deve rejeitar parcela com installmentNumber duplicado em vendas")
+        void deveRejeitarInstallmentNumberDuplicado() {
+            when(orderService.findEntityById(orderId)).thenReturn(confirmedOrder);
+
+            assertThatThrownBy(() -> paymentService.addPayment(orderId, validPaymentDTO))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("número da parcela já existe");
+        }
     }
 
     // ── updatePayment ─────────────────────────────────────────────────────────

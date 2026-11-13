@@ -7,6 +7,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.Builder;
 
@@ -23,7 +24,8 @@ import java.util.List;
 public record SignUpRequestDTO(
 
         @NotBlank(message = "Name is required")
-        @Size(max = 255, message = "Name must not exceed 255 characters")
+        @Size(min = 3, max = 255, message = "Name must not exceed 255 characters")
+        @Pattern(regexp = "^[^<>]*$", message = "Name must not contain HTML tags")
         String name,
 
         @NotBlank(message = "Username é obrigatório")
@@ -42,7 +44,8 @@ public record SignUpRequestDTO(
 
         @NotNull(message = "A lista de telefones não pode ser nula")
         @Size(min = 1, max = 5, message = "O cliente deve ter entre 1 e 5 telefones")
-        List<String> phones,
+        List<@NotBlank(message = "O número do telefone não pode estar em branco")
+             @Size(max = 20, message = "O telefone não deve exceder 20 caracteres") String> phones,
 
         @NotNull(message = "Address is required")
         @Valid

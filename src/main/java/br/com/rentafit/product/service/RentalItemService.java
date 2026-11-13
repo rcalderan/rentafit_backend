@@ -50,6 +50,8 @@ public class RentalItemService {
                 .value(dto.value())
                 .description(dto.description())
                 .legacyId(idExists ? dto.legacyId() : generateLegacyId())
+                .status(parseStatus(dto.status()))
+                .condition(parseCondition(dto.condition()))
                 .notes(dto.notes())
                 .build();
         // Save product
@@ -57,6 +59,28 @@ public class RentalItemService {
         log.info("Product created with ID: {}", saved.getId());
 
         return saved.toDTO();
+    }
+
+    private br.com.rentafit.product.domain.enums.ProductCondition parseCondition(String rawCondition) {
+        if (rawCondition == null || rawCondition.isBlank()) {
+            return br.com.rentafit.product.domain.enums.ProductCondition.NEW;
+        }
+        try {
+            return br.com.rentafit.product.domain.enums.ProductCondition.valueOf(rawCondition.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException("Invalid condition: " + rawCondition);
+        }
+    }
+
+    private br.com.rentafit.product.domain.enums.ProductStatus parseStatus(String rawStatus) {
+        if (rawStatus == null || rawStatus.isBlank()) {
+            return br.com.rentafit.product.domain.enums.ProductStatus.AVAILABLE;
+        }
+        try {
+            return br.com.rentafit.product.domain.enums.ProductStatus.valueOf(rawStatus.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ValidationException("Invalid status: " + rawStatus);
+        }
     }
     /** Gera o próximo legacyId numérico no backend, serializando criações concorrentes. */
     Integer generateLegacyId() {

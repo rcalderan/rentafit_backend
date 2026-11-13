@@ -244,6 +244,76 @@ class SalesOrderServiceTest {
 
             assertThat(order.getLegacyId()).endsWith("-2");
         }
+
+        @Test
+        @DisplayName("BUG-14: Deve rejeitar desconto no pedido >= subtotal dos itens")
+        void deveRejeitarDescontoPedidoMaiorOuIgualSubtotal() {
+            SalesOrderItemInputDTO itemInput = new SalesOrderItemInputDTO(
+                    productId, 2, BigDecimal.ZERO, employeeId, false, null);
+            CreateSalesOrderDTO dto = new CreateSalesOrderDTO(
+                    null, employeeId, null, new BigDecimal("179.80"), List.of(itemInput), null);
+
+            SalesOrder order = SalesOrder.builder()
+                    .id(orderId).status(SalesOrderStatus.DRAFT)
+                    .discountValue(new BigDecimal("179.80"))
+                    .items(new ArrayList<>()).payments(new ArrayList<>())
+                    .build();
+
+            when(mapper.toEntity(dto, null)).thenReturn(order);
+            when(productPort.findById(productId)).thenReturn(Optional.of(productSnapshot));
+            when(mapper.toItemEntity(any(), any(), any())).thenReturn(draftOrder.getItems().get(0));
+
+            assertThatThrownBy(() -> orderService.create(dto))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Desconto do pedido");
+        }
+
+        @Test
+        @DisplayName("BUG-14: Deve rejeitar desconto no item >= valor bruto da linha")
+        void deveRejeitarDescontoItemMaiorOuIgualBruto() {
+            SalesOrderItemInputDTO itemInput = new SalesOrderItemInputDTO(
+                    productId, 1, new BigDecimal("89.90"), employeeId, false, null);
+            CreateSalesOrderDTO dto = new CreateSalesOrderDTO(
+                    null, employeeId, null, BigDecimal.ZERO, List.of(itemInput), null);
+
+            SalesOrder order = SalesOrder.builder()
+                    .id(orderId).status(SalesOrderStatus.DRAFT)
+                    .discountValue(BigDecimal.ZERO)
+                    .items(new ArrayList<>()).payments(new ArrayList<>())
+                    .build();
+
+            when(mapper.toEntity(dto, null)).thenReturn(order);
+            when(productPort.findById(productId)).thenReturn(Optional.of(productSnapshot));
+
+            assertThatThrownBy(() -> orderService.create(dto))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Desconto do item");
+        }
+
+        @Test
+        @DisplayName("BUG-16: Deve rejeitar parcela com status REFUNDED ou MULTA no create")
+        void deveRejeitarStatusRefundedOuMultaNoCreate() {
+            SalesOrderItemInputDTO itemInput = new SalesOrderItemInputDTO(
+                    productId, 1, BigDecimal.ZERO, employeeId, false, null);
+            SalesPaymentInputDTO refunded = new SalesPaymentInputDTO(
+                    1, java.time.LocalDate.now(), "CASH", new BigDecimal("89.90"), 1, null, "REFUNDED");
+            CreateSalesOrderDTO dto = new CreateSalesOrderDTO(
+                    null, employeeId, null, BigDecimal.ZERO, List.of(itemInput), List.of(refunded));
+
+            SalesOrder order = SalesOrder.builder()
+                    .id(orderId).status(SalesOrderStatus.DRAFT)
+                    .discountValue(BigDecimal.ZERO)
+                    .items(new ArrayList<>()).payments(new ArrayList<>())
+                    .build();
+
+            when(mapper.toEntity(dto, null)).thenReturn(order);
+            when(productPort.findById(productId)).thenReturn(Optional.of(productSnapshot));
+            when(mapper.toItemEntity(any(), any(), any())).thenReturn(draftOrder.getItems().get(0));
+
+            assertThatThrownBy(() -> orderService.create(dto))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("REFUNDED");
+        }
     }
 
     // ── update ────────────────────────────────────────────────────────────────
@@ -289,6 +359,35 @@ class SalesOrderServiceTest {
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("DRAFT")
                     .hasMessageContaining("CONFIRMED");
+        }
+
+        @Test
+        @DisplayName("BUG-17: Deve rejeitar alteração de parcela já PAID ao editar pedido em DRAFT")
+        void deveRejeitarAlteracaoParcelaPaidEmDraft() {
+            br.com.rentafit.sales.domain.SalesPayment paid = br.com.rentafit.sales.domain.SalesPayment.builder()
+                    .id(UUID.randomUUID())
+                    .installmentNumber(1)
+                    .paymentDate(java.time.LocalDate.now())
+                    .paymentMethod(br.com.rentafit.rental.domain.enums.PaymentMethod.CASH)
+                    .value(new BigDecimal("100.00"))
+                    .installments(1)
+                    .processedByEmployeeId(employeeId)
+                    .status(br.com.rentafit.rental.domain.enums.PaymentStatus.PAID)
+                    .build();
+            draftOrder.getPayments().add(paid);
+
+            SalesOrderItemInputDTO itemInput = new SalesOrderItemInputDTO(
+                    productId, 2, BigDecimal.ZERO, employeeId, false, null);
+            SalesPaymentInputDTO altered = new SalesPaymentInputDTO(
+                    1, java.time.LocalDate.now(), "PIX", new BigDecimal("10.00"), 1, employeeId, "PAID");
+            UpdateSalesOrderDTO updateDTO = new UpdateSalesOrderDTO(
+                    customerId, null, BigDecimal.ZERO, List.of(itemInput), List.of(altered));
+
+            when(orderRepository.findById(orderId)).thenReturn(Optional.of(draftOrder));
+
+            assertThatThrownBy(() -> orderService.update(orderId, updateDTO))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Parcela PAGA #1");
         }
     }
 

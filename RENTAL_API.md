@@ -88,13 +88,12 @@ pickupDate ≤ eventDate ≤ returnDate
 
 | Situação                         | Comportamento              |
 |----------------------------------|----------------------------|
-| Mesmo `eventDate` que outro contrato SIGNED/FINALIZED | **BLOCKING** — 422 |
-| `eventDate` dentro de ±3 dias    | **WARNING** — `response.warnings[]` |
-| `eventDate` a mais de 3 dias     | Sem alerta                 |
+| `eventDate` dentro da janela configurada (`rental.conflictWindowDays`, padrão ±3 dias) de outro contrato SIGNED/FINALIZED | **BLOCKING** — 422 |
+| `eventDate` fora da janela configurada | Sem conflito           |
 | Item com `rentalItemId = null`   | Ignorado                   |
-| Próprio contrato na busca        | Excluído automaticamente   |
+| Próprio contrato (e contrato-pai em REVISION) | Excluído automaticamente |
 
-> Checagem ativada apenas em `sign()` e `finalize()`. Contratos DRAFT são ignorados na busca.
+> Checagem ativada no salvamento (`create`/`update`) e revalidada com lock em `sign()` e `finalize()`. Contratos DRAFT são ignorados na busca de candidatos.
 
 ### Regras de Pagamento
 

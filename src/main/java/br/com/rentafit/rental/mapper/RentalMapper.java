@@ -92,7 +92,7 @@ public class RentalMapper {
                     .filter(payment -> payment.getInstallmentNumber().equals(dto.installmentNumber()))
                     .min(java.util.Comparator.comparing(payment -> payment.getStatus().name().equalsIgnoreCase(dto.status()) ? 0 : 1))
                     .orElseGet(() -> toPaymentEntity(dto, contract));
-            if (contract.getStatus() != ContractStatus.REVISION || matched.getStatus() != PaymentStatus.PAID) applyPayment(matched, dto);
+            if (matched.getStatus() != PaymentStatus.PAID) applyPayment(matched, dto);
             if (matched.getId() == null && !contract.getPayments().contains(matched)) contract.getPayments().add(matched);
             retained.add(matched);
         }

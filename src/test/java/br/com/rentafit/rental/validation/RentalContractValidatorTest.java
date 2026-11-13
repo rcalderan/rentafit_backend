@@ -191,6 +191,17 @@ class RentalContractValidatorTest {
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("não encontrado");
         }
+
+        @Test
+        @DisplayName("BUG-20: Deve rejeitar rentalItemId duplicado no mesmo contrato")
+        void deveRejeitarItemDuplicadoNoMesmoContrato() {
+            UUID itemId = UUID.randomUUID();
+            when(rentalItemPort.isAvailable(itemId)).thenReturn(true);
+
+            assertThatThrownBy(() -> validator.validateItemsAvailability(List.of(itemId, itemId)))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("Item duplicado no mesmo contrato");
+        }
     }
 
     // ── validateAccessoriesAvailability ──────────────────────────────────────
@@ -374,6 +385,44 @@ class RentalContractValidatorTest {
             assertThatThrownBy(() -> validator.validatePaidPaymentsHaveEmployee(payments))
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("#2");
+        }
+
+        @Test
+        @DisplayName("BUG-16: Deve rejeitar parcela com status REFUNDED ou MULTA")
+        void deveRejeitarStatusRefundedOuMulta() {
+            List<RentalPaymentInputDTO> payments = List.of(
+                    new RentalPaymentInputDTO(1, LocalDate.now(), "CASH", new BigDecimal("500"), 1, null, "REFUNDED")
+            );
+
+            assertThatThrownBy(() -> validator.validatePaidPaymentsHaveEmployee(payments))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("REFUNDED");
+        }
+
+        @Test
+        @DisplayName("BUG-22: Deve rejeitar parcelas com installmentNumber duplicado")
+        void deveRejeitarInstallmentNumberDuplicado() {
+            List<RentalPaymentInputDTO> payments = List.of(
+                    new RentalPaymentInputDTO(1, LocalDate.now(), "PIX", new BigDecimal("100"), 1, null, "PENDING"),
+                    new RentalPaymentInputDTO(1, LocalDate.now(), "PIX", new BigDecimal("100"), 1, null, "PENDING")
+            );
+
+            assertThatThrownBy(() -> validator.validatePaidPaymentsHaveEmployee(payments))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("duplicado");
+        }
+
+        @Test
+        @DisplayName("BUG-27: Deve rejeitar parcela com paymentDate posterior ao eventDate")
+        void deveRejeitarPaymentDatePosteriorAoEventDate() {
+            LocalDate eventDate = LocalDate.now().plusDays(10);
+            List<RentalPaymentInputDTO> payments = List.of(
+                    new RentalPaymentInputDTO(1, eventDate.plusDays(5), "PIX", new BigDecimal("100"), 1, null, "PENDING")
+            );
+
+            assertThatThrownBy(() -> validator.validatePaymentDates(payments, eventDate, true))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("posterior à data do evento");
         }
     }
 

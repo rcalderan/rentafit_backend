@@ -127,4 +127,39 @@ class ProductRetailDTOValidationTest {
         assertThat(violations).hasSize(1);
         assertThat(violations.iterator().next().getMessage()).isEqualTo("Value is required");
     }
+
+    @Test
+    @DisplayName("BUG-08: warrantyDays negativo ou acima de 3650 gera violação")
+    void invalidWarrantyDaysShouldFail() {
+        ProductRetailDTO negative = ProductRetailDTO.builder()
+                .name("Camisa Polo")
+                .categoryId(UUID.randomUUID())
+                .size("M")
+                .value(new BigDecimal("99.90"))
+                .warrantyDays(-1)
+                .build();
+        ProductRetailDTO excessive = ProductRetailDTO.builder()
+                .name("Camisa Polo")
+                .categoryId(UUID.randomUUID())
+                .size("M")
+                .value(new BigDecimal("99.90"))
+                .warrantyDays(3651)
+                .build();
+
+        assertThat(validator.validate(negative)).isNotEmpty();
+        assertThat(validator.validate(excessive)).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("BUG-10: value com 3 casas decimais gera violação")
+    void valueWithThreeDecimalsShouldFail() {
+        ProductRetailDTO dto = ProductRetailDTO.builder()
+                .name("Camisa Polo")
+                .categoryId(UUID.randomUUID())
+                .size("M")
+                .value(new BigDecimal("10.999"))
+                .build();
+
+        assertThat(validator.validate(dto)).isNotEmpty();
+    }
 }

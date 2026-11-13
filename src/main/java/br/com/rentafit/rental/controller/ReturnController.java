@@ -37,12 +37,12 @@ public class ReturnController {
     @GetMapping("/return-summary")
     @Operation(
             summary = "Resumo de devolução do contrato",
-            description = "Retorna estado atual dos itens, acessórios e pagamentos para a tela de devolução. Disponível apenas para contratos FINALIZED."
+            description = "Retorna estado atual dos itens, acessórios e pagamentos para a tela de devolução/desistência. Disponível para contratos SIGNED, FINALIZED, CLOSED e CANCELLED."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Resumo retornado com sucesso"),
             @ApiResponse(responseCode = "404", description = "Contrato não encontrado"),
-            @ApiResponse(responseCode = "422", description = "Contrato não está em status FINALIZED")
+            @ApiResponse(responseCode = "422", description = "Contrato está em DRAFT, REVISION ou SUPERSEDED")
     })
     public ResponseEntity<ReturnSummaryDTO> getReturnSummary(@PathVariable UUID contractId) {
         return ResponseEntity.ok(returnService.getReturnSummary(contractId));

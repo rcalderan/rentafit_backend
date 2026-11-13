@@ -97,10 +97,14 @@ public class AddressService {
         if (normalizedZip != null) {
             List<Address> byZip = addressRepository.findByZipCode(normalizedZip);
             if (!byZip.isEmpty()) {
-                // If there is only one address for this ZIP, reuse it as before.
                 if (byZip.size() == 1) {
-                    log.debug("Reusing existing address for ZIP code: {}", normalizedZip);
-                    return byZip.getFirst();
+                    Address single = byZip.getFirst();
+                    if (matchesProvidedFields(single, addressDTO)) {
+                        log.debug("Reusing existing address for ZIP code: {}", normalizedZip);
+                        return single;
+                    }
+                    log.info("Creating custom address for ZIP {} because user-provided fields differ from cached address", normalizedZip);
+                    return addressRepository.save(new Address(addressDTO, true));
                 }
 
                 // Multiple addresses share this ZIP. Prefer one that matches street/city/state.
@@ -194,8 +198,7 @@ public class AddressService {
             ViaCepResponseDTO viaCepData = viaCepIntegrationService.fetchAddressByZipCode(normalizedZipCode);
 
             if (viaCepData != null && !viaCepData.hasError()) {
-                // Create address from ViaCEP data
-                Address addressToSave = new Address(viaCepData);
+                Address addressToSave = mergeDtoWithViaCep(dto, viaCepData);
                 log.info("Created new address from ViaCEP: {}", addressToSave.getZipCode());
                 return addressRepository.save(addressToSave);
             }
@@ -210,6 +213,49 @@ public class AddressService {
         log.warn("Could not fetch address from ViaCEP for ZIP code: {}. Saving manual entry.", normalizedZipCode);
         Address manualAddress = new Address(dto, true);
         return addressRepository.save(manualAddress);
+    }
+
+    private boolean matchesProvidedFields(Address candidate, AddressDTO dto) {
+        if (dto.street() != null && !dto.street().isBlank() && !Objects.equals(candidate.getStreet(), dto.street())) {
+            return false;
+        }
+        if (dto.city() != null && !dto.city().isBlank() && !Objects.equals(candidate.getCity(), dto.city())) {
+            return false;
+        }
+        if (dto.state() != null && !dto.state().isBlank() && !Objects.equals(candidate.getState(), dto.state())) {
+            return false;
+        }
+        if (dto.neighborhood() != null && !dto.neighborhood().isBlank()
+                && candidate.getNeighborhood() != null && !candidate.getNeighborhood().isBlank()
+                && !Objects.equals(candidate.getNeighborhood(), dto.neighborhood())) {
+            return false;
+        }
+        return true;
+    }
+
+    private Address mergeDtoWithViaCep(AddressDTO dto, ViaCepResponseDTO viaCepData) {
+        String street = firstNonBlank(dto.street(), viaCepData.logradouro());
+        String neighborhood = firstNonBlank(dto.neighborhood(), viaCepData.bairro());
+        String city = firstNonBlank(dto.city(), viaCepData.localidade());
+        String state = firstNonBlank(dto.state(), viaCepData.uf());
+        AddressDTO merged = AddressDTO.builder()
+                .zipCode(dto.zipCode() != null ? dto.zipCode() : viaCepData.cep())
+                .street(street != null ? street : "")
+                .neighborhood(neighborhood)
+                .city(city != null ? city : "")
+                .state(state != null ? state : "")
+                .build();
+        boolean customized = (dto.street() != null && !dto.street().isBlank() && !Objects.equals(dto.street(), viaCepData.logradouro()))
+                || (dto.city() != null && !dto.city().isBlank() && !Objects.equals(dto.city(), viaCepData.localidade()))
+                || (dto.state() != null && !dto.state().isBlank() && !Objects.equals(dto.state(), viaCepData.uf()));
+        return new Address(merged, customized);
+    }
+
+    private String firstNonBlank(String primary, String fallback) {
+        if (primary != null && !primary.isBlank()) {
+            return primary;
+        }
+        return fallback;
     }
 
     /**

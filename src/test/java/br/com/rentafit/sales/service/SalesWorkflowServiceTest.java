@@ -205,6 +205,19 @@ class SalesWorkflowServiceTest {
 
             assertThat(draftOrder.getStatus()).isEqualTo(SalesOrderStatus.PAID);
         }
+
+        @Test
+        @DisplayName("BUG-14: Deve rejeitar confirm quando desconto zera o total do pedido")
+        void deveRejeitarConfirmComTotalZero() {
+            draftOrder.setDiscountValue(new BigDecimal("179.80"));
+            when(orderService.findEntityById(orderId)).thenReturn(draftOrder);
+            when(productPort.findById(productId)).thenReturn(Optional.of(productSnapshot));
+            when(mapper.computeSubtotal(any())).thenReturn(new BigDecimal("179.80"));
+
+            assertThatThrownBy(() -> workflowService.confirm(orderId))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("maior que zero");
+        }
     }
 
     // ── cancel ────────────────────────────────────────────────────────────────
@@ -253,6 +266,26 @@ class SalesWorkflowServiceTest {
             assertThatThrownBy(() -> workflowService.cancel(orderId, new CancelSalesOrderDTO("Motivo")))
                     .isInstanceOf(ValidationException.class)
                     .hasMessageContaining("DRAFT ou CONFIRMED");
+        }
+
+        @Test
+        @DisplayName("BUG-21: Deve bloquear cancelamento de pedido CONFIRMED com parcela PAGA")
+        void deveBloquearCancelamentoComParcelaPaga() {
+            br.com.rentafit.sales.domain.SalesPayment paid = br.com.rentafit.sales.domain.SalesPayment.builder()
+                    .id(UUID.randomUUID())
+                    .installmentNumber(1)
+                    .paymentDate(java.time.LocalDate.now())
+                    .paymentMethod(br.com.rentafit.rental.domain.enums.PaymentMethod.PIX)
+                    .value(new BigDecimal("50.00"))
+                    .installments(1)
+                    .status(br.com.rentafit.rental.domain.enums.PaymentStatus.PAID)
+                    .build();
+            confirmedOrder.getPayments().add(paid);
+            when(orderService.findEntityById(orderId)).thenReturn(confirmedOrder);
+
+            assertThatThrownBy(() -> workflowService.cancel(orderId, new CancelSalesOrderDTO("Desistência")))
+                    .isInstanceOf(ValidationException.class)
+                    .hasMessageContaining("parcela(s) paga(s)");
         }
     }
 

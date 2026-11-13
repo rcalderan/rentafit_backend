@@ -85,8 +85,9 @@ public class RentalWorkflowService {
             rentalItemPort.recordRentalUsage(item.getRentalItemId(), LocalDateTime.now());
             log.info("RentalItem {} RENTED (delivered) for contract {}", item.getRentalItemId(), item.getContract().getId());
         }
+        UUID effectiveAttendant = attendantEmployeeId != null ? attendantEmployeeId : item.getAttendantEmployeeId();
         item.setDelivered(true);
-        item.setAttendantEmployeeId(attendantEmployeeId);
+        item.setAttendantEmployeeId(effectiveAttendant);
         contractItemRepository.save(item);
     }
 

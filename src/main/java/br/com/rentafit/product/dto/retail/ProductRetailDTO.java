@@ -32,9 +32,12 @@ public record ProductRetailDTO(
     @NotNull(message = "Value is required")
     @DecimalMin("0.01")
     @DecimalMax("9999999999.99")
+    @Digits(integer = 10, fraction = 2, message = "Value must have at most 2 decimal places")
     BigDecimal value,
 
     String description,
 
+    @Min(value = 0, message = "Warranty days must not be negative")
+    @Max(value = 3650, message = "Warranty days must not exceed 3650")
     Integer warrantyDays
 ) {}
